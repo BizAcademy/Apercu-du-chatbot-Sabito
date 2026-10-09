@@ -1,0 +1,1 @@
+- [Sabito product scope](sabito-product-scope.md) — one multi-platform assistant, connected securely per platform, with approved knowledge and authorized live data.
