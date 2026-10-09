@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Sabito — Chat"
+description = "Aperçu web du chat Sabito pour BizConnect Academy, accessible dans Preview en mode Build. Reprend la maquette approuvée sans connexion aux données de compte."
+version = "1.0.0"
+id = "artifacts/sabito-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22386
+
+[services.development]
+run = "pnpm --filter @workspace/sabito-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sabito-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/sabito-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22386"
+BASE_PATH = "/"
