@@ -1,4 +1,6 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSabitoTest } from "@/hooks/use-sabito-test";
+import { CorrectionDialog, KnowledgeDialog, type CorrectionDraft } from "@/components/sabito-knowledge";
 import {
   ArrowUpRight,
   AudioLines,
@@ -23,65 +25,6 @@ import {
   X,
 } from "lucide-react";
 
-type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
-
-const starterMessages: ChatMessage[] = [
-  {
-    role: "user",
-    content: "Comment je peux gagner de l’argent avec BCA ?",
-  },
-  {
-    role: "assistant",
-    content:
-      "Il existe plusieurs façons de développer tes revenus avec BizConnect Academy. Le meilleur chemin dépend de tes compétences, de ton audience et du temps que tu peux y consacrer. Voici les quatre pistes à explorer :",
-  },
-];
-
-const routes = [
-  {
-    number: "01",
-    title: "Parrainage",
-    description:
-      "Recommande BCA à ton réseau et touche une commission sur les inscriptions éligibles.",
-    icon: Link2,
-    color: "bg-[#eef0ff] text-[#3641f5]",
-  },
-  {
-    number: "02",
-    title: "Boutique numérique",
-    description:
-      "Vends tes produits ou services digitaux depuis ta propre vitrine en ligne.",
-    icon: Store,
-    color: "bg-[#e9f8f0] text-[#14985d]",
-  },
-  {
-    number: "03",
-    title: "Campagnes publicitaires",
-    description:
-      "Participe à des campagnes de marques et gagne selon les actions validées.",
-    icon: AudioLines,
-    color: "bg-[#fff4e8] text-[#d88125]",
-  },
-  {
-    number: "04",
-    title: "Opportunités d’affaires",
-    description:
-      "Découvre des missions et partenariats proposés par la communauté BCA.",
-    icon: BriefcaseBusiness,
-    color: "bg-[#f7edf7] text-[#a34c91]",
-  },
-];
-
-const initialHistory = [
-  { title: "Bien démarrer sur BCA", time: "Aujourd’hui" },
-  { title: "Créer ma boutique numérique", time: "Hier" },
-  { title: "Comprendre le parrainage", time: "12 juin" },
-  { title: "Sécurité de mon compte", time: "10 juin" },
-];
-
 const suggestions = [
   "Comment fonctionne le parrainage ?",
   "Créer ma boutique",
@@ -89,24 +32,28 @@ const suggestions = [
 ];
 
 export function SabitoChat() {
-  const [messages, setMessages] = useState(starterMessages);
+  const { messages, setMessages, knowledge, busy, saving, ready, error, send, save, remove, refresh } = useSabitoTest();
+  const [draft, setDraft] = useState<CorrectionDraft | null>(null);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const bottom = useRef<HTMLDivElement>(null);
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, busy]);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
   const [notice, setNotice] = useState("");
   const [activeHistory, setActiveHistory] = useState("Bien démarrer sur BCA");
-  const [showSources, setShowSources] = useState(true);
 
   const filteredHistory = useMemo(
     () =>
-      initialHistory.filter((item) =>
+      (messages.length ? [{ title: messages.find(m => m.role === "user")?.content.slice(0, 35) ?? "Test BCA", time: "Session de test" }] : []).filter((item) =>
         item.title.toLowerCase().includes(search.toLowerCase()),
       ),
-    [search],
+    [search, messages],
   );
 
   const startNewChat = () => {
+    if (busy) return;
     setMessages([]);
     setActiveHistory("Nouvelle conversation");
     setInput("");
@@ -116,25 +63,18 @@ export function SabitoChat() {
     event?.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
-    setMessages((current) => [
-      ...current,
-      { role: "user", content: trimmed },
-      {
-        role: "assistant",
-        content:
-          "Bonne question. Sur BCA, tu peux avancer à ton rythme grâce au parrainage, à ta boutique numérique, aux campagnes publicitaires et aux opportunités d’affaires. Consulte les ressources officielles ci-dessous pour choisir la piste adaptée à ta situation.",
-      },
-    ]);
+    if (busy || !ready || trimmed.length > 4000) return;
+    void send(trimmed);
     setInput("");
     setActiveHistory(trimmed.length > 28 ? `${trimmed.slice(0, 28)}…` : trimmed);
   };
 
   const selectSuggestion = (suggestion: string) => setInput(suggestion);
 
-  const copyAnswer = async () => {
+  const copyAnswer = async (content: string) => {
     try {
       await navigator.clipboard.writeText(
-        "Avec BizConnect Academy, tu peux gagner grâce au parrainage, à une boutique numérique, aux campagnes publicitaires et aux opportunités d’affaires.",
+        content,
       );
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
@@ -236,7 +176,7 @@ export function SabitoChat() {
               </p>
               <div className="mt-4 flex items-center gap-1.5 text-[10px] font-medium text-[#a9f0cc]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#46d78d]" />
-                Maquette sans données de compte
+                  Test IA · Sans données de compte
               </div>
             </div>
             <button
@@ -271,21 +211,21 @@ export function SabitoChat() {
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#76809a]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#12b76a]" />
-                  Maquette · Non connectée à BCA
+                  {ready ? "IA active · Espace de test BCA" : "Connexion au serveur…"}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 rounded-full border border-[#d9f1e4] bg-[#f1fbf5] px-3 py-2 text-[10px] font-semibold text-[#178954] sm:flex">
                 <BadgeCheck size={14} />
-                Aperçu de démonstration
+                Test & corrections
               </div>
               <button
-                onClick={() => setNotice("Options de conversation")}
-                aria-label="Options de conversation"
+                onClick={() => { void refresh(); setKnowledgeOpen(true); }}
+                aria-label="Corrections validées"
                 className="grid h-9 w-9 place-items-center rounded-xl text-[#737b94] transition hover:bg-[#f2f3ff] hover:text-[#3641f5]"
               >
-                <MoreHorizontal size={19} />
+                <BookOpen size={19} /><span className="sr-only">Corrections validées</span>
               </button>
             </div>
           </header>
@@ -295,7 +235,7 @@ export function SabitoChat() {
             <div className="relative mx-auto max-w-[820px] px-5 pb-8 pt-8 md:px-10 md:pt-9">
               <div className="mb-8 flex items-center justify-center gap-3 text-[10px] font-medium text-[#939ab0]">
                 <span className="h-px w-10 bg-[#e6e8f4]" />
-                AUJOURD’HUI · 09:41
+                ESPACE DE TEST · BCA
                 <span className="h-px w-10 bg-[#e6e8f4]" />
               </div>
 
@@ -306,7 +246,7 @@ export function SabitoChat() {
                   </div>
                   <h2 className="text-[23px] font-semibold tracking-[-.65px]">Bonjour, je suis Sabito.</h2>
                   <p className="mt-2 max-w-lg text-[13px] leading-6 text-[#6c748d]">
-                    Ton guide officiel pour mieux comprendre BCA, explorer tes possibilités et avancer en toute sécurité.
+                    Pose une question pour tester Sabito, puis corrige sa réponse pour enrichir les références BCA. Sans documentation validée, Sabito signalera les informations qui lui manquent.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-2">
                     {suggestions.map((suggestion) => (
@@ -337,88 +277,26 @@ export function SabitoChat() {
                         <div className="min-w-0 flex-1">
                           <div className="mb-2 flex items-center gap-2">
                             <span className="text-[12px] font-bold text-[#171c37]">Sabito</span>
-                            <span className="text-[10px] text-[#a1a7b9]">09:41</span>
+                            <span className="text-[10px] text-[#a1a7b9]">{message.source === "correction" ? "Référence validée" : "Réponse IA à vérifier"}</span>
                           </div>
-                          <p className="max-w-[690px] text-[13px] leading-[1.8] text-[#555e78]">{message.content}</p>
+                          <p className="max-w-[690px] whitespace-pre-wrap text-[13px] leading-[1.8] text-[#555e78]">{message.content}</p>
+                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#3641f5]">
+                            <button onClick={() => void copyAnswer(message.content)}>{copied ? "Copié" : "Copier la réponse"}</button>
+                            <button disabled={saving || busy || !ready} onClick={() => setDraft({ question: messages.slice(0, index).reverse().find(m => m.role === "user")?.content ?? "", answer: message.content, messageIndex: index })}>Corriger la réponse</button>
+                          </div>
                         </div>
                       </div>
                     ),
                   )}
 
-                  <div className="mb-6 ml-[52px] grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {routes.map((route) => {
-                      const Icon = route.icon;
-                      return (
-                        <button
-                          key={route.number}
-                          onClick={() => selectSuggestion(`En savoir plus sur ${route.title.toLowerCase()}`)}
-                          className="group flex min-h-[88px] items-start gap-3 rounded-[15px] border border-[#e9eaf3] bg-white p-3.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#c7cbfa] hover:shadow-[0_9px_22px_rgba(39,48,125,.07)]"
-                        >
-                          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] ${route.color}`}>
-                            <Icon size={17} strokeWidth={1.9} />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center gap-2">
-                              <span className="text-[12px] font-semibold text-[#202641]">{route.title}</span>
-                              <span className="text-[9px] font-semibold tracking-[.6px] text-[#a8aec0]">{route.number}</span>
-                            </span>
-                            <span className="mt-1 block text-[10.5px] leading-[1.5] text-[#737b91]">{route.description}</span>
-                          </span>
-                          <ArrowUpRight size={14} className="mt-1 shrink-0 text-[#aab0c1] transition group-hover:text-[#4651e8]" />
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mb-5 ml-[52px] rounded-[14px] border border-[#d9eee2] bg-[#f2faf5] px-4 py-3.5">
-                    <div className="flex items-start gap-2.5">
-                      <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#168856]" />
-                      <div>
-                        <p className="text-[11px] font-semibold text-[#246542]">Un conseil pour commencer</p>
-                        <p className="mt-1 text-[10.5px] leading-[1.6] text-[#557566]">
-                          Choisis une seule piste, consulte ses conditions dans ton espace BCA et méfie-toi des promesses de gains garantis. Les revenus dépendent de ton activité.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {showSources && (
-                    <div className="mb-5 ml-[52px] flex flex-wrap items-center gap-2">
-                      <span className="mr-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#7d849b]">
-                        <FileText size={13} />
-                        Sources BCA
-                      </span>
-                      <button onClick={() => setNotice("Ouverture du guide officiel BCA")} className="flex items-center gap-1 rounded-full border border-[#e7e9f2] bg-white px-2.5 py-1.5 text-[10px] text-[#59617a] transition hover:border-[#c4c9fb] hover:text-[#3641f5]">
-                        Guide des revenus <ExternalLink size={10} />
-                      </button>
-                      <button onClick={() => setNotice("Ouverture des règles de sécurité BCA")} className="flex items-center gap-1 rounded-full border border-[#e7e9f2] bg-white px-2.5 py-1.5 text-[10px] text-[#59617a] transition hover:border-[#c4c9fb] hover:text-[#3641f5]">
-                        Conseils de sécurité <ExternalLink size={10} />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="ml-[52px] flex items-center gap-1.5">
-                    <button
-                      onClick={copyAnswer}
-                      aria-label="Copier la réponse"
-                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] text-[#858ca0] transition hover:bg-[#f0f1fb] hover:text-[#3c46d8]"
-                    >
-                      {copied ? <Check size={13} /> : <Copy size={13} />}
-                      {copied ? "Copié" : "Copier"}
-                    </button>
-                    <button
-                      onClick={() => setShowSources((current) => !current)}
-                      className="rounded-lg px-2.5 py-1.5 text-[10px] text-[#858ca0] transition hover:bg-[#f0f1fb] hover:text-[#3c46d8]"
-                    >
-                      {showSources ? "Masquer les sources" : "Voir les sources"}
-                    </button>
-                    <span className="ml-auto flex items-center gap-1 text-[10px] text-[#a1a7b7]">
-                      <ShieldCheck size={12} className="text-[#5aa77c]" />
-                      Exemple de réponse
-                    </span>
-                  </div>
                 </>
               )}
+              {busy && <p role="status" className="py-3 text-sm text-[#3641f5]">Sabito prépare sa réponse…</p>}
+              {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+                <button className="ml-3 underline" disabled={busy} onClick={() => ready && messages.at(-1)?.role === "user" ? void send(messages.at(-1)!.content, true) : void refresh()}>Réessayer</button>
+              </div>}
+              <div ref={bottom} />
             </div>
           </div>
 
@@ -440,6 +318,7 @@ export function SabitoChat() {
               )}
               <form onSubmit={sendMessage} className="rounded-[17px] border border-[#dfe2ef] bg-white p-2 shadow-[0_6px_25px_rgba(44,53,118,.07)] transition focus-within:border-[#9da5ff] focus-within:shadow-[0_7px_28px_rgba(54,65,245,.12)]">
                 <textarea
+                  maxLength={1000}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={(event) => {
@@ -463,8 +342,7 @@ export function SabitoChat() {
                     <button
                       type="button"
                       onClick={() => {
-                        setVoiceActive((current) => !current);
-                        setNotice(voiceActive ? "Saisie vocale arrêtée." : "Saisie vocale activée.");
+                        setNotice("La saisie vocale n’est pas encore disponible.");
                         window.setTimeout(() => setNotice(""), 1800);
                       }}
                       aria-label="Saisie vocale"
@@ -475,7 +353,7 @@ export function SabitoChat() {
                     <button
                       type="submit"
                       aria-label="Envoyer le message"
-                      disabled={!input.trim()}
+                      disabled={!input.trim() || busy || !ready}
                       className="grid h-9 w-9 place-items-center rounded-[12px] bg-[#3641f5] text-white shadow-[0_4px_10px_rgba(54,65,245,.2)] transition hover:-translate-y-0.5 hover:bg-[#2934dc] disabled:cursor-not-allowed disabled:bg-[#c8cbea] disabled:shadow-none"
                     >
                       <Send size={15} />
@@ -494,6 +372,8 @@ export function SabitoChat() {
           </div>
         </section>
       </div>
+      {draft && <CorrectionDialog key={`${draft.messageIndex ?? "reference"}-${draft.question}`} draft={draft} close={() => setDraft(null)} save={save} saving={saving} error={error} />}
+      <KnowledgeDialog open={knowledgeOpen} close={() => setKnowledgeOpen(false)} entries={knowledge} edit={entry => { setKnowledgeOpen(false); setDraft({ question: entry.question, answer: entry.answer }); }} remove={remove} saving={saving} error={error} />
     </main>
   );
 }

@@ -11,6 +11,77 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /sabito/chat:
+    post:
+      operationId: askSabito
+      summary: Test Sabito against this browser's approved BCA knowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SabitoChatInput"
+      responses:
+        "200":
+          description: Answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SabitoReply"
+        "400":
+          description: Invalid conversation
+        "403":
+          description: Preview only
+        "429":
+          description: Rate limit reached
+        "503":
+          description: AI unavailable
+  /sabito/knowledge:
+    get:
+      operationId: listSabitoKnowledge
+      responses:
+        "200":
+          description: Approved corrections for this preview
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KnowledgeEntry"
+    post:
+      operationId: saveSabitoKnowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeInput"
+      responses:
+        "200":
+          description: Saved correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeEntry"
+        "400":
+          description: Invalid correction
+        "409":
+          description: Knowledge limit reached
+  /sabito/knowledge/{id}:
+    delete:
+      operationId: deleteSabitoKnowledge
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          description: Deleted correction
+        "404":
+          description: Correction not found
   /healthz:
     get:
       operationId: healthCheck
@@ -33,4 +104,56 @@ components:
           type: string
       required:
         - status
+    SabitoTurn:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+    SabitoChatInput:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/SabitoTurn"
+    SabitoReply:
+      type: object
+      required: [answer, source]
+      properties:
+        answer:
+          type: string
+        source:
+          type: string
+          enum: [ai, correction]
+    KnowledgeInput:
+      type: object
+      required: [question, answer]
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 4000
+    KnowledgeEntry:
+      type: object
+      required: [id, question, answer]
+      properties:
+        id:
+          type: integer
+        question:
+          type: string
+        answer:
+          type: string
 
