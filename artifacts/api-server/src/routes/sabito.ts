@@ -110,6 +110,10 @@ router.post("/sabito/chat", async (req, res): Promise<void> => {
     res.json(AskSabitoResponse.parse({ answer: exact.answer, source: "correction" }));
     return;
   }
+  if (process.env.SABITO_AI_ENABLED !== "true") {
+    res.status(503).json({ error: "Les réponses IA payantes sont désactivées. Une réponse déjà validée pour cette question reste disponible sans appel IA. La connexion BCA et le fournisseur IA personnel restent à configurer." });
+    return;
+  }
   active.add(owner);
   bucket.count++; personal.count++;
   quota.set("global", bucket); quota.set(owner, personal);

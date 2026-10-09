@@ -1,2 +1,3 @@
 - [Sabito product scope](sabito-product-scope.md) — one multi-platform assistant, connected securely per platform, with approved knowledge and authorized live data.
 - [Preview and Canvas](preview-and-canvas.md) — a working Canvas frame does not confirm the default Preview page; verify both entry points separately.
+- [GitHub repository inspection](source-control-access.md) — a gh login prompt does not imply authenticated git access is unavailable.

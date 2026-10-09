@@ -20,3 +20,9 @@ Until platform administrator authentication exists, corrections in the evaluatio
 **Why:** An anonymous preview must not allow any visitor to overwrite the platform's trusted knowledge. The evaluation workspace is not a production administration surface.
 
 **How to apply:** Promote evaluation corrections into shared platform knowledge only behind verified platform administrator permissions; do not publish unauthenticated correction management.
+
+The user does not want Sabito's answers to consume Replit credits.
+
+**Why:** The user explicitly rejected credit-funded answer generation and asked for the platform keys needed for real-time BCA access.
+
+**How to apply:** Keep Replit-billed inference disabled unless the user explicitly changes this instruction. Prefer the original knowledge-based engine or a separately agreed provider configuration; distinguish inference costs from platform-data access.

@@ -211,7 +211,7 @@ export function SabitoChat() {
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#76809a]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#12b76a]" />
-                  {ready ? "IA active · Espace de test BCA" : "Connexion au serveur…"}
+                  {ready ? "Espace de test BCA · Références validées" : "Connexion au serveur…"}
                 </div>
               </div>
             </div>
