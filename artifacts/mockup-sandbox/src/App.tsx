@@ -140,7 +140,12 @@ function App() {
     );
   }
 
-  return <Gallery />;
+  return (
+    <PreviewRenderer
+      componentPath="sabito-chat/SabitoChat"
+      modules={discoveredModules}
+    />
+  );
 }
 
 export default App;

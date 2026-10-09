@@ -145,8 +145,8 @@ export function SabitoChat() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#f1f3ff] p-4 font-['Outfit',sans-serif] text-[#11162b] md:p-6">
-      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-[1440px] overflow-hidden rounded-[28px] border border-[#e0e4fb] bg-white shadow-[0_24px_80px_rgba(48,59,153,0.12)]">
+    <main className="h-[100dvh] bg-[#f1f3ff] p-4 font-['Outfit',sans-serif] text-[#11162b] md:p-6">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1440px] overflow-hidden rounded-[28px] border border-[#e0e4fb] bg-white shadow-[0_24px_80px_rgba(48,59,153,0.12)]">
         <aside className="relative hidden w-[278px] shrink-0 flex-col overflow-hidden bg-[#171d53] text-white lg:flex">
           <div className="pointer-events-none absolute -right-24 -top-20 h-64 w-64 rounded-full border border-white/10" />
           <div className="pointer-events-none absolute -right-14 -top-10 h-44 w-44 rounded-full border border-white/10" />
@@ -236,7 +236,7 @@ export function SabitoChat() {
               </p>
               <div className="mt-4 flex items-center gap-1.5 text-[10px] font-medium text-[#a9f0cc]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#46d78d]" />
-                Connecté à BizConnect Academy
+                Maquette sans données de compte
               </div>
             </div>
             <button
@@ -250,7 +250,7 @@ export function SabitoChat() {
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col bg-[#fcfcff]">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#fcfcff]">
           <header className="flex h-[76px] shrink-0 items-center justify-between border-b border-[#ebedfa] bg-white px-5 md:px-8">
             <div className="flex items-center gap-3">
               <button
@@ -271,14 +271,14 @@ export function SabitoChat() {
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#76809a]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#12b76a]" />
-                  Disponible · Connecté à BCA
+                  Maquette · Non connectée à BCA
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 rounded-full border border-[#d9f1e4] bg-[#f1fbf5] px-3 py-2 text-[10px] font-semibold text-[#178954] sm:flex">
                 <BadgeCheck size={14} />
-                Espace officiel BCA
+                Aperçu de démonstration
               </div>
               <button
                 onClick={() => setNotice("Options de conversation")}
@@ -290,7 +290,7 @@ export function SabitoChat() {
             </div>
           </header>
 
-          <div className="relative flex-1 overflow-y-auto">
+          <div className="relative min-h-0 flex-1 overflow-y-auto">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top,rgba(81,93,255,0.055),transparent_68%)]" />
             <div className="relative mx-auto max-w-[820px] px-5 pb-8 pt-8 md:px-10 md:pt-9">
               <div className="mb-8 flex items-center justify-center gap-3 text-[10px] font-medium text-[#939ab0]">
@@ -414,7 +414,7 @@ export function SabitoChat() {
                     </button>
                     <span className="ml-auto flex items-center gap-1 text-[10px] text-[#a1a7b7]">
                       <ShieldCheck size={12} className="text-[#5aa77c]" />
-                      Réponse vérifiée
+                      Exemple de réponse
                     </span>
                   </div>
                 </>
