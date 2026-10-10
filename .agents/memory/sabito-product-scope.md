@@ -3,11 +3,11 @@ name: Sabito product scope
 description: Durable product boundaries for the multi-platform Sabito assistant.
 ---
 
-Sabito is intended to connect to each of the user's platforms through an identifier, token, or key generated from that platform's administrator dashboard. It should understand each platform, answer user questions with current information, and guide users when needed.
+Le code de connexion doit être généré ici, dans Sabito, puis configuré dans l'environnement BCA ou d'un autre site. Sabito should understand each connected platform, answer user questions with current information, and guide users when needed.
 
-**Why:** The user stated this as the core product vision. Static documentation alone cannot satisfy the real-time requirement.
+**Why:** The user explicitly corrected the credential-generation direction and asked to follow the original project's context. Static documentation alone cannot satisfy the real-time requirement.
 
-**How to apply:** Keep platform credentials server-side, isolate tenants, combine approved documentation with narrowly authorized live tools, and enforce the authenticated user's permissions for all account-specific data.
+**How to apply:** Preserve Sabito-issued connection credentials configured on each platform's backend. Do not replace this onboarding flow with a request for a BCA-issued key. Keep secrets server-side, isolate tenants, and enforce user permissions for account-specific data; live data access is a separate capability from chat authentication.
 
 Validated answer corrections must become platform-specific references for future responses, not merely edits to the displayed conversation.
 
