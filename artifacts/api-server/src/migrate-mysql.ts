@@ -1,6 +1,7 @@
 import { closeMysqlPool } from "./sabito/mysql-pool";
 import { initializeMysqlSchema, mysqlMigrationStatus } from "./sabito/mysql-schema";
 import { logger } from "./lib/logger";
+import { describeMysqlFailure } from "./sabito/mysql-diagnostics";
 
 try {
   const args = new Set(process.argv.slice(2));
@@ -21,9 +22,14 @@ try {
       logger.info({ name: migration.name, sql: migration.sql }, "Review pending MySQL migration");
     }
   }
-} catch {
-  logger.error("MySQL migration command failed. Check configuration, connectivity, history and explicit approval.");
+} catch (error) {
+  logger.error(describeMysqlFailure(error), "Échec de la commande de migration MySQL.");
   process.exitCode = 1;
 } finally {
-  await closeMysqlPool();
+  try {
+    await closeMysqlPool();
+  } catch (error) {
+    logger.error(describeMysqlFailure(error), "Échec de fermeture de la connexion MySQL.");
+    process.exitCode = 1;
+  }
 }

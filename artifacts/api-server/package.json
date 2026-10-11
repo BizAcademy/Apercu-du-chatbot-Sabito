@@ -9,7 +9,7 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:core": "node --import tsx --test --test-timeout=45000 src/sabito/core.test.ts",
-    "test:database-config": "node --import tsx --test src/sabito/database-config.test.ts src/sabito/mysql-pool.test.ts src/sabito/mysql-migrations.test.ts",
+    "test:database-config": "node --import tsx --test src/sabito/database-config.test.ts src/sabito/mysql-pool.test.ts src/sabito/mysql-migrations.test.ts src/sabito/mysql-diagnostics.test.ts",
     "migrate:mysql": "node --import tsx src/migrate-mysql.ts",
     "test:mysql": "NODE_ENV=development node scripts/dev-mysql.mjs --verify"
   },

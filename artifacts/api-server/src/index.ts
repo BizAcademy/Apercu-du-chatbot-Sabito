@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { initializeSabitoCore } from "./sabito/database";
 import { attachSocketServer } from "./sabito/socket";
 import { closeMysqlPool } from "./sabito/mysql-pool";
+import { describeMysqlFailure } from "./sabito/mysql-diagnostics";
 
 const rawPort = process.env["PORT"];
 
@@ -19,7 +20,12 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-await initializeSabitoCore();
+try {
+  await initializeSabitoCore();
+} catch (error) {
+  logger.error(describeMysqlFailure(error), "Initialisation MySQL impossible.");
+  throw new Error("MYSQL_INITIALIZATION_FAILED");
+}
 const server = createServer(app);
 attachSocketServer(server);
 server.on("error", (err) => {
