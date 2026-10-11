@@ -2,3 +2,4 @@
 - [Preview and Canvas](preview-and-canvas.md) — a working Canvas frame does not confirm the default Preview page; verify both entry points separately.
 - [GitHub repository inspection](source-control-access.md) — a gh login prompt does not imply authenticated git access is unavailable.
 - [MariaDB initialization](mariadb-bootstrap.md) — a shell sandbox bootstrap error does not prove MariaDB is unavailable; keep normal authentication.
+- [Screenshot privacy](screenshot-privacy.md) — Plesk environment screenshots can leak through public Git history; check uploaded assets before pushing.
