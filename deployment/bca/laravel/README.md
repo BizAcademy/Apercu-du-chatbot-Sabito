@@ -1,8 +1,12 @@
 # Intégration spécifique au backend BCA fourni
 
 Ce kit remplace, pour BCA, l'exemple Express `../sabito-session.mjs`.
-L'archive reçue est un backend Laravel 12 / PHP >= 8.2. Son frontend membres
-est séparé (`FRONT_URL`) et l'API utilise `App\Services\JwtTokenService`.
+L'archive reçue contient Laravel 12 / PHP >= 8.2 et des vues frontend Blade,
+notamment `resources/views/layouts/app.blade.php` et `dashboard.blade.php`.
+Dans cette version, les routes membres `/dashboard` et `/login` redirigent
+néanmoins vers `FRONT_URL`. Cela ne prouve pas l'existence d'un autre dépôt :
+il faut confirmer quelles vues sont réellement servies dans la version déployée.
+L'API utilise `App\Services\JwtTokenService`.
 Ne pas ajouter le widget au layout d'administration Blade par erreur.
 
 ## 1. Backend : uniquement ces ajouts
@@ -72,8 +76,10 @@ const widget = await installSabitoBca({
 ```
 
 `authStore.getState().accessToken` est **le seul exemple à remplacer** par le
-getter réel du frontend. Ne pas copier un JWT en dur. Ce frontend n'est pas
-dans l'archive fournie, son getter ne peut donc pas être déduit ici.
+getter réel du frontend utilisant l'API JWT. Ne pas copier un JWT en dur.
+Ce getter n'a pas été identifié dans les vues de l'archive. Si les pages actives
+utilisent plutôt la session Laravel, cet adaptateur JWT ne suffit pas : il faut
+un échange fondé sur cette session, protégé par le middleware web et le CSRF.
 Le getter doit lire le jeton courant après toute actualisation de connexion.
 Gérer le rejet de `installSabitoBca` pour signaler un échec de chargement.
 
