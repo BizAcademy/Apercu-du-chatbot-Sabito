@@ -87,6 +87,12 @@ Dans le lanceur de scripts Node.js de Plesk, utiliser les scripts du dépôt :
    approuvées. Ce bouton constitue l'action explicite de validation.
 
 Ces scripts n'ont pas besoin de `npm install` ; ils lancent le migrateur compilé.
+Avant de le lancer, ils vérifient que le paquet actif correspond aux sources
+déployées. Si nécessaire, ils téléchargent la Release GitHub déjà compilée
+avec vérification du checksum, même si Restart n'a pas pu lancer le serveur.
+Si cette Release n'est pas disponible, ils affichent un code d'erreur sûr et
+s'arrêtent sans exécuter l'ancien migrateur. Le contrôle de statut ne modifie
+pas la base ; les validations explicites des migrations restent obligatoires.
 Le dépôt désactive `verifyDepsBeforeRun` : pnpm ne doit pas installer le workspace
 automatiquement lorsque Plesk exécute « Run script ». Si une installation apparaît
 malgré cela, vérifier que le fichier `pnpm-workspace.yaml` déployé est à jour.

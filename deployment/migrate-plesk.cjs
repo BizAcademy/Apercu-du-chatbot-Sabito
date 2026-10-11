@@ -1,12 +1,21 @@
 // Explicit operator command, never invoked by the server or Deploy Now.
-const fs = require("node:fs");
 const path = require("node:path");
 const root = path.resolve(__dirname, "..");
-const entry = path.join(root, ".sabito-runtime", "current", "migrate.js");
 process.env.SABITO_CONFIG_FILE ||= path.join(root, ".env");
-if (!fs.existsSync(entry)) {
-  process.stderr.write("Sabito : déploie d'abord une version compilée.\n");
-  process.exitCode = 1;
-} else {
-  require(entry);
+async function run() {
+  const { getSourceFingerprint } = await import("../scripts/src/plesk-fingerprint.mjs");
+  const { ensureCurrentRelease } = await import("./deploy-plesk.mjs");
+  const fingerprint = await getSourceFingerprint(root);
+  // Download only the already built release, never build/install or apply SQL.
+  const current = await ensureCurrentRelease(root, fingerprint);
+  require(path.join(current, "migrate.js"));
 }
+run().catch(async error => {
+  let code = "DEPLOYMENT_FAILED";
+  try {
+    const { deploymentErrorCode } = await import("./deploy-plesk.mjs");
+    code = deploymentErrorCode(error);
+  } catch {}
+  process.stderr.write(`Sabito : ${code}. Impossible de lancer le migrateur correspondant aux sources. Vérifie le workflow GitHub et le déploiement du dépôt. Aucun secret affiché.\n`);
+  process.exitCode = 1;
+});

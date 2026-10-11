@@ -159,16 +159,40 @@ export async function deployFromGithub(root) {
   } finally { await rm(archive, { force: true }); }
 }
 
+// A source-side command must never run an older compiled package silently.
+export async function ensureCurrentRelease(root, fingerprint, deploy = deployFromGithub) {
+  if (!/^[a-f0-9]{64}$/.test(fingerprint)) fail("INVALID_RELEASE");
+  const current = path.join(root, ".sabito-runtime", "current");
+  async function matches() {
+    try {
+      const metadata = JSON.parse(await readFile(path.join(current, "release.json"), "utf8"));
+      return metadata.sourceFingerprint === fingerprint;
+    } catch (error) {
+      if (error.code === "ENOENT" || error instanceof SyntaxError) return false;
+      throw error;
+    }
+  }
+  if (!(await matches())) {
+    await deploy(root);
+    if (!(await matches())) fail("RELEASE_DOES_NOT_MATCH_SOURCE");
+  }
+  return current;
+}
+
+export function deploymentErrorCode(error) {
+  const allowed = new Set(["UNZIP_FAILED", "UNSAFE_ARCHIVE", "INCOMPLETE_ARCHIVE",
+    "CHECKSUM_MISMATCH", "DEPLOYMENT_ALREADY_RUNNING", "RELEASE_DOES_NOT_MATCH_SOURCE",
+    "IMMUTABLE_RELEASE_CONFLICT", "CURRENT_PATH_IS_NOT_A_RELEASE_LINK", "RELEASE_TOO_LARGE",
+    "RELEASE_NOT_READY_OR_ACCESS_DENIED", "GITHUB_ACCESS_FAILED", "GITHUB_DOWNLOAD_FAILED",
+    "INCOMPLETE_GITHUB_RELEASE", "UNSAFE_DOWNLOAD_REDIRECT", "INVALID_REPOSITORY",
+    "INVALID_RELEASE", "NODE_VERSION_TOO_OLD", "PRIVATE_CONFIG_PERMISSIONS_REQUIRED"]);
+  return allowed.has(error?.code) ? error.code : "DEPLOYMENT_FAILED";
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   deployFromGithub(root).catch(error => {
-    const allowed = new Set(["UNZIP_FAILED", "UNSAFE_ARCHIVE", "INCOMPLETE_ARCHIVE",
-      "CHECKSUM_MISMATCH", "DEPLOYMENT_ALREADY_RUNNING", "RELEASE_DOES_NOT_MATCH_SOURCE",
-      "IMMUTABLE_RELEASE_CONFLICT", "CURRENT_PATH_IS_NOT_A_RELEASE_LINK", "RELEASE_TOO_LARGE",
-      "RELEASE_NOT_READY_OR_ACCESS_DENIED", "GITHUB_ACCESS_FAILED", "GITHUB_DOWNLOAD_FAILED",
-      "INCOMPLETE_GITHUB_RELEASE", "UNSAFE_DOWNLOAD_REDIRECT", "INVALID_REPOSITORY",
-      "INVALID_RELEASE", "NODE_VERSION_TOO_OLD", "PRIVATE_CONFIG_PERMISSIONS_REQUIRED"]);
-    const code = allowed.has(error.code) ? error.code : "DEPLOYMENT_FAILED";
+    const code = deploymentErrorCode(error);
     process.stderr.write(`Sabito : ${code}. Version précédente conservée ; vérifie GitHub Actions et la configuration privée. Aucun secret affiché.\n`);
     process.exitCode = 1;
   });
