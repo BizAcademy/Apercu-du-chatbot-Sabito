@@ -33,8 +33,8 @@ The user does not want Sabito's answers to consume Replit credits.
 
 **How to apply:** Keep Replit-billed inference disabled unless the user explicitly changes this instruction. Prefer the original knowledge-based engine or a separately agreed provider configuration; distinguish inference costs from platform-data access.
 
-L'utilisateur veut publier Sabito sur « cybrancy », et non sur Replit.
+L'utilisateur veut publier Sabito sur Cybrancee, et non sur Replit. Sa capture de l'hébergement confirme un panneau Plesk.
 
 **Why:** L'utilisateur a explicitement choisi cet hébergement après la proposition de publication sur Replit.
 
-**How to apply:** Préparer un déploiement externe ; confirmer le fournisseur exact et l'offre avant d'adapter le projet. Ne pas supposer que « cybrancy » désigne Cybrancee sans confirmation.
+**How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et PostgreSQL avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
