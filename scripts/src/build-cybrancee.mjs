@@ -35,7 +35,7 @@ process.env.NODE_ENV = "production";
 process.env.PORT ||= "3000";
 process.env.SABITO_WEB_DIR = path.join(__dirname, "public");
 import("./index.mjs").catch(() => {
-  process.stderr.write("Sabito n'a pas pu démarrer. Vérifie DATABASE_URL, les permissions de la base et les variables d'environnement.\\n");
+  process.stderr.write("Sabito n'a pas pu démarrer. Vérifie DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, les permissions de la base et les variables d'environnement.\\n");
   process.exit(1);
 });
 `);

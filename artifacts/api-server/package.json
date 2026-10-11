@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:core": "node --import tsx --test --test-timeout=45000 src/sabito/core.test.ts"
+    "test:core": "node --import tsx --test --test-timeout=45000 src/sabito/core.test.ts",
+    "test:database-config": "node --import tsx --test src/sabito/database-config.test.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

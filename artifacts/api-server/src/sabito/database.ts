@@ -1,13 +1,10 @@
 import type { DatabasePool } from "./mysql-pool";
+import { resolveDatabaseConfiguration } from "./database-config";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DATABASE_URL is required.");
-export const databaseDialect = /^mysql:\/\//i.test(connectionString) ? "mysql" : "postgres";
-if (!/^(mysql|postgres|postgresql):\/\//i.test(connectionString)) {
-  throw new Error("DATABASE_URL must use mysql://, postgres:// or postgresql://.");
-}
-export const pool: DatabasePool = databaseDialect === "mysql"
-  ? (await import("./mysql-pool")).createMysqlPool(connectionString)
+const configuration = resolveDatabaseConfiguration(process.env);
+export const databaseDialect = configuration.dialect;
+export const pool: DatabasePool = configuration.dialect === "mysql"
+  ? (await import("./mysql-pool")).createMysqlPool(configuration.mysql)
   : (await import("@workspace/db")).pool;
 
 // Non-destructive PostgreSQL adaptation of the original MySQL migration.

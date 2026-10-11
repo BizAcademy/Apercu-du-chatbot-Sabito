@@ -65,7 +65,12 @@ Dans les variables personnalisées Node.js, créer :
 
 | Nom | Valeur |
 | --- | --- |
-| `DATABASE_URL` | `mysql://USER:PASSWORD@HOST:PORT/DATABASE` |
+| `DB_HOST` | Hôte MySQL/MariaDB ; `localhost` si Sabito et la base sont sur le même serveur |
+| `DB_PORT` | Port MySQL/MariaDB, généralement `3306` |
+| `DB_NAME` | Nom exact de la base créée dans Plesk |
+| `DB_USER` | Nom exact de l'utilisateur de cette base |
+| `DB_PASSWORD` | Mot de passe réel de cet utilisateur, sans encodage URL |
+| `DB_SSL` | `true` si la connexion distante exige TLS ; sinon `false` |
 | `ADMIN_API_KEY` | La clé administrateur Sabito, au moins 24 caractères |
 | `JWT_SECRET` | La clé de signature Sabito, au moins 32 caractères |
 | `CLIENT_SECRET_PEPPER` | La clé de protection des secrets, au moins 32 caractères |
@@ -79,12 +84,25 @@ Pour le domaine actuellement utilisé, `PUBLIC_URL` est
 Le port MySQL est souvent 3306, mais utiliser celui indiqué dans Plesk.
 L'hôte n'est `localhost` que si Plesk indique que la base est accessible localement.
 Le mot de passe est celui de **l'utilisateur de la base**, pas celui du compte Plesk.
-Encoder les caractères spéciaux de l'utilisateur et du mot de passe pour une URL
-(`@` → `%40`, `#` → `%23`, `:` → `%3A`, `%` → `%25`, `/` → `%2F`).
-Ne pas encoder toute l'URL.
-Si le serveur MySQL distant exige TLS, ajouter `?ssl=true` ; la validation des
+Avec les champs séparés, saisir le mot de passe tel quel, sans encoder ses
+caractères spéciaux. Dans un fichier `.env`, entourer le mot de passe de guillemets
+adaptés si nécessaire, notamment s'il contient `#` ou des espaces ; les variables
+personnalisées Plesk n'exigent pas ces guillemets.
+Si le serveur MySQL distant exige TLS, définir `DB_SSL=true` ; la validation des
 certificats reste activée. Une autorité privée nécessite une configuration adaptée,
 pas une désactivation des contrôles TLS.
+
+Les champs `DB_*` sélectionnent MySQL/MariaDB et sont prioritaires sur
+`DATABASE_URL`. Une configuration partielle est refusée : Sabito ne revient pas
+silencieusement à PostgreSQL. L'ancien format `DATABASE_URL=mysql://...` reste
+compatible uniquement en l'absence des champs `DB_*`.
+
+Dans Replit, ne pas modifier le `DATABASE_URL` géré automatiquement. Ajouter
+`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` et `DB_PASSWORD` aux Secrets, puis
+redémarrer le serveur API. `localhost` désigne alors Replit : pour une base
+Cybrancee, il faut un hôte distant accessible, sauf si Sabito tourne sur Cybrancee.
+Changer les paramètres ne transfère pas les plateformes ou connaissances de
+l'ancienne base. Aucune base PostgreSQL n'est supprimée.
 
 Réutiliser les trois clés internes existantes si l'on conserve les mêmes
 identifiants de plateforme. Ne jamais publier les valeurs dans un dépôt, une capture

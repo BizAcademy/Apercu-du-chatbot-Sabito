@@ -21,7 +21,10 @@ const child = spawn(process.execPath, ["app.js"], {
   // Deliberately omit all real workspace credentials and managed AI variables.
   env: {
     PATH: process.env.PATH, NODE_ENV: "production", PORT: "33307",
-    DATABASE_URL: url.toString(), ADMIN_API_KEY: adminKey,
+    DB_HOST: url.hostname, DB_PORT: url.port || "3306",
+    DB_NAME: decodeURIComponent(url.pathname.slice(1)),
+    DB_USER: decodeURIComponent(url.username), DB_PASSWORD: decodeURIComponent(url.password),
+    ADMIN_API_KEY: adminKey,
     JWT_SECRET: randomBytes(32).toString("base64url"),
     CLIENT_SECRET_PEPPER: randomBytes(32).toString("base64url"),
     PUBLIC_URL: origin, CORS_ORIGINS: origin,

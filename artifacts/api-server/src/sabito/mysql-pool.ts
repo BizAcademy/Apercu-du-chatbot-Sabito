@@ -1,4 +1,5 @@
 import mysql, { type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
+import type { MysqlConnectionSettings } from "./database-config";
 
 export type DatabaseResult = { rows: Record<string, any>[]; rowCount: number };
 export interface DatabaseConnection {
@@ -51,23 +52,20 @@ function wrap(connection: PoolConnection): DatabaseConnection {
   };
 }
 
-export function createMysqlPool(connectionString: string): DatabasePool {
-  const url = new URL(connectionString);
-  if (!url.hostname || !url.pathname.slice(1)) {
-    throw new Error("DATABASE_URL must contain a database host and database name.");
-  }
+export function createMysqlPool(settings: MysqlConnectionSettings): DatabasePool {
   const pool = mysql.createPool({
-    host: url.hostname,
-    port: url.port ? Number(url.port) : 3306,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-    database: decodeURIComponent(url.pathname.slice(1)),
+    host: settings.host,
+    port: settings.port,
+    user: settings.user,
+    password: settings.password,
+    database: settings.database,
     charset: "utf8mb4",
     timezone: "Z",
     connectionLimit: 10,
+    connectTimeout: 10000,
     multipleStatements: false,
     // TLS is explicit; certificate validation is never disabled.
-    ...(url.searchParams.get("ssl") === "true" ? { ssl: {} } : {}),
+    ...(settings.tls ? { ssl: { rejectUnauthorized: true } } : {}),
   });
   const adapter: DatabasePool = {
     async connect() {
