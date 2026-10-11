@@ -7,6 +7,7 @@ import NotFound from '@/pages/not-found';
 import { SabitoChat } from '@/pages/sabito-chat';
 import { AdminDashboard } from '@/pages/admin-dashboard';
 import { ProjectChat } from '@/pages/project-chat';
+import { WidgetChat } from '@/pages/widget-chat';
 import { AdminProvider } from '@/lib/admin';
 import {
   Route,
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/" component={AdminDashboard} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/projects/:projectId/chat" component={ProjectChat} />
+        <Route path="/widget/chat" component={WidgetChat} />
         <Route path="/legacy-test" component={SabitoChat} />
         <Route component={NotFound} />
       </Switch>

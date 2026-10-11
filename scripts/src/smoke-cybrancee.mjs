@@ -129,6 +129,13 @@ try {
   for (const route of ["/.env", "/.env.example", "/package.json", "/index.mjs"]) {
     assert.equal((await fetch(`${origin}${route}`)).status, 404);
   }
+  const widget = await fetch(`${origin}/widget/chat?parentOrigin=${encodeURIComponent(origin)}`);
+  assert.equal(widget.status, 200);
+  assert.ok(widget.headers.get("content-security-policy").includes("frame-ancestors"));
+  assert.equal((await fetch(`${origin}/widget/chat?parentOrigin=https://evil.example`)).status, 403);
+  const loader = await fetch(`${origin}/widget/sabito-chat.js`);
+  assert.equal(loader.status, 200);
+  assert.match(await loader.text(), /sabito:session-request/);
   console.info(`Plesk cold Restart OK on Node.js ${process.versions.node}: matching prebuilt GitHub package downloaded, checksum verified, no node_modules or build, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.`);
 } finally {
   const stopped = child.exitCode === null ? once(child, "exit") : Promise.resolve();

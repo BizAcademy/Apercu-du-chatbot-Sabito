@@ -44,6 +44,26 @@ if (process.env.SABITO_WEB_DIR) {
   const webDir = path.resolve(process.env.SABITO_WEB_DIR);
   const indexFile = path.join(webDir, "index.html");
   if (!existsSync(indexFile)) throw new Error("SABITO_WEB_DIR does not contain the built dashboard.");
+  app.get("/widget/chat", (req, res) => {
+    const origins = [process.env.PUBLIC_URL, ...(process.env.CORS_ORIGINS || "").split(",")]
+      .filter((value): value is string => Boolean(value))
+      .map(value => value.trim())
+      .filter(value => {
+        try {
+          const url = new URL(value);
+          return url.origin === value && (url.protocol === "https:" ||
+            (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)));
+        } catch { return false; }
+      });
+    res.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${origins.join(" ")}`);
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Cache-Control", "no-store");
+    if (typeof req.query.parentOrigin !== "string" || !origins.includes(req.query.parentOrigin)) {
+      res.status(403).type("text").send("Origine du site non autorisée pour le widget Sabito.");
+      return;
+    }
+    res.sendFile("index.html", { root: webDir });
+  });
   app.use(express.static(webDir, { index: false, dotfiles: "deny" }));
   app.get(["/", "/admin", "/projects/:projectId/chat"], (_req, res) => {
     // A private release directory may itself start with a dot. Check only the
