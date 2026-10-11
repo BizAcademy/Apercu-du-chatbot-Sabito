@@ -6,6 +6,9 @@ packages:
 
 autoInstallPeers: false
 
+# Plesk runs the precompiled migration commands without installing the workspace.
+verifyDepsBeforeRun: false
+
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.21
   '@replit/vite-plugin-dev-banner': ^0.1.1
@@ -36,11 +39,12 @@ minimumReleaseAgeExclude:
   - '@replit/*'
   - stripe-replit-sync
 
-onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
-  - msw
-  - unrs-resolver
+# Supported by pnpm 10.26+ and pnpm 11/12; unlisted scripts stay blocked.
+allowBuilds:
+  '@swc/core': true
+  'esbuild@0.28.2': true
+  msw: true
+  unrs-resolver: true
 
 overrides:
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0

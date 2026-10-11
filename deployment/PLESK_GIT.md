@@ -87,6 +87,9 @@ Dans le lanceur de scripts Node.js de Plesk, utiliser les scripts du dépôt :
    approuvées. Ce bouton constitue l'action explicite de validation.
 
 Ces scripts n'ont pas besoin de `npm install` ; ils lancent le migrateur compilé.
+Le dépôt désactive `verifyDepsBeforeRun` : pnpm ne doit pas installer le workspace
+automatiquement lorsque Plesk exécute « Run script ». Si une installation apparaît
+malgré cela, vérifier que le fichier `pnpm-workspace.yaml` déployé est à jour.
 La première migration ne crée que les tables manquantes. Aucun changement
 destructif n'est autorisé par ce script. Sauvegarder la base existante avant de
 valider une évolution du schéma.
@@ -117,7 +120,15 @@ les données de production.
   été interrompu brutalement, vérifier qu'aucun déploiement ne tourne avant de
   retirer manuellement le seul fichier `.sabito-runtime/.deploy.lock`.
 - « all 9 workspace projects » : une installation du monorepo a été lancée ;
-  elle n'est pas nécessaire dans ce mode.
+  elle n'est pas nécessaire dans ce mode. Avec pnpm 11/12, elle peut provenir de
+  la vérification automatique avant « Run script », pas seulement du bouton
+  d'installation. Le fichier du dépôt doit contenir `verifyDepsBeforeRun: false`.
+- `ERR_PNPM_IGNORED_BUILDS` avec esbuild : pnpm 11/12 a remplacé
+  `onlyBuiltDependencies` par `allowBuilds`. Mettre à jour le dépôt pour utiliser
+  l'autorisation explicite d'esbuild, sans autoriser tous les scripts.
+  Après un changement de configuration source, attendre la nouvelle Release
+  GitHub Actions avant de déployer ; ne pas contourner la correspondance
+  entre le paquet et les sources.
 
 Les anciennes versions compilées sont conservées dans `.sabito-runtime/versions`.
 Ce mécanisme ne restaure pas la base de données. Ne pas supprimer une version

@@ -50,3 +50,15 @@ Thumbs.db
 /generated-artifacts/
 /.sabito-runtime/
 /.sabito-deploy.json
+
+# Local working context and troubleshooting uploads, not application source.
+/.agents/
+/attached_assets/
+/screenshots/
+/test-results/
+/playwright-report/
+
+# Private environment files must never be pushed.
+.env
+.env.*
+!.env.example

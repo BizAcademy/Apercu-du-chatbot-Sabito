@@ -6,3 +6,13 @@
 /generated-artifacts/
 /.sabito-runtime/
 /.sabito-deploy.json
+
+# Exclude local agent context and troubleshooting material from publication.
+/.agents/
+/attached_assets/
+/screenshots/
+/test-results/
+/playwright-report/
+.env
+.env.*
+!.env.example
