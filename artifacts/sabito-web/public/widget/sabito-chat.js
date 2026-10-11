@@ -9,6 +9,9 @@
   var script = document.currentScript;
   if (!script) return;
   var ds = script.dataset;
+  // Optional BCA adapter: exchanges the host app's existing JWT on its own API.
+  // The provider returns a fetch Response, never sends the BCA JWT to this iframe.
+  var sessionProvider = typeof window.SabitoWidgetSession === "function" ? window.SabitoWidgetSession : null;
   function fail(m) { if (window.console) console.error("[Sabito] " + m); }
 
   var apiUrl;
@@ -124,7 +127,12 @@
     inflight = me;
     var headers = { "Accept": "application/json", "Content-Type": "application/json" };
     var t = csrf(); if (t) headers["X-CSRF-Token"] = t;
-    fetch(sessionUrl.toString(), { method: "POST", credentials: "same-origin", redirect: "error", headers: headers, body: "{}", cache: "no-store", signal: ctrl.signal })
+    var operation = sessionProvider
+      ? Promise.resolve().then(function () { return sessionProvider({ signal: ctrl.signal }); })
+      : fetch(sessionUrl.toString(), { method: "POST", credentials: "same-origin", redirect: "error", headers: headers, body: "{}", cache: "no-store", signal: ctrl.signal });
+    Promise.race([operation, new Promise(function (_, reject) {
+      ctrl.signal.addEventListener("abort", function () { reject(err("timeout", "Session interrompue ou délai dépassé.")); }, { once: true });
+    })])
       .then(function (r) {
         if (r.status === 401 || r.status === 403) throw err("unauthenticated", "Non connecté");
         if (!r.ok) throw err("session_failed", "Session indisponible (" + r.status + ")");

@@ -1,5 +1,9 @@
 # BCA / Buzzbooster : connexion du chat Sabito
 
+**Pour le backend BCA fourni (Laravel 12/JWT), utiliser désormais
+[`laravel/README.md`](laravel/README.md).** Le module Express ci-dessous ne
+s'applique qu'à un backend Node/Express et ne doit pas être installé dans BCA.
+
 Le backend BCA n'est pas présent dans ce dépôt. Ce module doit être installé
 dans ce backend par Yvan ; il ne crée pas automatiquement une route BCA depuis
 le serveur Sabito. Les accès aux transactions ne font pas partie de cette étape.
