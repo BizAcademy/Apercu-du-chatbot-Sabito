@@ -20,6 +20,8 @@ async function buildAll() {
       path.resolve(artifactDir, "src/migrate-mysql.ts"),
     ],
     platform: "node",
+    // Cybrancee currently provides Node.js 21.7.3. Keep emitted syntax compatible.
+    target: "node21.7",
     bundle: true,
     format: "esm",
     outdir: distDir,

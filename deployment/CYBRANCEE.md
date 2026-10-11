@@ -6,7 +6,7 @@ BCA. Le moteur de réponses utilise les connaissances approuvées, sans appel IA
 
 ## Prérequis
 
-- Une offre avec Node.js activable dans Plesk, version 22 ou supérieure.
+- Une offre avec Node.js activable dans Plesk, version **21.7.3** ou supérieure.
 - MySQL 8+ ou MariaDB 10.6+, moteur InnoDB et utf8mb4.
 - Un domaine HTTPS et le support des connexions Socket.IO / WebSocket.
 - L'utilisateur de la base doit pouvoir créer les tables, index et clés étrangères,
@@ -16,6 +16,12 @@ BCA. Le moteur de réponses utilise les connaissances approuvées, sans appel IA
 Le paquet n'est pas un site statique : le déposer dans `httpdocs` ne suffit pas
 à démarrer le chatbot. Si l'option Node.js n'existe pas, vérifier l'offre avec
 Cybrancee avant tout achat ou changement.
+
+Le paquet cible Node.js 21.7.3 pour l'hébergement actuel. Cette version n'est plus
+maintenue par Node.js : sa compatibilité technique ne fournit pas de correctifs
+de sécurité. Une version LTS maintenue reste préférable lorsque l'hébergement
+la proposera. Le dashboard est déjà compilé ; Vite, esbuild et pnpm ne sont pas
+nécessaires sur Cybrancee.
 
 ## 1. Préparer le paquet
 
@@ -46,7 +52,8 @@ sabito-app/
 
 Ouvrir Sites Web et domaines → le domaine Sabito → Node.js :
 
-- Version Node.js : **22 ou supérieure**.
+- Version Node.js : **21.7.3** (ou une version LTS plus récente disponible).
+- Gestionnaire de paquets : **npm**, pas pnpm pour ce paquet autonome.
 - Mode application : **production**.
 - Racine de l'application : le dossier contenant `app.js` et `package.json`.
 - Racine du document : le sous-dossier **`public`** de cette application.
@@ -58,6 +65,11 @@ Laisser Plesk gérer son port d'application. Ne pas réutiliser les ports de Rep
 Activer Node.js, puis utiliser l'action d'installation NPM pour installer les
 dépendances du `package.json` fourni. Aucune compilation ni pnpm n'est nécessaire
 sur l'hébergement pour ce paquet précompilé.
+
+Si l'installation affiche « all 9 workspace projects » ou bloque le script
+esbuild, Plesk utilise encore le dépôt complet. Décompresser le paquet dans un
+dossier privé séparé et sélectionner sa racine, sans supprimer le dépôt existant
+ni ses secrets. Vérifier que `app.js` est directement dans la racine sélectionnée.
 
 ## 3. Variables d'environnement privées
 

@@ -39,11 +39,11 @@ L'utilisateur veut publier Sabito sur Cybrancee, et non sur Replit. Sa capture d
 
 **How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et le type de base disponible avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
 
-Le 11 octobre 2026, l'utilisateur a précisé que Node.js 21.7.3 est la version maximale proposée dans son panneau Cybrancee ; Node.js 22 n'y est pas disponible.
+Le 11 octobre 2026, l'utilisateur a précisé que Node.js 21.7.3 est la version maximale proposée dans son panneau Cybrancee ; Node.js 22 n'y est pas disponible. Il a demandé de configurer Sabito pour Node.js 21.7.3 et d'avancer, après avoir été informé que cette version n'est plus maintenue.
 
 **Why:** Les instructions d'installation précédentes supposaient à tort que l'utilisateur pouvait sélectionner une version 22 ou supérieure.
 
-**How to apply:** Ne pas répéter cette sélection comme une étape réalisable sans vérifier que l'hébergement a été mis à jour. Distinguer compatibilité technique effectivement testée et support de sécurité du runtime ; demander l'activation d'une version LTS prise en charge pour la production.
+**How to apply:** Cibler Node.js 21.7.3 pour le paquet Cybrancee et vérifier réellement sa compatibilité avec cette version. Ne pas bloquer l'installation en répétant une demande de mise à jour que l'utilisateur a écartée. Distinguer compatibilité technique et support de sécurité ; réévaluer une version LTS lorsque l'hébergement en propose une.
 
 L'utilisateur utilise MySQL/MariaDB sur Cybrancee. Il veut ce mode pour Sabito, y compris les tests ici, et une connexion par hôte, port, nom de base, utilisateur et mot de passe, pas uniquement par URL. L'architecture fournie exige une base de test isolée dans le Preview et interdit de réutiliser les identifiants de production pour les tests.
 

@@ -14,3 +14,17 @@ mtime_ms = 1791727365500
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:10f5db69-e23a-430b-9bb3-94e63c8aaff9/0cbc9866-2387-4dd2-9941-f3a6a702da31/bb0e8630-d8b6-40d4-a908-7174e458e34c"
 storage_version_token = "1791728829338734"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "9eWn3ciOngeJiqRccz6zL"
+uri = "file://generated-artifacts/sabito-cybrancee-node21.zip"
+type = "unspecified"
+title = "Sabito — compatible Node.js 21.7.3"
+description = "Nouveau paquet précompilé testé avec Node.js 21.7.3 et une MariaDB isolée. Inclut app.js, dashboard, migrations et guide Plesk. Aucun secret inclus."
+logical_id = "c058ed9f-4433-470f-a832-433045bebafe"
+content_hash = "sha256:e56758439163dee33679dbc1d5be5ab160ba1d62f1ae83a6f256ce6fc7a8eca9"
+size = 1820130
+mtime_ms = 1791733290779
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:10f5db69-e23a-430b-9bb3-94e63c8aaff9/c058ed9f-4433-470f-a832-433045bebafe/2317abcd-4d09-4179-a0a8-13da5304b5a3"
+storage_version_token = "1791733321149952"
+content_type = "application/octet-stream"

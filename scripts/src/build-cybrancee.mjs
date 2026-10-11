@@ -24,7 +24,7 @@ await writeFile(path.join(output, "package.json"), JSON.stringify({
   name: "sabito-cybrancee",
   version: "1.0.0",
   private: true,
-  engines: { node: ">=22" },
+  engines: { node: ">=21.7.3" },
   scripts: {
     start: "node app.js",
     "migrate:status": "node migrate.js --status",

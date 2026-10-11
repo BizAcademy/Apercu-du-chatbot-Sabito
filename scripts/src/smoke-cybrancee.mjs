@@ -6,9 +6,16 @@ import { once } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import { readFile } from "node:fs/promises";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const packageDir = path.join(root, "generated-artifacts/sabito-cybrancee");
+const manifest = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8"));
+assert.equal(manifest.engines.node, ">=21.7.3");
+assert.deepEqual(Object.keys(manifest.dependencies).sort(), ["dotenv", "mysql2"]);
+const [major, minor, patch] = process.versions.node.split(".").map(Number);
+assert.ok(major > 21 || (major === 21 && (minor > 7 || (minor === 7 && patch >= 3))),
+  "The standalone runtime must support Node.js 21.7.3 or newer.");
 assert.ok(["127.0.0.1", "localhost"].includes(process.env.MYSQL_HOST), "Only a local temporary test database is allowed.");
 assert.match(process.env.MYSQL_DATABASE ?? "", /^sabito_test/);
 const mysqlSettings = {
@@ -86,7 +93,7 @@ try {
   for (const route of ["/.env", "/.env.example", "/package.json", "/index.mjs"]) {
     assert.equal((await fetch(`${origin}${route}`)).status, 404);
   }
-  console.info("Standalone production package OK: startup without managed AI/session secrets, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.");
+  console.info(`Standalone production package OK on Node.js ${process.versions.node}: startup without managed AI/session secrets, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.`);
 } finally {
   const stopped = child.exitCode === null ? once(child, "exit") : Promise.resolve();
   child.kill("SIGTERM");
