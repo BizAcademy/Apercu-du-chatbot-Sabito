@@ -8,6 +8,209 @@
 import * as zod from 'zod';
 
 
+export const GetSabitoCoreStatusResponse = zod.object({
+  "configured": zod.boolean(),
+  "missingSecrets": zod.array(zod.string()),
+  "engine": zod.string()
+})
+
+
+export const ListSabitoProjectsResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "assistantName": zod.string(),
+  "status": zod.enum(['active', 'disabled']),
+  "createdAt": zod.string().optional()
+}))
+})
+
+
+export const createSabitoProjectBodySlugMin = 2;
+export const createSabitoProjectBodySlugMax = 80;
+
+export const createSabitoProjectBodyNameMin = 2;
+export const createSabitoProjectBodyNameMax = 150;
+
+export const createSabitoProjectBodyAssistantNameMin = 2;
+export const createSabitoProjectBodyAssistantNameMax = 80;
+
+export const createSabitoProjectBodySystemPromptMin = 20;
+export const createSabitoProjectBodySystemPromptMax = 20000;
+
+
+
+export const CreateSabitoProjectBody = zod.object({
+  "slug": zod.string().min(createSabitoProjectBodySlugMin).max(createSabitoProjectBodySlugMax),
+  "name": zod.string().min(createSabitoProjectBodyNameMin).max(createSabitoProjectBodyNameMax),
+  "assistant_name": zod.string().min(createSabitoProjectBodyAssistantNameMin).max(createSabitoProjectBodyAssistantNameMax),
+  "system_prompt": zod.string().min(createSabitoProjectBodySystemPromptMin).max(createSabitoProjectBodySystemPromptMax)
+})
+
+export const CreateSabitoProjectResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "project": zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "assistantName": zod.string(),
+  "status": zod.enum(['active', 'disabled']),
+  "createdAt": zod.string().optional()
+}),
+  "credentials": zod.object({
+  "clientId": zod.string(),
+  "clientSecret": zod.string()
+})
+})
+})
+
+
+export const RotateSabitoCredentialsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const RotateSabitoCredentialsResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "clientId": zod.string(),
+  "clientSecret": zod.string()
+})
+})
+
+
+export const ListPlatformKnowledgeParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const ListPlatformKnowledgeResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "content": zod.string()
+}))
+})
+
+
+export const AddPlatformKnowledgeParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const addPlatformKnowledgeBodyTitleMin = 2;
+export const addPlatformKnowledgeBodyTitleMax = 255;
+
+export const addPlatformKnowledgeBodyContentMin = 20;
+export const addPlatformKnowledgeBodyContentMax = 1000000;
+
+
+
+export const AddPlatformKnowledgeBody = zod.object({
+  "title": zod.string().min(addPlatformKnowledgeBodyTitleMin).max(addPlatformKnowledgeBodyTitleMax),
+  "content": zod.string().min(addPlatformKnowledgeBodyContentMin).max(addPlatformKnowledgeBodyContentMax)
+})
+
+export const AddPlatformKnowledgeResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "documentId": zod.string(),
+  "chunks": zod.number().int()
+})
+})
+
+
+export const UpdatePlatformKnowledgeParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "documentId": zod.coerce.string()
+})
+
+export const updatePlatformKnowledgeBodyTitleMin = 2;
+export const updatePlatformKnowledgeBodyTitleMax = 255;
+
+export const updatePlatformKnowledgeBodyContentMin = 20;
+export const updatePlatformKnowledgeBodyContentMax = 1000000;
+
+
+
+export const UpdatePlatformKnowledgeBody = zod.object({
+  "title": zod.string().min(updatePlatformKnowledgeBodyTitleMin).max(updatePlatformKnowledgeBodyTitleMax),
+  "content": zod.string().min(updatePlatformKnowledgeBodyContentMin).max(updatePlatformKnowledgeBodyContentMax)
+})
+
+export const UpdatePlatformKnowledgeResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "documentId": zod.string(),
+  "chunks": zod.number().int()
+})
+})
+
+
+export const RemovePlatformKnowledgeParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "documentId": zod.coerce.string()
+})
+
+export const RemovePlatformKnowledgeResponse = zod.void()
+
+
+export const CreatePlatformTestTokenParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const CreatePlatformTestTokenResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "access_token": zod.string(),
+  "token_type": zod.string(),
+  "expires_in": zod.number().int(),
+  "socket_url": zod.string(),
+  "socket_path": zod.string(),
+  "external_user_id": zod.string(),
+  "identity_type": zod.string()
+})
+})
+
+
+export const authenticateSabitoPlatformBodyExternalUserIdMax = 191;
+
+
+
+export const AuthenticateSabitoPlatformBody = zod.object({
+  "external_user_id": zod.string().min(1).max(authenticateSabitoPlatformBodyExternalUserIdMax).optional()
+})
+
+export const AuthenticateSabitoPlatformResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "access_token": zod.string(),
+  "token_type": zod.string(),
+  "expires_in": zod.number().int(),
+  "socket_url": zod.string(),
+  "socket_path": zod.string(),
+  "external_user_id": zod.string(),
+  "identity_type": zod.string()
+})
+})
+
+
+export const GetPlatformMessagesParams = zod.object({
+  "conversationId": zod.coerce.string()
+})
+
+export const GetPlatformMessagesResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "status": zod.string()
+}))
+})
+
+
 /**
  * @summary Test Sabito against this browser's approved BCA knowledge
  */

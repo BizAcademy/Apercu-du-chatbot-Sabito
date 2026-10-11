@@ -11,6 +11,148 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /v1/status:
+    get:
+      operationId: getSabitoCoreStatus
+      responses:
+        "200":
+          description: Configuration state without secret values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoreStatus"
+  /v1/admin/projects:
+    get:
+      operationId: listSabitoProjects
+      responses:
+        "200":
+          description: Authorized platforms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectList"
+    post:
+      operationId: createSabitoProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformInput"
+      responses:
+        "201":
+          description: Project and one-time credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectCreated"
+  /v1/admin/projects/{projectId}/credentials/rotate:
+    post:
+      operationId: rotateSabitoCredentials
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: One-time replacement credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialResult"
+  /v1/admin/projects/{projectId}/knowledge:
+    get:
+      operationId: listPlatformKnowledge
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Approved documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentList"
+    post:
+      operationId: addPlatformKnowledge
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Approved document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResult"
+  /v1/admin/projects/{projectId}/knowledge/{documentId}:
+    put:
+      operationId: updatePlatformKnowledge
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: documentId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "200":
+          description: Updated approved document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResult"
+    delete:
+      operationId: removePlatformKnowledge
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: documentId, in: path, required: true, schema: {type: string}}
+      responses:
+        "204":
+          description: Document removed
+  /v1/admin/projects/{projectId}/test-token:
+    post:
+      operationId: createPlatformTestToken
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Admin-authorized test token for the original Socket.IO engine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformToken"
+  /v1/auth/token:
+    post:
+      operationId: authenticateSabitoPlatform
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformIdentity"
+      responses:
+        "200":
+          description: Short-lived token (Basic client credentials required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformToken"
+  /v1/conversations/{conversationId}/messages:
+    get:
+      operationId: getPlatformMessages
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Messages scoped to the authenticated platform and user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageList"
   /sabito/chat:
     post:
       operationId: askSabito
@@ -97,6 +239,124 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    CoreStatus:
+      type: object
+      required: [configured, missingSecrets, engine]
+      properties:
+        configured: {type: boolean}
+        missingSecrets: {type: array, items: {type: string}}
+        engine: {type: string}
+    Platform:
+      type: object
+      required: [id, slug, name, assistantName, status]
+      properties:
+        id: {type: string}
+        slug: {type: string}
+        name: {type: string}
+        assistantName: {type: string}
+        status: {type: string, enum: [active, disabled]}
+        createdAt: {type: string}
+    PlatformInput:
+      type: object
+      required: [slug, name, assistant_name, system_prompt]
+      properties:
+        slug: {type: string, minLength: 2, maxLength: 80}
+        name: {type: string, minLength: 2, maxLength: 150}
+        assistant_name: {type: string, minLength: 2, maxLength: 80}
+        system_prompt: {type: string, minLength: 20, maxLength: 20000}
+    ProjectList:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data: {type: array, items: {$ref: "#/components/schemas/Platform"}}
+    PlatformCredentials:
+      type: object
+      required: [clientId, clientSecret]
+      properties:
+        clientId: {type: string}
+        clientSecret: {type: string}
+    CredentialResult:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data: {$ref: "#/components/schemas/PlatformCredentials"}
+    ProjectCreated:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          required: [project, credentials]
+          properties:
+            project: {$ref: "#/components/schemas/Platform"}
+            credentials: {$ref: "#/components/schemas/PlatformCredentials"}
+    DocumentInput:
+      type: object
+      required: [title, content]
+      properties:
+        title: {type: string, minLength: 2, maxLength: 255}
+        content: {type: string, minLength: 20, maxLength: 1000000}
+    PlatformDocument:
+      type: object
+      required: [id, title, content]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        content: {type: string}
+    DocumentList:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data: {type: array, items: {$ref: "#/components/schemas/PlatformDocument"}}
+    DocumentResult:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          required: [documentId, chunks]
+          properties:
+            documentId: {type: string}
+            chunks: {type: integer}
+    PlatformIdentity:
+      type: object
+      properties:
+        external_user_id: {type: string, minLength: 1, maxLength: 191}
+    PlatformToken:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          required: [access_token, token_type, expires_in, socket_url, socket_path, external_user_id, identity_type]
+          properties:
+            access_token: {type: string}
+            token_type: {type: string}
+            expires_in: {type: integer}
+            socket_url: {type: string}
+            socket_path: {type: string}
+            external_user_id: {type: string}
+            identity_type: {type: string}
+    PlatformMessage:
+      type: object
+      required: [id, role, content, status]
+      properties:
+        id: {type: string}
+        role: {type: string, enum: [user, assistant]}
+        content: {type: string}
+        status: {type: string}
+    MessageList:
+      type: object
+      required: [success, data]
+      properties:
+        success: {type: boolean}
+        data: {type: array, items: {$ref: "#/components/schemas/PlatformMessage"}}
     HealthStatus:
       type: object
       properties:

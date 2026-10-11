@@ -5,6 +5,154 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface CoreStatus {
+  configured: boolean;
+  missingSecrets: string[];
+  engine: string;
+}
+
+export type PlatformStatus = typeof PlatformStatus[keyof typeof PlatformStatus];
+
+
+export const PlatformStatus = {
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface Platform {
+  id: string;
+  slug: string;
+  name: string;
+  assistantName: string;
+  status: PlatformStatus;
+  createdAt?: string;
+}
+
+export interface PlatformInput {
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  slug: string;
+  /**
+     * @minLength 2
+     * @maxLength 150
+     */
+  name: string;
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  assistant_name: string;
+  /**
+     * @minLength 20
+     * @maxLength 20000
+     */
+  system_prompt: string;
+}
+
+export interface ProjectList {
+  success: boolean;
+  data: Platform[];
+}
+
+export interface PlatformCredentials {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface CredentialResult {
+  success: boolean;
+  data: PlatformCredentials;
+}
+
+export type ProjectCreatedData = {
+  project: Platform;
+  credentials: PlatformCredentials;
+};
+
+export interface ProjectCreated {
+  success: boolean;
+  data: ProjectCreatedData;
+}
+
+export interface DocumentInput {
+  /**
+     * @minLength 2
+     * @maxLength 255
+     */
+  title: string;
+  /**
+     * @minLength 20
+     * @maxLength 1000000
+     */
+  content: string;
+}
+
+export interface PlatformDocument {
+  id: string;
+  title: string;
+  content: string;
+}
+
+export interface DocumentList {
+  success: boolean;
+  data: PlatformDocument[];
+}
+
+export type DocumentResultData = {
+  documentId: string;
+  chunks: number;
+};
+
+export interface DocumentResult {
+  success: boolean;
+  data: DocumentResultData;
+}
+
+export interface PlatformIdentity {
+  /**
+     * @minLength 1
+     * @maxLength 191
+     */
+  external_user_id?: string;
+}
+
+export type PlatformTokenData = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  socket_url: string;
+  socket_path: string;
+  external_user_id: string;
+  identity_type: string;
+};
+
+export interface PlatformToken {
+  success: boolean;
+  data: PlatformTokenData;
+}
+
+export type PlatformMessageRole = typeof PlatformMessageRole[keyof typeof PlatformMessageRole];
+
+
+export const PlatformMessageRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export interface PlatformMessage {
+  id: string;
+  role: PlatformMessageRole;
+  content: string;
+  status: string;
+}
+
+export interface MessageList {
+  success: boolean;
+  data: PlatformMessage[];
+}
+
 export interface HealthStatus {
   status: string;
 }

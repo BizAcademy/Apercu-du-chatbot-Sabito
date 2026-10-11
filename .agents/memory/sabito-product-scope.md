@@ -9,6 +9,12 @@ Le code de connexion doit être généré ici, dans Sabito, puis configuré dans
 
 **How to apply:** Preserve Sabito-issued connection credentials configured on each platform's backend. Do not replace this onboarding flow with a request for a BCA-issued key. Keep secrets server-side, isolate tenants, and enforce user permissions for account-specific data; live data access is a separate capability from chat authentication.
 
+Le projet Sabito existant doit être repris, et non poursuivi comme un chat séparé.
+
+**Why:** The user explicitly confirmed this after asking the agent to reread the original GitHub project.
+
+**How to apply:** Treat the original administrator dashboard, project-issued credentials, temporary user tokens, Socket.IO protocol and local approved-knowledge engine as the reference architecture. Adapt storage to the existing workspace without replacing its database or discarding evaluation corrections.
+
 Validated answer corrections must become platform-specific references for future responses, not merely edits to the displayed conversation.
 
 **Why:** The user explicitly chose reusable knowledge when asked how corrections should be used.

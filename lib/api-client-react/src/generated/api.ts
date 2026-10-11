@@ -20,9 +20,20 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CoreStatus,
+  CredentialResult,
+  DocumentInput,
+  DocumentList,
+  DocumentResult,
   HealthStatus,
   KnowledgeEntry,
   KnowledgeInput,
+  MessageList,
+  PlatformIdentity,
+  PlatformInput,
+  PlatformToken,
+  ProjectCreated,
+  ProjectList,
   SabitoChatInput,
   SabitoReply
 } from './api.schemas';
@@ -53,6 +64,828 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetSabitoCoreStatusUrl = () => {
+
+
+
+
+  return `/api/v1/status`
+}
+
+export const getSabitoCoreStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<CoreStatus> => {
+
+  return customFetch<CoreStatus>(getGetSabitoCoreStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSabitoCoreStatusQueryKey = () => {
+    return [
+    `/api/v1/status`
+    ] as const;
+    }
+
+
+export const getGetSabitoCoreStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSabitoCoreStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSabitoCoreStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSabitoCoreStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSabitoCoreStatus>>> = ({ signal }) => getSabitoCoreStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSabitoCoreStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSabitoCoreStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSabitoCoreStatus>>>
+export type GetSabitoCoreStatusQueryError = ErrorType<unknown>
+
+
+
+export function useGetSabitoCoreStatus<TData = Awaited<ReturnType<typeof getSabitoCoreStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSabitoCoreStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSabitoCoreStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSabitoProjectsUrl = () => {
+
+
+
+
+  return `/api/v1/admin/projects`
+}
+
+export const listSabitoProjects = async ( options?: Parameters<typeof customFetch>[1]): Promise<ProjectList> => {
+
+  return customFetch<ProjectList>(getListSabitoProjectsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSabitoProjectsQueryKey = () => {
+    return [
+    `/api/v1/admin/projects`
+    ] as const;
+    }
+
+
+export const getListSabitoProjectsQueryOptions = <TData = Awaited<ReturnType<typeof listSabitoProjects>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSabitoProjects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSabitoProjectsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSabitoProjects>>> = ({ signal }) => listSabitoProjects({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSabitoProjects>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSabitoProjectsQueryResult = NonNullable<Awaited<ReturnType<typeof listSabitoProjects>>>
+export type ListSabitoProjectsQueryError = ErrorType<unknown>
+
+
+
+export function useListSabitoProjects<TData = Awaited<ReturnType<typeof listSabitoProjects>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSabitoProjects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSabitoProjectsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSabitoProjectUrl = () => {
+
+
+
+
+  return `/api/v1/admin/projects`
+}
+
+export const createSabitoProject = async (platformInput: PlatformInput, options?: Parameters<typeof customFetch>[1]): Promise<ProjectCreated> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ProjectCreated>(getCreateSabitoProjectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(platformInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSabitoProjectMutationKey = () => ['createSabitoProject'] as const;
+
+export const getCreateSabitoProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSabitoProject>>, TError,CreateSabitoProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSabitoProject>>, TError,CreateSabitoProjectMutationVariables, TContext> => {
+
+const mutationKey = getCreateSabitoProjectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSabitoProject>>, CreateSabitoProjectMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSabitoProject(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSabitoProjectMutationResult = NonNullable<Awaited<ReturnType<typeof createSabitoProject>>>
+    export type CreateSabitoProjectMutationBody = BodyType<PlatformInput>
+    export type CreateSabitoProjectMutationError = ErrorType<unknown>
+    export type CreateSabitoProjectMutationVariables = {data: BodyType<PlatformInput>}
+
+    export const useCreateSabitoProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSabitoProject>>, TError,CreateSabitoProjectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSabitoProject>>,
+        TError,
+        CreateSabitoProjectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSabitoProjectMutationOptions(options));
+    }
+
+export const getRotateSabitoCredentialsUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/credentials/rotate`
+}
+
+export const rotateSabitoCredentials = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<CredentialResult> => {
+
+  return customFetch<CredentialResult>(getRotateSabitoCredentialsUrl(projectId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateSabitoCredentialsMutationKey = () => ['rotateSabitoCredentials'] as const;
+
+export const getRotateSabitoCredentialsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateSabitoCredentials>>, TError,RotateSabitoCredentialsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateSabitoCredentials>>, TError,RotateSabitoCredentialsMutationVariables, TContext> => {
+
+const mutationKey = getRotateSabitoCredentialsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateSabitoCredentials>>, RotateSabitoCredentialsMutationVariables> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  rotateSabitoCredentials(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateSabitoCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof rotateSabitoCredentials>>>
+
+    export type RotateSabitoCredentialsMutationError = ErrorType<unknown>
+    export type RotateSabitoCredentialsMutationVariables = {projectId: string}
+
+    export const useRotateSabitoCredentials = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateSabitoCredentials>>, TError,RotateSabitoCredentialsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rotateSabitoCredentials>>,
+        TError,
+        RotateSabitoCredentialsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRotateSabitoCredentialsMutationOptions(options));
+    }
+
+export const getListPlatformKnowledgeUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge`
+}
+
+export const listPlatformKnowledge = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<DocumentList> => {
+
+  return customFetch<DocumentList>(getListPlatformKnowledgeUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformKnowledgeQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/knowledge`
+    ] as const;
+    }
+
+
+export const getListPlatformKnowledgeQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformKnowledge>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformKnowledge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformKnowledgeQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformKnowledge>>> = ({ signal }) => listPlatformKnowledge(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformKnowledge>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlatformKnowledgeQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformKnowledge>>>
+export type ListPlatformKnowledgeQueryError = ErrorType<unknown>
+
+
+
+export function useListPlatformKnowledge<TData = Awaited<ReturnType<typeof listPlatformKnowledge>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformKnowledge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlatformKnowledgeQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddPlatformKnowledgeUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge`
+}
+
+export const addPlatformKnowledge = async (projectId: string,
+    documentInput: DocumentInput, options?: Parameters<typeof customFetch>[1]): Promise<DocumentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DocumentResult>(getAddPlatformKnowledgeUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(documentInput)
+  }
+);}
+
+
+
+
+
+export const getAddPlatformKnowledgeMutationKey = () => ['addPlatformKnowledge'] as const;
+
+export const getAddPlatformKnowledgeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlatformKnowledge>>, TError,AddPlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPlatformKnowledge>>, TError,AddPlatformKnowledgeMutationVariables, TContext> => {
+
+const mutationKey = getAddPlatformKnowledgeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPlatformKnowledge>>, AddPlatformKnowledgeMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  addPlatformKnowledge(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPlatformKnowledgeMutationResult = NonNullable<Awaited<ReturnType<typeof addPlatformKnowledge>>>
+    export type AddPlatformKnowledgeMutationBody = BodyType<DocumentInput>
+    export type AddPlatformKnowledgeMutationError = ErrorType<unknown>
+    export type AddPlatformKnowledgeMutationVariables = {projectId: string;data: BodyType<DocumentInput>}
+
+    export const useAddPlatformKnowledge = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlatformKnowledge>>, TError,AddPlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addPlatformKnowledge>>,
+        TError,
+        AddPlatformKnowledgeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPlatformKnowledgeMutationOptions(options));
+    }
+
+export const getUpdatePlatformKnowledgeUrl = (projectId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge/${documentId}`
+}
+
+export const updatePlatformKnowledge = async (projectId: string,
+    documentId: string,
+    documentInput: DocumentInput, options?: Parameters<typeof customFetch>[1]): Promise<DocumentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DocumentResult>(getUpdatePlatformKnowledgeUrl(projectId,documentId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(documentInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlatformKnowledgeMutationKey = () => ['updatePlatformKnowledge'] as const;
+
+export const getUpdatePlatformKnowledgeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformKnowledge>>, TError,UpdatePlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlatformKnowledge>>, TError,UpdatePlatformKnowledgeMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePlatformKnowledgeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlatformKnowledge>>, UpdatePlatformKnowledgeMutationVariables> = (props) => {
+          const {projectId,documentId,data} = props ?? {};
+
+          return  updatePlatformKnowledge(projectId,documentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlatformKnowledgeMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlatformKnowledge>>>
+    export type UpdatePlatformKnowledgeMutationBody = BodyType<DocumentInput>
+    export type UpdatePlatformKnowledgeMutationError = ErrorType<unknown>
+    export type UpdatePlatformKnowledgeMutationVariables = {projectId: string;documentId: string;data: BodyType<DocumentInput>}
+
+    export const useUpdatePlatformKnowledge = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformKnowledge>>, TError,UpdatePlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlatformKnowledge>>,
+        TError,
+        UpdatePlatformKnowledgeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePlatformKnowledgeMutationOptions(options));
+    }
+
+export const getRemovePlatformKnowledgeUrl = (projectId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge/${documentId}`
+}
+
+export const removePlatformKnowledge = async (projectId: string,
+    documentId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemovePlatformKnowledgeUrl(projectId,documentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemovePlatformKnowledgeMutationKey = () => ['removePlatformKnowledge'] as const;
+
+export const getRemovePlatformKnowledgeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlatformKnowledge>>, TError,RemovePlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removePlatformKnowledge>>, TError,RemovePlatformKnowledgeMutationVariables, TContext> => {
+
+const mutationKey = getRemovePlatformKnowledgeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removePlatformKnowledge>>, RemovePlatformKnowledgeMutationVariables> = (props) => {
+          const {projectId,documentId} = props ?? {};
+
+          return  removePlatformKnowledge(projectId,documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemovePlatformKnowledgeMutationResult = NonNullable<Awaited<ReturnType<typeof removePlatformKnowledge>>>
+
+    export type RemovePlatformKnowledgeMutationError = ErrorType<unknown>
+    export type RemovePlatformKnowledgeMutationVariables = {projectId: string;documentId: string}
+
+    export const useRemovePlatformKnowledge = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removePlatformKnowledge>>, TError,RemovePlatformKnowledgeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removePlatformKnowledge>>,
+        TError,
+        RemovePlatformKnowledgeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemovePlatformKnowledgeMutationOptions(options));
+    }
+
+export const getCreatePlatformTestTokenUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/test-token`
+}
+
+export const createPlatformTestToken = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<PlatformToken> => {
+
+  return customFetch<PlatformToken>(getCreatePlatformTestTokenUrl(projectId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreatePlatformTestTokenMutationKey = () => ['createPlatformTestToken'] as const;
+
+export const getCreatePlatformTestTokenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTestToken>>, TError,CreatePlatformTestTokenMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlatformTestToken>>, TError,CreatePlatformTestTokenMutationVariables, TContext> => {
+
+const mutationKey = getCreatePlatformTestTokenMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlatformTestToken>>, CreatePlatformTestTokenMutationVariables> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  createPlatformTestToken(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlatformTestTokenMutationResult = NonNullable<Awaited<ReturnType<typeof createPlatformTestToken>>>
+
+    export type CreatePlatformTestTokenMutationError = ErrorType<unknown>
+    export type CreatePlatformTestTokenMutationVariables = {projectId: string}
+
+    export const useCreatePlatformTestToken = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTestToken>>, TError,CreatePlatformTestTokenMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPlatformTestToken>>,
+        TError,
+        CreatePlatformTestTokenMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePlatformTestTokenMutationOptions(options));
+    }
+
+export const getAuthenticateSabitoPlatformUrl = () => {
+
+
+
+
+  return `/api/v1/auth/token`
+}
+
+export const authenticateSabitoPlatform = async (platformIdentity?: PlatformIdentity, options?: Parameters<typeof customFetch>[1]): Promise<PlatformToken> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PlatformToken>(getAuthenticateSabitoPlatformUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(platformIdentity)
+  }
+);}
+
+
+
+
+
+export const getAuthenticateSabitoPlatformMutationKey = () => ['authenticateSabitoPlatform'] as const;
+
+export const getAuthenticateSabitoPlatformMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authenticateSabitoPlatform>>, TError,AuthenticateSabitoPlatformMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authenticateSabitoPlatform>>, TError,AuthenticateSabitoPlatformMutationVariables, TContext> => {
+
+const mutationKey = getAuthenticateSabitoPlatformMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authenticateSabitoPlatform>>, AuthenticateSabitoPlatformMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  authenticateSabitoPlatform(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthenticateSabitoPlatformMutationResult = NonNullable<Awaited<ReturnType<typeof authenticateSabitoPlatform>>>
+    export type AuthenticateSabitoPlatformMutationBody = BodyType<PlatformIdentity> | undefined
+    export type AuthenticateSabitoPlatformMutationError = ErrorType<unknown>
+    export type AuthenticateSabitoPlatformMutationVariables = {data?: BodyType<PlatformIdentity>}
+
+    export const useAuthenticateSabitoPlatform = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authenticateSabitoPlatform>>, TError,AuthenticateSabitoPlatformMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authenticateSabitoPlatform>>,
+        TError,
+        AuthenticateSabitoPlatformMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthenticateSabitoPlatformMutationOptions(options));
+    }
+
+export const getGetPlatformMessagesUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/v1/conversations/${conversationId}/messages`
+}
+
+export const getPlatformMessages = async (conversationId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessageList> => {
+
+  return customFetch<MessageList>(getGetPlatformMessagesUrl(conversationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlatformMessagesQueryKey = (conversationId: string,) => {
+    return [
+    `/api/v1/conversations/${conversationId}/messages`
+    ] as const;
+    }
+
+
+export const getGetPlatformMessagesQueryOptions = <TData = Awaited<ReturnType<typeof getPlatformMessages>>, TError = ErrorType<unknown>>(conversationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlatformMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlatformMessagesQueryKey(conversationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlatformMessages>>> = ({ signal }) => getPlatformMessages(conversationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: conversationId !== null && conversationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlatformMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlatformMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof getPlatformMessages>>>
+export type GetPlatformMessagesQueryError = ErrorType<unknown>
+
+
+
+export function useGetPlatformMessages<TData = Awaited<ReturnType<typeof getPlatformMessages>>, TError = ErrorType<unknown>>(
+ conversationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlatformMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlatformMessagesQueryOptions(conversationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getAskSabitoUrl = () => {
 
