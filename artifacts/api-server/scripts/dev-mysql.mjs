@@ -1,22 +1,19 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, access, writeFile } from "node:fs/promises";
+import { mkdir, access, writeFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import { createMysqlRuntime } from "./mysql-runtime.mjs";
 
 // Development only: a loopback database, never production MYSQL_* credentials.
 const artifact = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const root = path.resolve(artifact, "../..");
-const runtime = path.join(root, "generated-artifacts/mysql-preview");
-const data = path.join(runtime, "data");
-const socket = path.join(runtime, "mysql.sock");
-const marker = path.join(runtime, "initialized");
 const osUser = os.userInfo().username;
 const verifying = process.argv.includes("--verify");
-const cliArgs = ["--no-defaults", `--socket=${socket}`, `--user=${osUser}`, "--batch"];
 let database, application, stopping = false;
+let local, phase = "configuration";
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -45,6 +42,9 @@ async function stop(code) {
     database.kill("SIGTERM");
     await new Promise(resolve => database.once("exit", resolve));
   }
+  if (local?.temporary) {
+    try { await rm(local.runtime, { recursive: true, force: true }); } catch {}
+  }
   clearTimeout(deadline);
   process.exit(code);
 }
@@ -53,6 +53,12 @@ process.once("SIGINT", () => stop(0));
 
 try {
   if (process.env.NODE_ENV === "production") throw new Error("Development database is forbidden in production.");
+  local = await createMysqlRuntime(root, {
+    verify: verifying, githubActions: process.env.GITHUB_ACTIONS === "true",
+  });
+  const { runtime, data, socket, marker, port } = local;
+  const cliArgs = ["--no-defaults", `--socket=${socket}`, `--user=${osUser}`, "--batch"];
+  phase = "MariaDB initialization";
   await mkdir(data, { recursive: true, mode: 0o700 });
   let initialized = false;
   try { await access(marker); initialized = true; } catch {}
@@ -69,14 +75,31 @@ try {
     try { await run("mariadb", cliArgs, { input: "SELECT 1;\n" }); reuse = true; } catch {}
   }
   if (!reuse) {
+    phase = "MariaDB startup";
     database = spawn("mariadbd", [
       "--no-defaults", `--datadir=${data}`, `--socket=${socket}`,
       `--pid-file=${path.join(runtime, "mysql.pid")}`, "--bind-address=127.0.0.1",
-      "--port=33308", "--skip-name-resolve", "--innodb-use-native-aio=0",
+      `--port=${port}`, "--skip-name-resolve", "--innodb-use-native-aio=0",
       `--log-error=${path.join(runtime, "mysql.log")}`,
     ], { stdio: "ignore" });
-    database.once("error", () => stop(1));
-    database.once("exit", () => { if (!stopping) stop(1); });
+    database.once("error", () => {
+      process.stderr.write("Local MariaDB executable could not start. No production database used.\n");
+      stop(1);
+    });
+    database.once("exit", async code => {
+      if (stopping) return;
+      let reason = "MYSQL_PROCESS_EXIT";
+      try {
+        const log = await readFile(path.join(runtime, "mysql.log"), "utf8");
+        if (/path.*too long|unix socket|socket file/i.test(log)) reason = "MYSQL_SOCKET_STARTUP_FAILED";
+        else if (/address already in use|bind.*TCP/i.test(log)) reason = "MYSQL_LOCAL_PORT_UNAVAILABLE";
+        else if (/permission denied|operation not permitted/i.test(log)) reason = "MYSQL_LOCAL_PERMISSION_DENIED";
+        else if (/unknown (option|variable)/i.test(log)) reason = "MYSQL_RUNTIME_OPTION_UNSUPPORTED";
+      } catch {}
+      // Report only fixed diagnostic labels, never SQL, passwords or raw logs.
+      process.stderr.write(`${reason}; phase=${phase}; exit=${Number.isInteger(code) ? code : "signal"}. No production database used.\n`);
+      await stop(1);
+    });
   }
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -84,6 +107,7 @@ try {
     catch { await delay(200); }
   }
   if (!ready) throw new Error("Local development database did not become ready.");
+  phase = "isolated test schema";
   // Process-local password, not persisted, printed or obtained from production.
   const password = randomBytes(32).toString("hex");
   // Verification does not rotate the running Preview's account or use its data.
@@ -97,7 +121,7 @@ try {
   ` });
   const env = {
     ...process.env, NODE_ENV: "development",
-    MYSQL_HOST: "127.0.0.1", MYSQL_PORT: "33308", MYSQL_DATABASE: databaseName,
+    MYSQL_HOST: "127.0.0.1", MYSQL_PORT: String(port), MYSQL_DATABASE: databaseName,
     MYSQL_USER: databaseUser, MYSQL_PASSWORD: password,
   };
   if (verifying) {
@@ -106,6 +130,7 @@ try {
         "src/sabito/core.test.ts", "src/sabito/mysql-integration.test.ts"], artifact],
       [process.execPath, ["scripts/src/smoke-cybrancee.mjs"], root],
     ]) {
+      phase = cwd === artifact ? "Node protocol tests" : "standalone Plesk restart test";
       application = spawn(command, args, { cwd, env, stdio: "inherit" });
       const code = await new Promise(resolve => application.once("exit", resolve));
       if (code !== 0) throw new Error("Local MySQL verification failed.");
@@ -118,7 +143,8 @@ try {
     application.once("error", () => stop(1));
     application.once("exit", code => stop(code ?? 1));
   }
-} catch {
-  process.stderr.write("The isolated local MySQL environment could not start. Check MariaDB tools and local runtime permissions; no production database was used.\n");
+} catch (error) {
+  const reason = error?.code === "MYSQL_LOCAL_SOCKET_PATH_TOO_LONG" ? error.code : "MYSQL_LOCAL_VERIFICATION_FAILED";
+  process.stderr.write(`${reason}; phase=${phase}. Check local MariaDB tools and permissions; no production database was used.\n`);
   await stop(1);
 }

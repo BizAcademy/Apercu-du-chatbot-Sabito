@@ -1,6 +1,8 @@
 # Sabito : push GitHub → Pull → Deploy Now → Restart
 
-Production : Cybrancee/Plesk, Node.js 21.7.3. Replit sert seulement à développer
+Production : Cybrancee/Plesk, Node.js 21.7.3.
+Dépôt de déploiement : `BizAcademy/Apercu-du-chatbot-Sabito`.
+Replit sert seulement à développer
 et vérifier le projet ; aucun service ou crédit Replit n'est requis au démarrage.
 
 ## Ce qui change

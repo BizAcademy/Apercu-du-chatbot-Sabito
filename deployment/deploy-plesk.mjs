@@ -140,7 +140,7 @@ export async function deployFromGithub(root) {
   const [major, minor, patch] = process.versions.node.split(".").map(Number);
   if (!(major > 21 || (major === 21 && (minor > 7 || (minor === 7 && patch >= 3))))) fail("NODE_VERSION_TOO_OLD");
   const fingerprint = await getSourceFingerprint(root);
-  let config = { repository: "BizConnectAcademy/sabito", githubToken: "" };
+  let config = { repository: "BizAcademy/Apercu-du-chatbot-Sabito", githubToken: "" };
   try {
     const configPath = path.join(root, ".sabito-deploy.json");
     const stat = await lstat(configPath);
