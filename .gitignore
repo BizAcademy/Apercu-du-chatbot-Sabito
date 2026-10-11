@@ -48,3 +48,5 @@ Thumbs.db
 .cache/
 .local/
 /generated-artifacts/
+/.sabito-runtime/
+/.sabito-deploy.json

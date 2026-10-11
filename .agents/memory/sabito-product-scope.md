@@ -39,6 +39,12 @@ L'utilisateur veut publier Sabito sur Cybrancee, et non sur Replit. Sa capture d
 
 **How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et le type de base disponible avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
 
+L'utilisateur veut un push GitHub, un pull Plesk puis « Deploy Now » et « Restart », sans nouveau build dans Plesk. La production doit être hébergée par Plesk/Cybrancee, pas par Replit Core.
+
+**Why:** L'utilisateur a explicitement demandé ce fonctionnement de livraison. Il souhaite éviter les étapes de compilation manuelles sur l'hébergement.
+
+**How to apply:** Compiler et vérifier les paquets avant leur livraison à Plesk ; garder les sorties générées hors de l'historique Git source. Le lancement en production ne doit dépendre ni des services ni des crédits Replit. Distinguer la configuration initiale et les validations de migrations des mises à jour courantes.
+
 Le 11 octobre 2026, l'utilisateur a précisé que Node.js 21.7.3 est la version maximale proposée dans son panneau Cybrancee ; Node.js 22 n'y est pas disponible. Il a demandé de configurer Sabito pour Node.js 21.7.3 et d'avancer, après avoir été informé que cette version n'est plus maintenue.
 
 **Why:** Les instructions d'installation précédentes supposaient à tort que l'utilisateur pouvait sélectionner une version 22 ou supérieure.

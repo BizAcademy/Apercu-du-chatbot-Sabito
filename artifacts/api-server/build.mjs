@@ -84,7 +84,7 @@ async function buildAll() {
       "kerberos",
       "leveldown",
       "miniflare",
-      "mysql2",
+      ...(process.env.SABITO_BUNDLE_MYSQL === "1" ? [] : ["mysql2"]),
       "newrelic",
       "odbc",
       "piscina",

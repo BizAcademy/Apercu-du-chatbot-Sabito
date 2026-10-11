@@ -1,0 +1,98 @@
+name: Sabito - build prêt pour Plesk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sabito-plesk-build
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Installer les dépendances verrouillées
+        run: pnpm install --frozen-lockfile
+      - name: Vérifier la configuration et le déploiement
+        run: |
+          pnpm --filter @workspace/api-server run test:database-config
+          pnpm run test:plesk-deploy
+      - name: Compiler le serveur et le dashboard
+        run: pnpm run build:cybrancee
+      - name: Préparer le test MariaDB isolé
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y mariadb-server mariadb-client
+      - name: Tester avec le runtime exact de Plesk
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated-artifacts/runtime-node21
+          cd generated-artifacts/runtime-node21
+          curl -fsSLO https://nodejs.org/dist/v21.7.3/node-v21.7.3-linux-x64.tar.xz
+          curl -fsSL https://nodejs.org/dist/v21.7.3/SHASUMS256.txt | grep ' node-v21.7.3-linux-x64.tar.xz$' > SHASUMS256.txt
+          sha256sum -c SHASUMS256.txt
+          tar -xf node-v21.7.3-linux-x64.tar.xz
+          cd ../..
+          generated-artifacts/runtime-node21/node-v21.7.3-linux-x64/bin/node artifacts/api-server/scripts/dev-mysql.mjs --verify
+      - name: Publier le paquet compilé, pas les fichiers buildés dans Git
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const directory = 'generated-artifacts/sabito-cybrancee';
+            const metadata = JSON.parse(await fs.readFile(`${directory}/release.json`, 'utf8'));
+            const tag = `plesk-${metadata.sourceFingerprint}`;
+            let release;
+            try {
+              release = await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = await github.rest.repos.createRelease({
+                ...context.repo, tag_name: tag, target_commitish: context.sha,
+                name: `Sabito Plesk ${context.sha.slice(0, 7)}`,
+                body: 'Compiled dashboard and dependency-free server. Tested on Node.js 21.7.3 with isolated MariaDB. No production credentials.',
+                draft: true, prerelease: false,
+              });
+            }
+            const names = release.data.assets?.map(asset => asset.name) || [];
+            if (!release.data.draft) {
+              if (!['sabito-cybrancee.zip', 'sabito-cybrancee.zip.sha256'].every(name => names.includes(name))) {
+                throw new Error('An incomplete public release already exists; review it before retrying.');
+              }
+              core.info('This source version already has an immutable compiled release.');
+            } else {
+              // A failed upload may leave a ZIP without its checksum. Recreate
+              // both draft assets together; never mix two build timestamps.
+              if (names.length && !['sabito-cybrancee.zip', 'sabito-cybrancee.zip.sha256'].every(name => names.includes(name))) {
+                for (const asset of release.data.assets) {
+                  await github.rest.repos.deleteReleaseAsset({...context.repo, asset_id: asset.id});
+                }
+                names.length = 0;
+              }
+              for (const name of ['sabito-cybrancee.zip', 'sabito-cybrancee.zip.sha256'].filter(name => !names.includes(name))) {
+                const data = await fs.readFile(`generated-artifacts/${name}`);
+                await github.rest.repos.uploadReleaseAsset({
+                  ...context.repo, release_id: release.data.id, name, data,
+                  headers: {'content-type': name.endsWith('.zip') ? 'application/zip' : 'text/plain', 'content-length': data.length},
+                });
+              }
+              await github.rest.repos.updateRelease({...context.repo, release_id: release.data.id, draft: false});
+              core.info('Compiled release is ready for Plesk Deploy Now.');
+            }

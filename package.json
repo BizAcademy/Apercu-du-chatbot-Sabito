@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "start": "node app.js",
+    "plesk:migrate:status": "node deployment/migrate-plesk.cjs --status",
+    "plesk:migrate:plan": "node deployment/migrate-plesk.cjs --plan",
+    "plesk:migrate:apply:reviewed": "node deployment/migrate-plesk.cjs --apply --reviewed",
+    "test:plesk-deploy": "node --test scripts/src/plesk-deploy.test.mjs",
     "build:cybrancee": "node scripts/src/build-cybrancee.mjs",
     "test:cybrancee": "node scripts/src/smoke-cybrancee.mjs",
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",

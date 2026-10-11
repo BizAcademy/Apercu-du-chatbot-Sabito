@@ -46,7 +46,9 @@ if (process.env.SABITO_WEB_DIR) {
   if (!existsSync(indexFile)) throw new Error("SABITO_WEB_DIR does not contain the built dashboard.");
   app.use(express.static(webDir, { index: false, dotfiles: "deny" }));
   app.get(["/", "/admin", "/projects/:projectId/chat"], (_req, res) => {
-    res.sendFile(indexFile);
+    // A private release directory may itself start with a dot. Check only the
+    // requested filename for dotfiles, never expose private files via this root.
+    res.sendFile("index.html", { root: webDir });
   });
 }
 app.use((_req,res) => { res.status(404).json({success:false,message:"Route introuvable."}); });

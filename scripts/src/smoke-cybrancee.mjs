@@ -4,15 +4,51 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
-import { readFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import { installRelease } from "../../deployment/deploy-plesk.mjs";
+import { getDeploymentSourceFiles } from "./plesk-fingerprint.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const packageDir = path.join(root, "generated-artifacts/sabito-cybrancee");
-const manifest = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8"));
+const builtDir = path.join(root, "generated-artifacts/sabito-cybrancee");
+// Outside the workspace: resolution cannot accidentally use its node_modules.
+const packageDir = await mkdtemp(path.join(os.tmpdir(), "sabito-standalone-"));
+const metadata = JSON.parse(await readFile(path.join(builtDir, "release.json"), "utf8"));
+await installRelease({
+  root: packageDir,
+  archive: path.join(root, "generated-artifacts/sabito-cybrancee.zip"),
+  checksum: (await readFile(path.join(root, "generated-artifacts/sabito-cybrancee.zip.sha256"), "utf8")).trim().split(/\s+/)[0],
+  fingerprint: metadata.sourceFingerprint,
+});
+for (const name of await getDeploymentSourceFiles(root)) {
+  const destination = path.join(packageDir, name);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await cp(path.join(root, name), destination);
+}
+const manifest = JSON.parse(await readFile(path.join(packageDir, ".sabito-runtime/current/package.json"), "utf8"));
 assert.equal(manifest.engines.node, ">=21.7.3");
-assert.deepEqual(Object.keys(manifest.dependencies).sort(), ["dotenv", "mysql2"]);
+assert.deepEqual(Object.keys(manifest.dependencies), []);
+// Exercise a cold Restart too. Only GitHub downloads are mocked; the actual ZIP,
+// checksum, installer, launcher, bundled server and MariaDB are real.
+await rm(path.join(packageDir, ".sabito-runtime"), { recursive: true });
+const preload = path.join(packageDir, "github-download-fixture.mjs");
+await writeFile(preload, `
+import { readFile } from "node:fs/promises";
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, options) => {
+  const address = String(url);
+  if (!address.startsWith("https://api.github.com/")) return realFetch(url, options);
+  if (address.endsWith("/releases/tags/plesk-${metadata.sourceFingerprint}")) {
+    return Response.json({tag_name:"plesk-${metadata.sourceFingerprint}",draft:false,prerelease:false,
+      assets:[{id:1,name:"sabito-cybrancee.zip"},{id:2,name:"sabito-cybrancee.zip.sha256"}]});
+  }
+  if (address.endsWith("/releases/assets/1")) return new Response(await readFile(${JSON.stringify(path.join(root, "generated-artifacts/sabito-cybrancee.zip"))}));
+  if (address.endsWith("/releases/assets/2")) return new Response(await readFile(${JSON.stringify(path.join(root, "generated-artifacts/sabito-cybrancee.zip.sha256"))}));
+  throw new Error("Unexpected GitHub fixture request");
+};
+`);
 const [major, minor, patch] = process.versions.node.split(".").map(Number);
 assert.ok(major > 21 || (major === 21 && (minor > 7 || (minor === 7 && patch >= 3))),
   "The standalone runtime must support Node.js 21.7.3 or newer.");
@@ -28,7 +64,7 @@ const mysqlSettings = {
 const origin = "http://127.0.0.1:33307";
 const adminKey = randomBytes(32).toString("base64url");
 let logs = "", projectId;
-const child = spawn(process.execPath, ["app.js"], {
+const child = spawn(process.execPath, ["--import", pathToFileURL(preload).href, "app.js"], {
   cwd: packageDir,
   // Deliberately omit all real workspace credentials and managed AI variables.
   env: {
@@ -93,13 +129,13 @@ try {
   for (const route of ["/.env", "/.env.example", "/package.json", "/index.mjs"]) {
     assert.equal((await fetch(`${origin}${route}`)).status, 404);
   }
-  console.info(`Standalone production package OK on Node.js ${process.versions.node}: startup without managed AI/session secrets, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.`);
+  console.info(`Plesk cold Restart OK on Node.js ${process.versions.node}: matching prebuilt GitHub package downloaded, checksum verified, no node_modules or build, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.`);
 } finally {
   const stopped = child.exitCode === null ? once(child, "exit") : Promise.resolve();
   child.kill("SIGTERM");
   await stopped;
   if (projectId) {
-    const require = createRequire(path.join(packageDir, "package.json"));
+    const require = createRequire(path.join(root, "artifacts/api-server/package.json"));
     const mysql = require("mysql2/promise");
     const connection = await mysql.createConnection(mysqlSettings);
     try {
@@ -107,4 +143,5 @@ try {
       await connection.query("DELETE FROM sabito_projects WHERE id=?", [projectId]);
     } finally { await connection.end(); }
   }
+  await rm(packageDir, { recursive: true, force: true });
 }

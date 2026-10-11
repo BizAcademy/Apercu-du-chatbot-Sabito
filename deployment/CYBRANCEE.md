@@ -4,6 +4,10 @@ Ce paquet contient le dashboard compilé et le serveur Node.js. Il ne contient
 aucun secret, aucune base de données et aucune connexion automatique aux données
 BCA. Le moteur de réponses utilise les connaissances approuvées, sans appel IA payant.
 
+**Mode recommandé : GitHub → Plesk sans build ni NPM Install.**
+Suivre `deployment/PLESK_GIT.md` dans le dépôt (ou `PLESK_GIT.md` dans le ZIP).
+Les étapes ci-dessous restent une alternative pour un dépôt manuel du ZIP.
+
 ## Prérequis
 
 - Une offre avec Node.js activable dans Plesk, version **21.7.3** ou supérieure.
@@ -62,9 +66,8 @@ Ouvrir Sites Web et domaines → le domaine Sabito → Node.js :
 La racine du document doit rester `public` : ne jamais exposer le dossier
 contenant les secrets, les fichiers serveur ou `package.json`.
 Laisser Plesk gérer son port d'application. Ne pas réutiliser les ports de Replit.
-Activer Node.js, puis utiliser l'action d'installation NPM pour installer les
-dépendances du `package.json` fourni. Aucune compilation ni pnpm n'est nécessaire
-sur l'hébergement pour ce paquet précompilé.
+Activer Node.js. Le paquet autonome embarque ses dépendances : aucune installation NPM,
+compilation ni pnpm n'est nécessaire sur l'hébergement.
 
 Si l'installation affiche « all 9 workspace projects » ou bloque le script
 esbuild, Plesk utilise encore le dépôt complet. Décompresser le paquet dans un
