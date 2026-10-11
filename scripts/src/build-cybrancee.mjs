@@ -25,7 +25,12 @@ await writeFile(path.join(output, "package.json"), JSON.stringify({
   version: "1.0.0",
   private: true,
   engines: { node: ">=22" },
-  scripts: { start: "node app.js" },
+  scripts: {
+    start: "node app.js",
+    "migrate:status": "node migrate.js --status",
+    "migrate:plan": "node migrate.js --plan",
+    "migrate:apply": "node migrate.js --apply",
+  },
   dependencies: { mysql2: apiPackage.dependencies.mysql2, dotenv: apiPackage.dependencies.dotenv },
 }, null, 2) + "\n");
 await writeFile(path.join(output, "app.js"), `// Plesk startup file; contains no credentials.
@@ -35,8 +40,17 @@ process.env.NODE_ENV = "production";
 process.env.PORT ||= "3000";
 process.env.SABITO_WEB_DIR = path.join(__dirname, "public");
 import("./index.mjs").catch(() => {
-  process.stderr.write("Sabito n'a pas pu démarrer. Vérifie DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, les permissions de la base et les variables d'environnement.\\n");
+  process.stderr.write("Sabito n'a pas pu démarrer. Vérifie les variables MYSQL_*, la connexion et l'historique des migrations.\\n");
   process.exit(1);
+});
+`);
+await writeFile(path.join(output, "migrate.js"), `// Explicit operator action; never executed by app.js.
+const path = require("node:path");
+require("dotenv").config({ path: path.join(__dirname, ".env"), quiet: true });
+process.env.NODE_ENV = "production";
+import("./migrate-mysql.mjs").catch(() => {
+  process.stderr.write("La commande de migration MySQL a échoué.\\n");
+  process.exitCode = 1;
 });
 `);
 await cp(path.join(root, "deployment/cybrancee.env.example"), path.join(output, ".env.example"));

@@ -65,12 +65,11 @@ Dans les variables personnalisées Node.js, créer :
 
 | Nom | Valeur |
 | --- | --- |
-| `DB_HOST` | Hôte MySQL/MariaDB ; `localhost` si Sabito et la base sont sur le même serveur |
-| `DB_PORT` | Port MySQL/MariaDB, généralement `3306` |
-| `DB_NAME` | Nom exact de la base créée dans Plesk |
-| `DB_USER` | Nom exact de l'utilisateur de cette base |
-| `DB_PASSWORD` | Mot de passe réel de cet utilisateur, sans encodage URL |
-| `DB_SSL` | `true` si la connexion distante exige TLS ; sinon `false` |
+| `MYSQL_HOST` | Hôte MySQL/MariaDB ; `localhost` seulement si l'API et la base sont sur le même serveur |
+| `MYSQL_PORT` | Facultatif, port par défaut `3306` |
+| `MYSQL_DATABASE` | Nom exact de la base créée dans Plesk |
+| `MYSQL_USER` | Nom exact de l'utilisateur de cette base |
+| `MYSQL_PASSWORD` | Mot de passe réel de cet utilisateur, sans encodage URL |
 | `ADMIN_API_KEY` | La clé administrateur Sabito, au moins 24 caractères |
 | `JWT_SECRET` | La clé de signature Sabito, au moins 32 caractères |
 | `CLIENT_SECRET_PEPPER` | La clé de protection des secrets, au moins 32 caractères |
@@ -88,19 +87,14 @@ Avec les champs séparés, saisir le mot de passe tel quel, sans encoder ses
 caractères spéciaux. Dans un fichier `.env`, entourer le mot de passe de guillemets
 adaptés si nécessaire, notamment s'il contient `#` ou des espaces ; les variables
 personnalisées Plesk n'exigent pas ces guillemets.
-Si le serveur MySQL distant exige TLS, définir `DB_SSL=true` ; la validation des
-certificats reste activée. Une autorité privée nécessite une configuration adaptée,
-pas une désactivation des contrôles TLS.
+Le backend utilise uniquement `MYSQL_*`, jamais `DATABASE_URL` ou les anciens
+champs `DB_*`. Une configuration partielle est refusée, sans repli PostgreSQL.
 
-Les champs `DB_*` sélectionnent MySQL/MariaDB et sont prioritaires sur
-`DATABASE_URL`. Une configuration partielle est refusée : Sabito ne revient pas
-silencieusement à PostgreSQL. L'ancien format `DATABASE_URL=mysql://...` reste
-compatible uniquement en l'absence des champs `DB_*`.
-
-Dans Replit, ne pas modifier le `DATABASE_URL` géré automatiquement. Ajouter
-`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` et `DB_PASSWORD` aux Secrets, puis
-redémarrer le serveur API. `localhost` désigne alors Replit : pour une base
-Cybrancee, il faut un hôte distant accessible, sauf si Sabito tourne sur Cybrancee.
+Le Preview Replit démarre une base MariaDB locale de test isolée, liée à la boucle
+locale et avec des identifiants générés uniquement en mémoire pour cette base.
+Il ne réutilise jamais les identifiants MySQL de production. Les valeurs de
+production doivent rester dans l'environnement Plesk ou son fichier `.env` privé.
+Ne jamais créer de variables `VITE_*` contenant les paramètres MySQL.
 Changer les paramètres ne transfère pas les plateformes ou connaissances de
 l'ancienne base. Aucune base PostgreSQL n'est supprimée.
 
@@ -114,10 +108,29 @@ Le `.env.example` n'est qu'un modèle : ses valeurs fictives ne doivent pas êtr
 
 ## 4. Démarrer et vérifier
 
-Redémarrer l'application Node.js. Sabito crée de façon additive les tables
-`sabito_*` dans la base MySQL sélectionnée. Aucune table existante n'est supprimée
-ou convertie. La création peut prendre quelques secondes et exige les droits
-indiqués plus haut.
+Avant de démarrer une nouvelle production, examiner les migrations et leur
+historique. Les fichiers sont dans `migrations/mysql/`, triés par numéro.
+
+```sh
+npm run migrate:status
+npm run migrate:plan
+# Après vérification de l'historique, du SQL et de l'impact :
+npm run migrate:apply -- --reviewed
+```
+
+Sans accès à un terminal, demander à l'opérateur de l'hébergement d'exécuter ces
+commandes, ou utiliser un lanceur de commandes/scripts Node.js fourni par Plesk.
+Ne pas supposer que le dépôt des fichiers applique les migrations.
+
+La table `schema_migrations` suit les fichiers appliqués ; ils ne sont pas
+rejoués. La première migration crée uniquement les tables `sabito_*` manquantes.
+Le démarrage en production refuse des migrations en attente au lieu de les
+appliquer automatiquement. Les migrations destructives sont bloquées sans
+approbation distincte (`--allow-destructive`), après sauvegarde et validation.
+Les instructions DDL MySQL ne sont pas transactionnelles : une application
+partiellement échouée doit être examinée avant reprise.
+
+Redémarrer ensuite l'application Node.js.
 
 Vérifier :
 

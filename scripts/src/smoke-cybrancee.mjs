@@ -9,10 +9,15 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const packageDir = path.join(root, "generated-artifacts/sabito-cybrancee");
-const url = new URL(process.env.SABITO_SMOKE_DATABASE_URL ?? "");
-assert.equal(url.protocol, "mysql:");
-assert.ok(["127.0.0.1", "localhost"].includes(url.hostname), "Only a local temporary test database is allowed.");
-assert.match(url.pathname, /^\/sabito_test/);
+assert.ok(["127.0.0.1", "localhost"].includes(process.env.MYSQL_HOST), "Only a local temporary test database is allowed.");
+assert.match(process.env.MYSQL_DATABASE ?? "", /^sabito_test/);
+const mysqlSettings = {
+  host: process.env.MYSQL_HOST,
+  port: Number(process.env.MYSQL_PORT || 3306),
+  database: process.env.MYSQL_DATABASE,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+};
 const origin = "http://127.0.0.1:33307";
 const adminKey = randomBytes(32).toString("base64url");
 let logs = "", projectId;
@@ -21,9 +26,9 @@ const child = spawn(process.execPath, ["app.js"], {
   // Deliberately omit all real workspace credentials and managed AI variables.
   env: {
     PATH: process.env.PATH, NODE_ENV: "production", PORT: "33307",
-    DB_HOST: url.hostname, DB_PORT: url.port || "3306",
-    DB_NAME: decodeURIComponent(url.pathname.slice(1)),
-    DB_USER: decodeURIComponent(url.username), DB_PASSWORD: decodeURIComponent(url.password),
+    MYSQL_HOST: process.env.MYSQL_HOST, MYSQL_PORT: process.env.MYSQL_PORT || "3306",
+    MYSQL_DATABASE: process.env.MYSQL_DATABASE,
+    MYSQL_USER: process.env.MYSQL_USER, MYSQL_PASSWORD: process.env.MYSQL_PASSWORD,
     ADMIN_API_KEY: adminKey,
     JWT_SECRET: randomBytes(32).toString("base64url"),
     CLIENT_SECRET_PEPPER: randomBytes(32).toString("base64url"),
@@ -89,7 +94,7 @@ try {
   if (projectId) {
     const require = createRequire(path.join(packageDir, "package.json"));
     const mysql = require("mysql2/promise");
-    const connection = await mysql.createConnection(url.toString());
+    const connection = await mysql.createConnection(mysqlSettings);
     try {
       await connection.query("DELETE FROM sabito_audit_logs WHERE project_id=?", [projectId]);
       await connection.query("DELETE FROM sabito_projects WHERE id=?", [projectId]);

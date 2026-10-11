@@ -39,8 +39,8 @@ L'utilisateur veut publier Sabito sur Cybrancee, et non sur Replit. Sa capture d
 
 **How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et le type de base disponible avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
 
-L'utilisateur utilise MySQL/MariaDB sur Cybrancee. Il veut ce mode pour Sabito, y compris les tests ici, et une connexion par hôte, port, nom de base, utilisateur et mot de passe, pas uniquement par URL.
+L'utilisateur utilise MySQL/MariaDB sur Cybrancee. Il veut ce mode pour Sabito, y compris les tests ici, et une connexion par hôte, port, nom de base, utilisateur et mot de passe, pas uniquement par URL. L'architecture fournie exige une base de test isolée dans le Preview et interdit de réutiliser les identifiants de production pour les tests.
 
 **Why:** L'utilisateur a confirmé le type de base et demandé explicitement de changer le mode PostgreSQL pour MySQL/MariaDB avec des paramètres séparés.
 
-**How to apply:** Basculer Sabito sur la nouvelle base MySQL/MariaDB une fois ses paramètres renseignés et sa connexion vérifiée. Conserver l'ancienne base sans suppression ni transfert automatique ; les identifiants créés dans l'ancien Preview ne sont pas automatiquement présents dans la nouvelle base. Expliquer que localhost nécessite que Sabito et MariaDB tournent sur le même serveur.
+**How to apply:** Utiliser une base MySQL/MariaDB locale isolée pour le Preview, et la base Cybrancee pour la production seulement. Conserver l'ancienne base sans suppression ni transfert automatique ; les identifiants créés dans l'ancien Preview ne sont pas automatiquement présents dans la nouvelle base. Expliquer que localhost nécessite que Sabito et MariaDB tournent sur le même serveur. Vérifier l'historique et l'impact des migrations de production avant application ; ne pas les appliquer automatiquement au démarrage ni autoriser des changements destructifs sans validation.

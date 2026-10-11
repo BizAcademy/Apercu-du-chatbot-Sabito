@@ -1,89 +1,107 @@
-import type { DatabasePool } from "./mysql-pool";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import type { PoolConnection, RowDataPacket } from "mysql2/promise";
+import { getMysqlPool } from "./mysql-pool";
 
-// Additive, namespaced tables; never DROP/ALTER the customer's existing tables.
-const tables = [
-  `CREATE TABLE IF NOT EXISTS sabito_projects (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    slug VARCHAR(80) NOT NULL UNIQUE, name VARCHAR(150) NOT NULL,
-    assistant_name VARCHAR(80) NOT NULL DEFAULT 'Sabito', system_prompt LONGTEXT NOT NULL,
-    status ENUM('active','disabled') NOT NULL DEFAULT 'active',
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_project_credentials (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    client_id VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
-    secret_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    secret_hint VARCHAR(16) NOT NULL, status ENUM('active','revoked') NOT NULL DEFAULT 'active',
-    last_used_at DATETIME(6), expires_at DATETIME(6), revoked_at DATETIME(6),
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    INDEX credentials_project_status(project_id,status),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_conversations (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    external_user_id VARCHAR(191) COLLATE utf8mb4_bin NOT NULL, metadata JSON,
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_messages (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    conversation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    reply_to_message_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-    role ENUM('user','assistant','system','tool') NOT NULL, content LONGTEXT NOT NULL,
-    status ENUM('accepted','streaming','completed','failed') NOT NULL,
-    idempotency_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin,
-    error_code VARCHAR(80), created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    completed_at DATETIME(6),
-    UNIQUE KEY message_idempotency(project_id,idempotency_key),
-    INDEX messages_conversation_created(conversation_id,created_at),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE CASCADE,
-    FOREIGN KEY(conversation_id) REFERENCES sabito_conversations(id) ON DELETE CASCADE,
-    FOREIGN KEY(reply_to_message_id) REFERENCES sabito_messages(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_knowledge_documents (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    title VARCHAR(255) NOT NULL, content LONGTEXT NOT NULL,
-    source_type VARCHAR(30) NOT NULL DEFAULT 'manual', status VARCHAR(30) NOT NULL DEFAULT 'ready',
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_knowledge_chunks (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    document_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    chunk_index INT NOT NULL, content LONGTEXT NOT NULL,
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    UNIQUE KEY chunk_position(document_id,chunk_index), FULLTEXT KEY chunks_search(content),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE CASCADE,
-    FOREIGN KEY(document_id) REFERENCES sabito_knowledge_documents(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS sabito_audit_logs (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-    actor_type VARCHAR(30) NOT NULL, action VARCHAR(120) NOT NULL, metadata JSON,
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY(project_id) REFERENCES sabito_projects(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-];
+export interface MysqlMigration {
+  name: string;
+  sql: string;
+  requiresDestructiveApproval: boolean;
+}
 
-export async function initializeMysqlSchema(pool: DatabasePool) {
-  const connection = await pool.connect();
+function migrationDirectory() {
+  const candidates = [
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations/mysql"),
+    path.resolve(process.cwd(), "migrations/mysql"),
+    path.resolve(process.cwd(), "../../migrations/mysql"),
+  ];
+  const directory = candidates.find(candidate => existsSync(candidate));
+  if (!directory) throw new Error("MySQL migration files are missing.");
+  return directory;
+}
+
+export async function loadMysqlMigrations(): Promise<MysqlMigration[]> {
+  const directory = migrationDirectory();
+  const names = (await readdir(directory))
+    .filter(name => /^\d+_[a-z0-9_-]+\.sql$/i.test(name))
+    .sort((a, b) => Number(a.split("_")[0]) - Number(b.split("_")[0]) || a.localeCompare(b));
+  const numbers = names.map(name => Number(name.split("_")[0]));
+  if (new Set(numbers).size !== numbers.length) throw new Error("Duplicate MySQL migration numbers.");
+  if (!names.length) throw new Error("No numbered MySQL migration files found.");
+  return Promise.all(names.map(async name => {
+    const sql = await readFile(path.join(directory, name), "utf8");
+    // Conservative review gate, not a SQL parser. All ALTER/DML and privileged
+    // operations require separate, explicit approval, even when additive.
+    const statements = sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const requiresDestructiveApproval = /(?:^|;)\s*(DROP|TRUNCATE|DELETE|UPDATE|ALTER|REPLACE|GRANT|REVOKE|CALL|EXECUTE|CREATE\s+(USER|PROCEDURE|FUNCTION|TRIGGER|EVENT))\b/i.test(statements);
+    return { name, sql, requiresDestructiveApproval };
+  }));
+}
+
+async function history(connection: PoolConnection): Promise<string[]> {
+  const [tables] = await connection.execute<RowDataPacket[]>(
+    "SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?",
+    ["schema_migrations"],
+  );
+  if (!tables.length) return [];
+  const [rows] = await connection.execute<RowDataPacket[]>("SELECT name FROM schema_migrations ORDER BY name");
+  return rows.map(row => String(row.name));
+}
+
+export async function mysqlMigrationStatus() {
+  const migrations = await loadMysqlMigrations();
+  const connection = await getMysqlPool().getConnection();
+  try {
+    const applied = await history(connection);
+    if (applied.some(name => !migrations.some(migration => migration.name === name))) {
+      throw new Error("Migration history contains files missing from this release. Review before continuing.");
+    }
+    return { applied, pending: migrations.filter(migration => !applied.includes(migration.name)) };
+  } finally { connection.release(); }
+}
+
+export async function initializeMysqlSchema(options: {
+  apply: boolean;
+  reviewed?: boolean;
+  allowDestructive?: boolean;
+}) {
+  if (!options.apply) {
+    const status = await mysqlMigrationStatus();
+    if (status.pending.length) throw new Error("Pending MySQL migrations: review and apply them explicitly before production startup.");
+    return;
+  }
+  if (process.env.NODE_ENV === "production" && !options.reviewed) {
+    throw new Error("Production migrations require explicit review.");
+  }
+  const migrations = await loadMysqlMigrations();
+  const connection = await getMysqlPool().getConnection();
   let locked = false;
   try {
-    const result = await connection.query("SELECT GET_LOCK('sabito_schema_setup',30) AS acquired");
-    locked = Number(result.rows[0]?.acquired) === 1;
-    if (!locked) throw new Error("Could not acquire Sabito schema initialization lock.");
-    // MySQL DDL implicitly commits. Each statement is independently retry-safe.
-    for (const table of tables) await connection.query(table);
+    const [result] = await connection.execute<RowDataPacket[]>("SELECT GET_LOCK('sabito_migrations',30) AS acquired");
+    locked = Number(result[0]?.acquired) === 1;
+    if (!locked) throw new Error("Could not acquire Sabito migration lock.");
+    const applied = await history(connection);
+    if (applied.some(name => !migrations.some(migration => migration.name === name))) {
+      throw new Error("Migration history contains files missing from this release.");
+    }
+    const pending = migrations.filter(migration => !applied.includes(migration.name));
+    if (pending.some(migration => migration.requiresDestructiveApproval) && !options.allowDestructive) {
+      throw new Error("A migration requires explicit destructive-change approval.");
+    }
+    await connection.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      name VARCHAR(255) NOT NULL PRIMARY KEY,
+      applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    for (const migration of pending) {
+      // Only repository-owned, reviewed SQL files use multiple statements.
+      // DDL implicitly commits: never claim a failed migration was rolled back.
+      await connection.query(migration.sql);
+      await connection.execute("INSERT INTO schema_migrations (name) VALUES (?)", [migration.name]);
+    }
   } finally {
-    try { if (locked) await connection.query("SELECT RELEASE_LOCK('sabito_schema_setup')"); }
+    try { if (locked) await connection.execute("SELECT RELEASE_LOCK('sabito_migrations')"); }
     finally { connection.release(); }
   }
 }

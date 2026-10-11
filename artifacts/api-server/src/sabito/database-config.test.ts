@@ -1,81 +1,48 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveDatabaseConfiguration } from "./database-config";
+import { readMysqlConfiguration } from "./database-config";
 
-const mysqlFields = {
-  DB_HOST: "localhost", DB_PORT: "3306", DB_NAME: "sabito_test",
-  DB_USER: "test_user", DB_PASSWORD: "test:@#%/? with spaces ",
+const fields = {
+  MYSQL_HOST: " localhost ", MYSQL_DATABASE: " sabito_test ",
+  MYSQL_USER: " test_user ", MYSQL_PASSWORD: "  fixture:@#%/?  ",
 };
 
-test("separate settings select MySQL even with a managed PostgreSQL URL", () => {
-  const config = resolveDatabaseConfiguration({
-    ...mysqlFields, DATABASE_URL: "postgresql://test:test@localhost/test",
-  });
-  assert.equal(config.dialect, "mysql");
-  if (config.dialect !== "mysql") throw new Error("Expected MySQL");
-  assert.equal(config.mysql.host, "localhost");
-  assert.equal(config.mysql.port, 3306);
-  assert.equal(config.mysql.database, "sabito_test");
-  assert.equal(config.mysql.user, "test_user");
-  assert.equal(config.mysql.password, mysqlFields.DB_PASSWORD);
-  assert.equal(config.mysql.tls, false);
+test("required configuration uses MYSQL_* only and defaults to port 3306", () => {
+  const config = readMysqlConfiguration(fields);
+  assert.equal(config.host, "localhost");
+  assert.equal(config.database, "sabito_test");
+  assert.equal(config.user, "test_user");
+  assert.equal(config.password, fields.MYSQL_PASSWORD);
+  assert.equal(config.port, 3306);
 });
 
-test("port defaults to 3306 and custom ports are supported", () => {
-  for (const [value, expected] of [[undefined, 3306], ["33308", 33308]] as const) {
-    const config = resolveDatabaseConfiguration({ ...mysqlFields, DB_PORT: value });
-    assert.equal(config.dialect, "mysql");
-    if (config.dialect === "mysql") assert.equal(config.mysql.port, expected);
+test("custom ports are trimmed and validated", () => {
+  assert.equal(readMysqlConfiguration({ ...fields, MYSQL_PORT: " 33308 " }).port, 33308);
+  for (const port of ["0", "65536", "-1", "abc", "3306.5", "1e3"]) {
+    assert.throws(() => readMysqlConfiguration({ ...fields, MYSQL_PORT: port }), /MYSQL_PORT/);
+  }
+  for (const port of ["1", "65535"]) {
+    assert.equal(readMysqlConfiguration({ ...fields, MYSQL_PORT: port }).port, Number(port));
   }
 });
 
-test("incomplete separate settings never fall back to PostgreSQL", () => {
-  assert.throws(() => resolveDatabaseConfiguration({
-    DB_HOST: "localhost", DATABASE_URL: "postgresql://test:test@localhost/test",
-  }), /Required: DB_NAME, DB_USER, DB_PASSWORD/);
-});
-
-test("missing fields and whitespace-only identifiers are rejected without values", () => {
-  for (const field of ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"]) {
-    assert.throws(() => resolveDatabaseConfiguration({ ...mysqlFields, [field]: "" }), new RegExp(field));
+test("every required field is checked without exposing values", () => {
+  for (const field of ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD"]) {
+    assert.throws(() => readMysqlConfiguration({ ...fields, [field]: "" }), new RegExp(field));
   }
-  assert.throws(() => resolveDatabaseConfiguration({ ...mysqlFields, DB_HOST: " " }), /DB_HOST/);
-});
-
-test("invalid ports fail explicitly", () => {
-  for (const port of ["0", "65536", "-1", "abc", "3306.5"]) {
-    assert.throws(() => resolveDatabaseConfiguration({ ...mysqlFields, DB_PORT: port }), /DB_PORT/);
+  for (const field of ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER"]) {
+    assert.throws(() => readMysqlConfiguration({ ...fields, [field]: " " }), new RegExp(field));
   }
 });
 
-test("TLS is explicit and invalid values are rejected", () => {
-  const config = resolveDatabaseConfiguration({ ...mysqlFields, DB_SSL: "true" });
-  if (config.dialect !== "mysql") throw new Error("Expected MySQL");
-  assert.equal(config.mysql.tls, true);
-  assert.throws(() => resolveDatabaseConfiguration({ ...mysqlFields, DB_SSL: "insecure" }), /DB_SSL/);
+test("password whitespace is not modified", () => {
+  assert.equal(readMysqlConfiguration({ ...fields, MYSQL_PASSWORD: "  " }).password, "  ");
 });
 
-test("existing MySQL URLs remain supported", () => {
-  const config = resolveDatabaseConfiguration({
-    DATABASE_URL: "mysql://test_user:test%40%23%25@localhost:33308/sabito_test?ssl=true",
-  });
-  if (config.dialect !== "mysql") throw new Error("Expected MySQL");
-  assert.equal(config.mysql.password, "test@#%");
-  assert.equal(config.mysql.port, 33308);
-  assert.equal(config.mysql.tls, true);
-});
-
-test("PostgreSQL stays available only without separate MySQL settings", () => {
-  assert.equal(resolveDatabaseConfiguration({
-    DATABASE_URL: "postgresql://test:test@localhost/test",
-  }).dialect, "postgres");
-});
-
-test("invalid URLs never appear in errors", () => {
-  for (const value of ["not-a-url-FAKE_PASSWORD", "https://test:FAKE_PASSWORD@localhost/test"]) {
-    assert.throws(() => resolveDatabaseConfiguration({ DATABASE_URL: value }), error =>
-      error instanceof Error && !error.message.includes("FAKE_PASSWORD"));
-  }
-  assert.throws(() => resolveDatabaseConfiguration({ DATABASE_URL: "mysql://user:%zz@localhost/test" }),
-    /invalid URL encoding/);
+test("URLs and old DB_* settings are never a fallback", () => {
+  assert.throws(() => readMysqlConfiguration({
+    DATABASE_URL: "postgresql://fixture:fixture@localhost/test",
+    CYBRANCEE_DATABASE_URL: "mysql://fixture:fixture@localhost/test",
+    DB_HOST: "localhost", DB_NAME: "test", DB_USER: "fixture", DB_PASSWORD: "fixture",
+  }), /MYSQL_HOST, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD/);
 });

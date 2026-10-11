@@ -19,6 +19,8 @@ function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
 
 // Random, process-local test fixtures only. No workspace secrets are written or printed.
 test("Original Sabito protocol: credentials, local knowledge, isolation, persistence and revocation",async t => {
+  assert.ok(["localhost", "127.0.0.1"].includes(process.env.MYSQL_HOST ?? ""), "A local isolated MySQL test database is required.");
+  assert.match(process.env.MYSQL_DATABASE ?? "", /^sabito_test/, "Production databases must not be used by tests.");
   await initializeSabitoCore();
   const adminKey = randomBytes(32).toString("hex");
   process.env.ADMIN_API_KEY = adminKey;

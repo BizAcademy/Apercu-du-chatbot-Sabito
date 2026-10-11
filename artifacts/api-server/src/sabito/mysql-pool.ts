@@ -1,5 +1,5 @@
-import mysql, { type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
-import type { MysqlConnectionSettings } from "./database-config";
+import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
+import { readMysqlConfiguration } from "./database-config";
 
 export type DatabaseResult = { rows: Record<string, any>[]; rowCount: number };
 export interface DatabaseConnection {
@@ -12,10 +12,55 @@ export interface DatabasePool {
   end(): Promise<void>;
 }
 
+let singleton: Pool | undefined;
+
+/** Created lazily: importing this module never opens a database connection. */
+export function getMysqlPool(): Pool {
+  if (!singleton) {
+    singleton = mysql.createPool({
+      ...readMysqlConfiguration(),
+      waitForConnections: true,
+      connectionLimit: 10,
+      multipleStatements: true,
+      charset: "utf8mb4",
+      timezone: "Z",
+      connectTimeout: 10000,
+    });
+  }
+  return singleton;
+}
+
+export async function checkMysqlConnection(): Promise<void> {
+  await getMysqlPool().execute("SELECT 1");
+}
+
+export async function closeMysqlPool(): Promise<void> {
+  const pool = singleton;
+  singleton = undefined;
+  if (pool) await pool.end();
+}
+
+export async function withMysqlTransaction<T>(
+  callback: (connection: PoolConnection) => Promise<T>,
+): Promise<T> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await callback(connection);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    try { await connection.rollback(); } catch { /* Preserve the original failure. */ }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 // Only Sabito's parameterized, application-owned SQL passes through this adapter.
 // Table names are isolated from any existing tables in the hosting database.
 export function mysqlStatement(sql: string, values: readonly unknown[] = []) {
-  const parameters: unknown[] = [];
+  const parameters: unknown[] = /\$\d+/.test(sql) ? [] : [...values];
   const statement = sql
     .replace(/\bsabito_core\.([a-z_]+)\b/g, "sabito_$1")
     .replace(/\bnow\(\)/gi, "UTC_TIMESTAMP(6)")
@@ -32,10 +77,23 @@ export function mysqlStatement(sql: string, values: readonly unknown[] = []) {
 function wrap(connection: PoolConnection): DatabaseConnection {
   return {
     async query(sql, values) {
+      // Preserve existing business transaction boundaries using mysql2 methods.
+      const transaction = sql.trim().toUpperCase();
+      if (transaction === "BEGIN") {
+        await connection.beginTransaction();
+        return { rows: [], rowCount: 0 };
+      }
+      if (transaction === "COMMIT" || transaction === "ROLLBACK") {
+        if (transaction === "COMMIT") await connection.commit();
+        else await connection.rollback();
+        return { rows: [], rowCount: 0 };
+      }
       const statement = mysqlStatement(sql, values);
       try {
-        const [result] = await connection.query<RowDataPacket[] | ResultSetHeader>(
-          statement.sql, statement.parameters,
+        // Prepared execution binds runtime values even with multipleStatements
+        // enabled for trusted migration files. Values cannot become SQL code.
+        const [result] = await connection.execute<RowDataPacket[] | ResultSetHeader>(
+          statement.sql, statement.parameters as Parameters<PoolConnection["execute"]>[1],
         );
         return Array.isArray(result)
           ? { rows: result, rowCount: result.length }
@@ -52,24 +110,10 @@ function wrap(connection: PoolConnection): DatabaseConnection {
   };
 }
 
-export function createMysqlPool(settings: MysqlConnectionSettings): DatabasePool {
-  const pool = mysql.createPool({
-    host: settings.host,
-    port: settings.port,
-    user: settings.user,
-    password: settings.password,
-    database: settings.database,
-    charset: "utf8mb4",
-    timezone: "Z",
-    connectionLimit: 10,
-    connectTimeout: 10000,
-    multipleStatements: false,
-    // TLS is explicit; certificate validation is never disabled.
-    ...(settings.tls ? { ssl: { rejectUnauthorized: true } } : {}),
-  });
+export function createMysqlAdapter(): DatabasePool {
   const adapter: DatabasePool = {
     async connect() {
-      const connection = await pool.getConnection();
+      const connection = await getMysqlPool().getConnection();
       try {
         await connection.query("SET time_zone = '+00:00'");
         return wrap(connection);
@@ -80,7 +124,7 @@ export function createMysqlPool(settings: MysqlConnectionSettings): DatabasePool
       try { return await connection.query(sql, values); }
       finally { connection.release(); }
     },
-    end() { return pool.end(); },
+    end() { return closeMysqlPool(); },
   };
   return adapter;
 }
