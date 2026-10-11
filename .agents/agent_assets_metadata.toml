@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "8RgNkY4YBdJ8rrjmWw10c"
+uri = "file://generated-artifacts/sabito-cybrancee.zip"
+type = "unspecified"
+title = "Sabito — paquet à installer sur Cybrancee"
+description = "Dashboard et serveur précompilés, compatibles MySQL/MariaDB. Contient le guide INSTALLATION.md et un modèle de configuration, sans aucun secret ni donnée utilisateur."
+logical_id = "0cbc9866-2387-4dd2-9941-f3a6a702da31"
+content_hash = "sha256:e9e1f9b40d8e9032a743f59ba0b8c32d997084086586e5f62861e219a5382f6c"
+size = 3047244
+mtime_ms = 1791689835214
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:10f5db69-e23a-430b-9bb3-94e63c8aaff9/0cbc9866-2387-4dd2-9941-f3a6a702da31/53279bb7-68e3-42d1-a022-5c6c1349aee9"
+storage_version_token = "1791690005793905"
+content_type = "application/octet-stream"

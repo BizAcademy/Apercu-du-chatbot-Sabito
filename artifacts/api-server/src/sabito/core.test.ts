@@ -8,7 +8,7 @@ import request from "supertest";
 import { io,type Socket } from "socket.io-client";
 import { logger } from "../lib/logger";
 import { coreRoutes } from "./routes";
-import { initializeSabitoCore,pool } from "./database";
+import { initializeSabitoCore,pool,databaseDialect } from "./database";
 import { attachSocketServer } from "./socket";
 import { buildKnowledgeAnswer } from "./knowledge-answer";
 import { acceptUserMessage } from "./conversations";
@@ -150,8 +150,15 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     await new Promise<void>(resolve => server.close(() => resolve()));
     if (httpServer.listening) await new Promise<void>(resolve => httpServer.close(() => resolve()));
     if (projectIds.length) {
-      await pool.query(`DELETE FROM sabito_core.audit_logs WHERE project_id=ANY($1::uuid[])`,[projectIds]);
-      await pool.query(`DELETE FROM sabito_core.projects WHERE id=ANY($1::uuid[])`,[projectIds]);
+      if (databaseDialect === "mysql") {
+        for (const id of projectIds) {
+          await pool.query(`DELETE FROM sabito_core.audit_logs WHERE project_id=$1`,[id]);
+          await pool.query(`DELETE FROM sabito_core.projects WHERE id=$1`,[id]);
+        }
+      } else {
+        await pool.query(`DELETE FROM sabito_core.audit_logs WHERE project_id=ANY($1::uuid[])`,[projectIds]);
+        await pool.query(`DELETE FROM sabito_core.projects WHERE id=ANY($1::uuid[])`,[projectIds]);
+      }
     }
     await pool.end();
   }

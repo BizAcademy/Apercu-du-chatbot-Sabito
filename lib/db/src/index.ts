@@ -14,3 +14,5 @@ export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
+// Keep operators and table types on the same Drizzle peer-dependency instance.
+export { and, eq, desc } from "drizzle-orm";

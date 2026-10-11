@@ -1,9 +1,22 @@
-import { pool } from "@workspace/db";
-export { pool };
+import type { DatabasePool } from "./mysql-pool";
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is required.");
+export const databaseDialect = /^mysql:\/\//i.test(connectionString) ? "mysql" : "postgres";
+if (!/^(mysql|postgres|postgresql):\/\//i.test(connectionString)) {
+  throw new Error("DATABASE_URL must use mysql://, postgres:// or postgresql://.");
+}
+export const pool: DatabasePool = databaseDialect === "mysql"
+  ? (await import("./mysql-pool")).createMysqlPool(connectionString)
+  : (await import("@workspace/db")).pool;
 
 // Non-destructive PostgreSQL adaptation of the original MySQL migration.
 // A separate schema preserves the existing evaluation corrections.
 export async function initializeSabitoCore() {
+  if (databaseDialect === "mysql") {
+    await (await import("./mysql-schema")).initializeMysqlSchema(pool);
+    return;
+  }
   const connection = await pool.connect();
   try {
     await connection.query("BEGIN");

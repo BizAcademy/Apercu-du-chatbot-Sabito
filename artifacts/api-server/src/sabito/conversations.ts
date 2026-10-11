@@ -13,8 +13,10 @@ export async function acceptUserMessage(input: {
   const connection = await pool.connect();
   try {
     await connection.query("BEGIN");
-    // Serialize retries before creation. Unlike MySQL, a unique violation aborts a PG transaction.
-    await connection.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[`${input.projectId}:${input.idempotencyKey}`]);
+    // A transactional row lock works on both engines and serializes retries
+    // before creating a conversation, including retries on another server.
+    const project = await connection.query(`SELECT id FROM sabito_core.projects WHERE id=$1 FOR UPDATE`,[input.projectId]);
+    if (!project.rowCount) throw new Error("PROJECT_NOT_FOUND");
     const { rows: existing } = await connection.query(`SELECT m.* FROM sabito_core.messages m
       JOIN sabito_core.conversations c ON c.id=m.conversation_id
       WHERE m.project_id=$1 AND m.idempotency_key=$2 AND c.external_user_id=$3`,

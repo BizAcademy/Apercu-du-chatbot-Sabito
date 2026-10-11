@@ -16,10 +16,11 @@ export async function createProject(input: {slug: string; name: string; assistan
   const connection = await pool.connect();
   try {
     await connection.query("BEGIN");
-    const { rows } = await connection.query(`INSERT INTO sabito_core.projects
-      (id,slug,name,assistant_name,system_prompt) VALUES ($1,$2,$3,$4,$5)
-      RETURNING id,slug,name,assistant_name AS "assistantName",status,created_at AS "createdAt"`,
+    await connection.query(`INSERT INTO sabito_core.projects
+      (id,slug,name,assistant_name,system_prompt) VALUES ($1,$2,$3,$4,$5)`,
       [projectId,input.slug,input.name,input.assistant_name,input.system_prompt]);
+    const { rows } = await connection.query(`SELECT id,slug,name,assistant_name AS "assistantName",
+      status,created_at AS "createdAt" FROM sabito_core.projects WHERE id=$1`,[projectId]);
     await connection.query(`INSERT INTO sabito_core.project_credentials
       (id,project_id,client_id,secret_hash,secret_hint) VALUES ($1,$2,$3,$4,$5)`,
       [randomUUID(),projectId,credentials.clientId,credentials.secretHash,credentials.secretHint]);

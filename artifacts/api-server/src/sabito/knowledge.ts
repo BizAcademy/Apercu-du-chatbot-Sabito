@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { pool } from "./database";
+import { pool, databaseDialect } from "./database";
 
 export type KnowledgeMatch = {title: string; content: string};
 // Original chunking algorithm, unchanged.
@@ -48,14 +48,22 @@ export async function saveKnowledge(projectId: string, title: string, content: s
   finally { connection.release(); }
 }
 export async function searchKnowledge(projectId: string, query: string, limit = 5): Promise<KnowledgeMatch[]> {
-  const { rows } = await pool.query(`SELECT kc.content,kd.title,
+  const { rows } = databaseDialect === "mysql"
+    ? await pool.query(`SELECT kc.content,kd.title,
+      MATCH(kc.content) AGAINST($1 IN NATURAL LANGUAGE MODE) AS relevance
+      FROM sabito_core.knowledge_chunks kc
+      JOIN sabito_core.knowledge_documents kd ON kd.id=kc.document_id AND kd.project_id=kc.project_id
+      WHERE kc.project_id=$2 AND kd.status='ready'
+        AND MATCH(kc.content) AGAINST($1 IN NATURAL LANGUAGE MODE)>0
+      ORDER BY relevance DESC LIMIT $3`,[query,projectId,limit])
+    : await pool.query(`SELECT kc.content,kd.title,
     ts_rank(to_tsvector('simple',kc.content),websearch_to_tsquery('simple',$1)) AS relevance
     FROM sabito_core.knowledge_chunks kc
     JOIN sabito_core.knowledge_documents kd ON kd.id=kc.document_id AND kd.project_id=kc.project_id
     WHERE kc.project_id=$2 AND kd.status='ready'
       AND to_tsvector('simple',kc.content) @@ websearch_to_tsquery('simple',$1)
     ORDER BY relevance DESC LIMIT $3`,[query,projectId,limit]);
-  if (rows.length) return rows;
+  if (rows.length) return rows.map(row => ({title:String(row.title),content:String(row.content)}));
   const keywords = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? [])].slice(0,8);
   if (!keywords.length) return [];
   const result = await pool.query(`SELECT kc.content,kd.title FROM sabito_core.knowledge_chunks kc
@@ -64,5 +72,5 @@ export async function searchKnowledge(projectId: string, query: string, limit = 
       (${keywords.map((_,index) => `LOWER(kc.content) LIKE $${index+2}`).join(" OR ")})
     ORDER BY kc.created_at DESC LIMIT $${keywords.length+2}`,
     [projectId,...keywords.map(word => `%${word}%`),limit]);
-  return result.rows;
+  return result.rows.map(row => ({title:String(row.title),content:String(row.content)}));
 }

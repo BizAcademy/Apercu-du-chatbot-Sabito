@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, desc } from "drizzle-orm";
-import { db, sabitoKnowledge } from "@workspace/db";
+import { and, eq, desc, db, sabitoKnowledge } from "@workspace/db";
 import {
   AskSabitoBody, AskSabitoResponse, ListSabitoKnowledgeResponse,
   SaveSabitoKnowledgeBody, SaveSabitoKnowledgeResponse, DeleteSabitoKnowledgeParams,

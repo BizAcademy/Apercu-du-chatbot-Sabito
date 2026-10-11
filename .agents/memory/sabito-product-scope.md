@@ -37,4 +37,10 @@ L'utilisateur veut publier Sabito sur Cybrancee, et non sur Replit. Sa capture d
 
 **Why:** L'utilisateur a explicitement choisi cet hébergement après la proposition de publication sur Replit.
 
-**How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et PostgreSQL avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
+**How to apply:** Préparer un déploiement externe pour Cybrancee ; vérifier l'offre, l'accès Node.js et le type de base disponible avant d'adapter le projet. La page d'installation Plesk ne prouve pas que Sabito est déployé.
+
+L'utilisateur a créé une base MySQL/MariaDB sur Cybrancee et a choisi d'adapter Sabito à cette base.
+
+**Why:** L'utilisateur a confirmé le type de base et approuvé l'adaptation pour son hébergement externe.
+
+**How to apply:** Maintenir la compatibilité MySQL/MariaDB en production externe et PostgreSQL dans le Preview, sans remplacer la base existante. Ne pas transférer automatiquement les données ni supposer que les identifiants créés dans le Preview existent dans une base de production neuve.

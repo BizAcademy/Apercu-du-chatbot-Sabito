@@ -10,6 +10,12 @@ The new `sabito_core` schema is separate from the previous preview knowledge.
 No existing evaluation corrections were deleted or silently made shared.
 The original repository's MySQL database is not accessed or migrated.
 
+External MySQL/MariaDB deployments are now supported with a `mysql://`
+`DATABASE_URL`. The PostgreSQL Preview remains unchanged. MySQL uses additive
+`sabito_*` tables and its own full-text search; no existing database is replaced
+or converted. See `../../deployment/CYBRANCEE.md` for the standalone Plesk package,
+environment variables and production verification.
+
 ## Sabito server setup
 
 Use workspace Secrets, never the chat, for:

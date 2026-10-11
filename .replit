@@ -23,3 +23,7 @@ timeoutMs = 20000
 
 [userenv.shared]
 SABITO_AI_ENABLED = "false"
+
+[nix]
+channel = "stable-25_05"
+packages = ["mariadb"]
