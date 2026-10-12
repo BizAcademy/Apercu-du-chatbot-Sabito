@@ -7,6 +7,11 @@ Dans cette version, les routes membres `/dashboard` et `/login` redirigent
 néanmoins vers `FRONT_URL`. Cela ne prouve pas l'existence d'un autre dépôt :
 il faut confirmer quelles vues sont réellement servies dans la version déployée.
 L'API utilise `App\Services\JwtTokenService`.
+La page publique `https://bizconnectacademy.com/dashboard` a été vérifiée :
+elle charge des bundles Next.js (`/_next/static/chunks/`). L'API est également
+accessible sous la même origine : `/api/v2/auth/me` renvoie un refus JSON 401
+sans authentification. Cela est compatible avec un frontend greffé au backend
+derrière le même domaine, sans prouver qu'ils sont dans des dépôts distincts.
 Ne pas ajouter le widget au layout d'administration Blade par erreur.
 
 ## 1. Backend : uniquement ces ajouts
@@ -63,23 +68,31 @@ exécuter aussi `php artisan route:cache`. Aucun changement de base requis.
 
 ## 2. Frontend membres : branchement à la connexion existante
 
-Copier `frontend/sabito-bca.mjs` dans les sources du vrai frontend BCA.
+Copier `frontend/sabito-bca.mjs` dans les sources Next.js servant l'espace membres.
 Après l'initialisation de son état d'authentification :
 
 ```js
 import { installSabitoBca } from "./sabito-bca.mjs";
 
 const widget = await installSabitoBca({
-  apiOrigin: "https://DOMAINE-REEL-DU-BACKEND-BCA",
-  getAccessToken: () => authStore.getState().accessToken,
+  apiOrigin: window.location.origin,
+  getAccessToken: () =>
+    localStorage.getItem("bca-auth-token") ?? localStorage.getItem("token"),
 });
 ```
 
-`authStore.getState().accessToken` est **le seul exemple à remplacer** par le
-getter réel du frontend utilisant l'API JWT. Ne pas copier un JWT en dur.
-Ce getter n'a pas été identifié dans les vues de l'archive. Si les pages actives
-utilisent plutôt la session Laravel, cet adaptateur JWT ne suffit pas : il faut
-un échange fondé sur cette session, protégé par le middleware web et le CSRF.
+Ces deux noms de clés ont été constatés dans la fonction publique `getAuthToken`
+du frontend déployé, sans lire aucune valeur de jeton utilisateur. Dans les
+sources Next.js, préférer importer cette fonction existante plutôt que dupliquer
+son fonctionnement. Exécuter ce code uniquement côté navigateur, jamais dans un
+composant serveur. Ne pas copier un JWT en dur ni en créer une copie supplémentaire.
+La route appelée est `https://bizconnectacademy.com/api/v2/sabito/session` :
+le routage frontend/backend doit transmettre cette nouvelle route à Laravel
+comme il le fait pour `/api/v2/auth/me`.
+Les sources Next.js et le chemin de leur module d'authentification ne figurent
+pas dans l'archive Laravel inspectée ; le branchement au composant actif reste
+à appliquer dans ces sources. Ne pas modifier les routes membres pour contourner
+cette étape.
 Le getter doit lire le jeton courant après toute actualisation de connexion.
 Gérer le rejet de `installSabitoBca` pour signaler un échec de chargement.
 
