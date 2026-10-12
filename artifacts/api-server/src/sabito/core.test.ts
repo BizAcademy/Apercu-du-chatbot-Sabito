@@ -8,6 +8,7 @@ import request from "supertest";
 import { io,type Socket } from "socket.io-client";
 import { logger } from "../lib/logger";
 import { coreRoutes } from "./routes";
+import { widgetPublicRoutes } from "./widget";
 import { initializeSabitoCore,pool,databaseDialect } from "./database";
 import { attachSocketServer } from "./socket";
 import { buildKnowledgeAnswer } from "./knowledge-answer";
@@ -28,6 +29,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
   process.env.CLIENT_SECRET_PEPPER = randomBytes(32).toString("hex");
   const app = express();
   app.use(express.json());
+  app.use("/v1/widget", widgetPublicRoutes);
   app.use((req,_res,next) => {req.log=logger;next();});
   app.use(coreRoutes);
   const httpServer = createServer(app);
@@ -63,6 +65,30 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.ok(stored.rows[0].secret_hash !== first.credentials.clientSecret);
       await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
         .send({slug,name:"Duplicate",assistant_name:"Sabito",system_prompt:"Answer only from approved platform knowledge."}).expect(409);
+    });
+    await t.test("Public widget requires admin domain approval and only issues isolated guest sessions", async () => {
+      const url = `/v1/widget/${first.project.id}/session`;
+      const config = `/v1/admin/projects/${first.project.id}/widget`;
+      const admin = { "x-admin-key": process.env.ADMIN_API_KEY! };
+      await request(app).put(config).send({ origins: ["https://approved.example"] }).expect(401);
+      await request(app).post(url).set("Origin", "https://approved.example").send({}).expect(403);
+      await request(app).put(config).set(admin).send({ origins: ["https://approved.example/path"] }).expect(422);
+      await request(app).put(config).set(admin).send({ origins: ["https://approved.example"] }).expect(200);
+      await request(app).options(url).set("Origin", "https://approved.example").expect(204);
+      await request(app).post(url).set("Origin", "https://evil.example").send({}).expect(403);
+      await request(app).post(url).send({}).expect(403);
+      const guest = await request(app).post(url).set("Origin", "https://approved.example").send({ external_user_id: "victim" }).expect(200);
+      assert.equal(guest.headers["access-control-allow-origin"], "https://approved.example");
+      assert.equal(guest.body.identity_type, "guest");
+      assert.match(guest.body.external_user_id, /^widget-guest:/);
+      const second = await request(app).post(url).set("Origin", "https://approved.example").send({}).expect(200);
+      assert.notEqual(second.body.external_user_id, guest.body.external_user_id);
+      const renewed = await request(app).post(url).set("Origin", "https://approved.example")
+        .send({ visitor_token: guest.body.access_token }).expect(200);
+      assert.equal(renewed.body.external_user_id, guest.body.external_user_id);
+      await request(app).post(url).set("Origin", "https://approved.example").send({ visitor_token: "forged" }).expect(401);
+      await request(app).put(config).set(admin).send({ origins: [] }).expect(200);
+      await request(app).post(url).set("Origin", "https://approved.example").send({}).expect(403);
     });
     await t.test("Platform backend exchanges Basic credentials for user or guest tokens",async () => {
       await request(app).post("/v1/auth/token").send({}).expect(401);

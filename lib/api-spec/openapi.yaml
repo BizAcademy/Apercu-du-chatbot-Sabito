@@ -11,6 +11,48 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /v1/admin/projects/{projectId}/widget:
+    get:
+      operationId: getWidgetSettings
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Authorized website origins
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WidgetSettings"}
+    put:
+      operationId: updateWidgetSettings
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WidgetSettings"}
+      responses:
+        "200":
+          description: Saved widget settings
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WidgetSettings"}
+  /v1/widget/{projectId}/session:
+    post:
+      operationId: createWidgetVisitorSession
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WidgetVisitorInput"}
+      responses:
+        "200":
+          description: Anonymous visitor session, never a verified platform member
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WidgetVisitorSession"}
   /v1/status:
     get:
       operationId: getSabitoCoreStatus
@@ -239,6 +281,24 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    WidgetSettings:
+      type: object
+      required: [origins]
+      properties:
+        origins: {type: array, maxItems: 10, items: {type: string}}
+    WidgetVisitorInput:
+      type: object
+      properties:
+        visitor_token: {type: string, maxLength: 16384}
+    WidgetVisitorSession:
+      type: object
+      required: [access_token, expires_in, external_user_id, socket_path, identity_type]
+      properties:
+        access_token: {type: string}
+        expires_in: {type: integer}
+        external_user_id: {type: string}
+        socket_path: {type: string}
+        identity_type: {type: string, enum: [guest]}
     CoreStatus:
       type: object
       required: [configured, missingSecrets, engine]

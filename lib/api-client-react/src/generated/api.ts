@@ -35,7 +35,10 @@ import type {
   ProjectCreated,
   ProjectList,
   SabitoChatInput,
-  SabitoReply
+  SabitoReply,
+  WidgetSettings,
+  WidgetVisitorInput,
+  WidgetVisitorSession
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -64,6 +67,243 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetWidgetSettingsUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/widget`
+}
+
+export const getWidgetSettings = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<WidgetSettings> => {
+
+  return customFetch<WidgetSettings>(getGetWidgetSettingsUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWidgetSettingsQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/widget`
+    ] as const;
+    }
+
+
+export const getGetWidgetSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getWidgetSettings>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWidgetSettingsQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWidgetSettings>>> = ({ signal }) => getWidgetSettings(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWidgetSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWidgetSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getWidgetSettings>>>
+export type GetWidgetSettingsQueryError = ErrorType<unknown>
+
+
+
+export function useGetWidgetSettings<TData = Awaited<ReturnType<typeof getWidgetSettings>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWidgetSettingsQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWidgetSettingsUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/widget`
+}
+
+export const updateWidgetSettings = async (projectId: string,
+    widgetSettings: WidgetSettings, options?: Parameters<typeof customFetch>[1]): Promise<WidgetSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WidgetSettings>(getUpdateWidgetSettingsUrl(projectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(widgetSettings)
+  }
+);}
+
+
+
+
+
+export const getUpdateWidgetSettingsMutationKey = () => ['updateWidgetSettings'] as const;
+
+export const getUpdateWidgetSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWidgetSettings>>, TError,UpdateWidgetSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWidgetSettings>>, TError,UpdateWidgetSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateWidgetSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWidgetSettings>>, UpdateWidgetSettingsMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  updateWidgetSettings(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWidgetSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateWidgetSettings>>>
+    export type UpdateWidgetSettingsMutationBody = BodyType<WidgetSettings>
+    export type UpdateWidgetSettingsMutationError = ErrorType<unknown>
+    export type UpdateWidgetSettingsMutationVariables = {projectId: string;data: BodyType<WidgetSettings>}
+
+    export const useUpdateWidgetSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWidgetSettings>>, TError,UpdateWidgetSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWidgetSettings>>,
+        TError,
+        UpdateWidgetSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateWidgetSettingsMutationOptions(options));
+    }
+
+export const getCreateWidgetVisitorSessionUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/widget/${projectId}/session`
+}
+
+export const createWidgetVisitorSession = async (projectId: string,
+    widgetVisitorInput?: WidgetVisitorInput, options?: Parameters<typeof customFetch>[1]): Promise<WidgetVisitorSession> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WidgetVisitorSession>(getCreateWidgetVisitorSessionUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(widgetVisitorInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWidgetVisitorSessionMutationKey = () => ['createWidgetVisitorSession'] as const;
+
+export const getCreateWidgetVisitorSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWidgetVisitorSession>>, TError,CreateWidgetVisitorSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWidgetVisitorSession>>, TError,CreateWidgetVisitorSessionMutationVariables, TContext> => {
+
+const mutationKey = getCreateWidgetVisitorSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWidgetVisitorSession>>, CreateWidgetVisitorSessionMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  createWidgetVisitorSession(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWidgetVisitorSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createWidgetVisitorSession>>>
+    export type CreateWidgetVisitorSessionMutationBody = BodyType<WidgetVisitorInput> | undefined
+    export type CreateWidgetVisitorSessionMutationError = ErrorType<unknown>
+    export type CreateWidgetVisitorSessionMutationVariables = {projectId: string;data?: BodyType<WidgetVisitorInput>}
+
+    export const useCreateWidgetVisitorSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWidgetVisitorSession>>, TError,CreateWidgetVisitorSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWidgetVisitorSession>>,
+        TError,
+        CreateWidgetVisitorSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateWidgetVisitorSessionMutationOptions(options));
+    }
 
 export const getGetSabitoCoreStatusUrl = () => {
 

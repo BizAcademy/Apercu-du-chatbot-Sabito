@@ -7,6 +7,7 @@ import { coreRoutes } from "./sabito/routes";
 import { permittedOrigin } from "./sabito/socket";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { widgetPublicRoutes, widgetOrigins } from "./sabito/widget";
 
 const app: Express = express();
 
@@ -31,6 +32,8 @@ app.use(
 );
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
+app.use("/v1/widget", express.json(), widgetPublicRoutes);
+app.use("/api/v1/widget", express.json(), widgetPublicRoutes);
 app.use(cors({origin(origin, callback) { callback(null, permittedOrigin(origin)); }}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -44,7 +47,7 @@ if (process.env.SABITO_WEB_DIR) {
   const webDir = path.resolve(process.env.SABITO_WEB_DIR);
   const indexFile = path.join(webDir, "index.html");
   if (!existsSync(indexFile)) throw new Error("SABITO_WEB_DIR does not contain the built dashboard.");
-  app.get("/widget/chat", (req, res) => {
+  app.get("/widget/chat", async (req, res) => {
     const origins = [process.env.PUBLIC_URL, ...(process.env.CORS_ORIGINS || "").split(",")]
       .filter((value): value is string => Boolean(value))
       .map(value => value.trim())
@@ -55,6 +58,9 @@ if (process.env.SABITO_WEB_DIR) {
             (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)));
         } catch { return false; }
       });
+    if (typeof req.query.projectId === "string" && /^[a-f0-9-]{36}$/i.test(req.query.projectId)) {
+      origins.splice(0, origins.length, ...await widgetOrigins(req.query.projectId));
+    }
     res.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${origins.join(" ")}`);
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Cache-Control", "no-store");

@@ -34,3 +34,7 @@ export * from './sabitoReply';
 export * from './sabitoReplySource';
 export * from './sabitoTurn';
 export * from './sabitoTurnRole';
+export * from './widgetSettings';
+export * from './widgetVisitorInput';
+export * from './widgetVisitorSession';
+export * from './widgetVisitorSessionIdentityType';

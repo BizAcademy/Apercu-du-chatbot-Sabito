@@ -9,6 +9,7 @@ import { configurationStatus,parseBasicCredentials,signAccessToken,tokenTtl,vali
 import { saveKnowledge } from "./knowledge";
 import { getConversationMessages } from "./conversations";
 import { revokeProjectSockets } from "./socket";
+import { widgetOrigins, widgetOriginsSchema } from "./widget";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
@@ -42,6 +43,20 @@ coreRoutes.post("/v1/auth/token",sensitiveLimiter,async (req,res) => {
   tokenResponse(req,res,project.id,project.clientId,body.data.external_user_id ?? `guest:${randomUUID()}`,!body.data.external_user_id);
 });
 coreRoutes.get("/v1/admin/projects",async (_req,res) => {res.json({success:true,data:await listProjects()});});
+coreRoutes.get("/v1/admin/projects/:projectId/widget", async (req, res) => {
+  const id = idSchema.safeParse(req.params.projectId);
+  if (!id.success || !await getProject(id.data)) { res.sendStatus(404); return; }
+  res.json({ origins: await widgetOrigins(id.data) });
+});
+coreRoutes.put("/v1/admin/projects/:projectId/widget", async (req, res) => {
+  const id = idSchema.safeParse(req.params.projectId), body = widgetOriginsSchema.safeParse(req.body);
+  if (!id.success || !body.success) { res.status(422).json({ message: "Saisis les origines HTTPS exactes, sans chemin." }); return; }
+  if (!await getProject(id.data)) { res.sendStatus(404); return; }
+  await pool.query("INSERT INTO sabito_core.widget_settings (project_id,origins_json) VALUES ($1,$2) ON DUPLICATE KEY UPDATE origins_json=VALUES(origins_json)",
+    [id.data, JSON.stringify([...new Set(body.data.origins)])]);
+  revokeProjectSockets(id.data);
+  res.json({ origins: body.data.origins });
+});
 coreRoutes.post("/v1/admin/projects",async (req,res) => {
   const parsed = CreateSabitoProjectBody.safeParse(req.body);
   if (!parsed.success || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(parsed.data.slug) ||

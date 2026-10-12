@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { initializeMysqlSchema, mysqlMigrationStatus } from "./mysql-schema";
+import { initializeMysqlSchema, mysqlMigrationStatus, loadMysqlMigrations } from "./mysql-schema";
 import { checkMysqlConnection, closeMysqlPool, getMysqlPool, withMysqlTransaction } from "./mysql-pool";
 
 test("isolated MySQL: connection, migration replay protection, prepared values and rollback", async () => {
@@ -10,7 +10,7 @@ test("isolated MySQL: connection, migration replay protection, prepared values a
     await checkMysqlConnection();
     await initializeMysqlSchema({ apply: true });
     const first = await mysqlMigrationStatus();
-    assert.equal(first.applied.length, 1);
+    assert.equal(first.applied.length, (await loadMysqlMigrations()).length);
     assert.equal(first.pending.length, 0);
     const [before] = await getMysqlPool().execute("SELECT applied_at FROM schema_migrations");
     await initializeMysqlSchema({ apply: true });

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { logger } from "../lib/logger";
 import { verifyAccessToken } from "./security";
 import { activeCredential } from "./projects";
+import { widgetOrigins } from "./widget";
 import { acceptUserMessage,beginAssistantMessage,createConversation,findAssistantReply,finishMessage,getConversationMessages } from "./conversations";
 import { searchKnowledge } from "./knowledge";
 import { buildKnowledgeAnswer,streamParts } from "./knowledge-answer";
@@ -42,6 +43,8 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (typeof token !== "string") throw new Error("UNAUTHORIZED");
       const claims = verifyAccessToken(token);
       if (!await activeCredential(claims.sub,claims.clientId)) throw new Error("UNAUTHORIZED");
+      if (claims.scope.includes("widget:guest") && (!claims.widgetOrigin ||
+        !(await widgetOrigins(claims.sub)).includes(claims.widgetOrigin))) throw new Error("UNAUTHORIZED");
       socket.data.claims = claims;
       socket.data.token = token;
       socket.data.messageTimestamps = [];

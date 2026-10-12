@@ -20,6 +20,23 @@
   if (apiUrl.protocol !== "https:" && !(local && apiUrl.protocol === "http:")) return fail("data-api-url doit être en HTTPS");
   if (apiUrl.username || apiUrl.password || apiUrl.hash || apiUrl.search || apiUrl.pathname !== "/") return fail("data-api-url doit être une origine simple (sans identifiants, chemin, requête ni fragment)");
   var sabitoOrigin = apiUrl.origin;
+  var projectId = ds.projectId || "";
+  var visitorToken = null;
+  if (projectId && !/^[a-f0-9-]{36}$/i.test(projectId)) return fail("data-project-id invalide");
+  if (projectId && !sessionProvider) sessionProvider = function (options) {
+    return fetch(new URL("/v1/widget/" + projectId + "/session", sabitoOrigin), {
+      method: "POST", mode: "cors", credentials: "omit", cache: "no-store",
+      redirect: "error", signal: options.signal, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(visitorToken ? { visitor_token: visitorToken } : {})
+    }).then(function (response) {
+      if (response.status === 401) visitorToken = null;
+      if (!response.ok) return response;
+      return response.clone().json().then(function (data) {
+        if (!options.signal.aborted) visitorToken = data.access_token;
+        return response;
+      });
+    });
+  };
 
   var rawSession = ds.sessionUrl || "/api/sabito/session";
   if (rawSession.indexOf("#") !== -1) return fail("data-session-url ne doit pas contenir de fragment");
@@ -84,6 +101,7 @@
     u.searchParams.set("title", title);
     u.searchParams.set("color", color);
     if (productCode) u.searchParams.set("product", productCode);
+    if (projectId) u.searchParams.set("projectId", projectId);
     iframe.src = u.toString();
     iframe.title = title;
     panel.insertBefore(iframe, errBox);
@@ -165,6 +183,7 @@
   });
 
   function logout() {
+    visitorToken = null;
     loggedOut = true; generation++; abortInflight();
     post({ type: "sabito:logout" });
     setOpen(false);

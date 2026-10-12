@@ -5,6 +5,31 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface WidgetSettings {
+  /** @maxItems 10 */
+  origins: string[];
+}
+
+export interface WidgetVisitorInput {
+  /** @maxLength 16384 */
+  visitor_token?: string;
+}
+
+export type WidgetVisitorSessionIdentityType = typeof WidgetVisitorSessionIdentityType[keyof typeof WidgetVisitorSessionIdentityType];
+
+
+export const WidgetVisitorSessionIdentityType = {
+  guest: 'guest',
+} as const;
+
+export interface WidgetVisitorSession {
+  access_token: string;
+  expires_in: number;
+  external_user_id: string;
+  socket_path: string;
+  identity_type: WidgetVisitorSessionIdentityType;
+}
+
 export interface CoreStatus {
   configured: boolean;
   missingSecrets: string[];

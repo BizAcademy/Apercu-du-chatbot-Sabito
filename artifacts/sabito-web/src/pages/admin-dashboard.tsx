@@ -9,6 +9,7 @@ import {
 import { BookOpen, Copy, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
+import { WidgetIntegration } from "@/components/WidgetIntegration";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 const input = "w-full rounded-[12px] border border-[#dfe2ef] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#9da5ff]";
@@ -147,9 +148,10 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
         )}
       </section>
       <Knowledge projectId={p.id} />
+      <WidgetIntegration project={p} />
       <section className={card}>
-        <h2 className="text-[15px] font-bold">Intégration</h2>
-        <p className="mt-1 text-[12px] leading-5 text-[#6c748d]">L'adresse ci-dessous est celle de l'aperçu de développement actuel, pas une adresse de production. Le secret client reste sur le serveur de la plateforme. Aucune donnée privée BCA en direct n'est encore connectée : Sabito répond uniquement à partir des références validées.</p>
+        <h2 className="text-[15px] font-bold">Connexion serveur aux comptes privés (optionnelle)</h2>
+        <p className="mt-1 text-[12px] leading-5 text-[#6c748d]">Cette étape n'est pas nécessaire pour le widget visiteur ci-dessus. Elle concerne une future connexion aux données privées des membres. Le secret client reste sur le serveur de la plateforme, jamais dans le script public. L'adresse ci-dessous est celle du dashboard actuellement ouvert.</p>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-[#171d53] p-4 font-mono text-[11.5px] leading-6 text-[#dfe3ff]" data-testid="text-integration">{snippet}</pre>
       </section>
     </>

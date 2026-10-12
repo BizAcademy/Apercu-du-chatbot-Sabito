@@ -8,6 +8,61 @@
 import * as zod from 'zod';
 
 
+export const GetWidgetSettingsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const getWidgetSettingsResponseOriginsMax = 10;
+
+
+
+export const GetWidgetSettingsResponse = zod.object({
+  "origins": zod.array(zod.string()).max(getWidgetSettingsResponseOriginsMax)
+})
+
+
+export const UpdateWidgetSettingsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const updateWidgetSettingsBodyOriginsMax = 10;
+
+
+
+export const UpdateWidgetSettingsBody = zod.object({
+  "origins": zod.array(zod.string()).max(updateWidgetSettingsBodyOriginsMax)
+})
+
+export const updateWidgetSettingsResponseOriginsMax = 10;
+
+
+
+export const UpdateWidgetSettingsResponse = zod.object({
+  "origins": zod.array(zod.string()).max(updateWidgetSettingsResponseOriginsMax)
+})
+
+
+export const CreateWidgetVisitorSessionParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const createWidgetVisitorSessionBodyVisitorTokenMax = 16384;
+
+
+
+export const CreateWidgetVisitorSessionBody = zod.object({
+  "visitor_token": zod.string().max(createWidgetVisitorSessionBodyVisitorTokenMax).optional()
+})
+
+export const CreateWidgetVisitorSessionResponse = zod.object({
+  "access_token": zod.string(),
+  "expires_in": zod.number().int(),
+  "external_user_id": zod.string(),
+  "socket_path": zod.string(),
+  "identity_type": zod.enum(['guest'])
+})
+
+
 export const GetSabitoCoreStatusResponse = zod.object({
   "configured": zod.boolean(),
   "missingSecrets": zod.array(zod.string()),
