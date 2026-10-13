@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 import mysql, { type Pool } from "mysql2/promise";
 import { closeMysqlPool } from "./mysql-pool";
-import { initializeMysqlSchema, mysqlMigrationStatus } from "./mysql-schema";
+import { initializeMysqlSchema, loadMysqlMigrations, mysqlMigrationStatus } from "./mysql-schema";
 
 test("migrations: production stays read-only; tracked files apply only once", async () => {
   const keys = ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "NODE_ENV"];
@@ -32,15 +32,18 @@ test("migrations: production stays read-only; tracked files apply only once", as
     async getConnection() { return connection; }, async end() {},
   }) as unknown as Pool);
   try {
+    const expectedMigrations = (await loadMysqlMigrations()).map(migration => migration.name);
+    assert.ok(expectedMigrations.length > 0, "The suite must exercise the tracked migrations.");
     await assert.rejects(initializeMysqlSchema({ apply: false }), /Pending MySQL migrations/);
     assert.equal(tableExists, false, "Production startup must not create the history table.");
     await assert.rejects(initializeMysqlSchema({ apply: true }), /explicit review/);
     assert.equal(applications, 0);
     await initializeMysqlSchema({ apply: true, reviewed: true });
-    assert.equal(applied.length, 1);
-    assert.equal(applications, 1);
+    assert.deepEqual(applied, expectedMigrations, "Every tracked migration must be applied in order.");
+    assert.equal(applications, expectedMigrations.length);
     await initializeMysqlSchema({ apply: true, reviewed: true });
-    assert.equal(applications, 1);
+    assert.deepEqual(applied, expectedMigrations, "Already applied migrations must not be tracked twice.");
+    assert.equal(applications, expectedMigrations.length, "Already applied migrations must not run again.");
     assert.equal((await mysqlMigrationStatus()).pending.length, 0);
     assert.ok(releases >= 4);
   } finally {
