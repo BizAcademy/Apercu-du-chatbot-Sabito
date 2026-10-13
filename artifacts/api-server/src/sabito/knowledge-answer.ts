@@ -26,7 +26,7 @@ export function buildKnowledgeAnswer(question: string, matches: KnowledgeMatch[]
   const relevant = ranked.filter(item => item.score > 0).slice(0,5);
   // Do not present unrelated sentences as an answer.
   if (!relevant.length) return "J’ai trouvé des références proches, mais pas assez d’informations pour répondre de façon fiable.";
-  return relevant.map(item => `${item.sentence} [Source: ${item.title}]`).join("\n\n");
+  return relevant.map(item => item.sentence).join("\n\n");
 }
 export function streamParts(content: string, size = 28): string[] {
   return content.match(new RegExp(`.{1,${size}}`,"gs")) ?? [];

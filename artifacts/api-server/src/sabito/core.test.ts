@@ -133,11 +133,12 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       conversationId = ack.data.conversationId;
       const [reply] = await completed;
       assert.ok(reply.content.includes("Mes formations"));
-      assert.ok(reply.content.includes("[Source: Accès formations]"));
+      assert.ok(!reply.content.includes("[Source:"));
       assert.ok(deltas>0);
       const history = await request(app).get(`/v1/conversations/${conversationId}/messages`).set("Authorization",`Bearer ${token}`).expect(200);
       assert.equal(history.body.data.length,2);
       assert.ok(history.body.data.every((message:{status:string}) => message.status==="completed"));
+      assert.equal(history.body.data.find((message:{role:string}) => message.role === "assistant").content, reply.content);
     });
     await t.test("Conversations and knowledge cannot cross platforms or user identities",async () => {
       const otherToken = await request(app).post(`/v1/admin/projects/${second.project.id}/test-token`).set("X-Admin-Key",adminKey).expect(200);
