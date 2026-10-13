@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import request from "supertest";
@@ -28,5 +28,13 @@ test("Widget document rejects absent, lookalike and unconfigured parent origins"
     const res = await request(app).get("/widget/chat").query({ parentOrigin });
     assert.equal(res.status, 403);
     assert.ok(!res.text.includes("Sabito fixture"));
+  }
+});
+
+test("Both hosted chat entry points start with HTTP polling for Plesk compatibility", async () => {
+  for (const page of ["project-chat.tsx", "widget-chat.tsx"]) {
+    const source = await readFile(new URL(`../../sabito-web/src/pages/${page}`, import.meta.url), "utf8");
+    assert.match(source, /transports:\s*\[\s*"polling"\s*,\s*"websocket"\s*\]/,
+      `${page} must connect over HTTP before attempting an optional WebSocket upgrade`);
   }
 });

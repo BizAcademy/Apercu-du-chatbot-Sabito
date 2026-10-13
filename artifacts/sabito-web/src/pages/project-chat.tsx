@@ -60,7 +60,9 @@ function ChatInner() {
       try {
         const data = await fetchToken();
         if (disposed) return;
-        const s = io(window.location.origin, { path: data.socket_path || "/socket.io", auth: (cb) => cb({ token: tokenRef.current?.token }), transports: ["websocket", "polling"] });
+        // Plesk can reject WebSocket upgrades: connect over HTTPS polling first,
+        // just like the embedded widget, and only upgrade when supported.
+        const s = io(window.location.origin, { path: data.socket_path || "/socket.io", auth: (cb) => cb({ token: tokenRef.current?.token }), transports: ["polling", "websocket"] });
         socketRef.current = s;
         const schedule = () => {
           window.clearTimeout(timerRef.current);
@@ -95,6 +97,7 @@ function ChatInner() {
         });
         s.on("connect_error", () => {
           setConnected(false);
+          setError("Connexion au serveur impossible. Nouvelle tentative automatique…");
           renewConnection();
         });
         s.on("session:ready", () => { const cid = localStorage.getItem(convKey(projectId)); if (cid) void hydrate(cid); });
