@@ -66,8 +66,8 @@
   var safeTitle = title.replace(/['<>&"]/g, "");
   root.innerHTML =
     "<style>:host{all:initial}" +
-    ".btn{position:fixed;bottom:20px;" + side + ";z-index:2147483000;width:58px;height:58px;border-radius:20px;border:0;cursor:pointer;background:" + color + ";color:#fbfaf6;box-shadow:0 12px 34px rgba(20,24,60,.28);display:grid;place-items:center;transition:transform .2s}" +
-    ".btn:hover{transform:translateY(-2px)}button:focus-visible{outline:3px solid #f2b84b;outline-offset:3px}" +
+    ".btn{position:fixed;bottom:20px;" + side + ";z-index:2147483000;height:46px;padding:0 20px 0 16px;border-radius:999px;border:1px solid rgba(178,92,255,.75);cursor:pointer;background:linear-gradient(#17151f,#17151f) padding-box,linear-gradient(120deg,#7c4dff,#d63fd0 55%,#6a3cff) border-box;border-color:transparent;color:#fff;box-shadow:0 10px 28px rgba(14,10,30,.38);display:inline-flex;align-items:center;gap:10px;font:600 15px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.01em;white-space:nowrap;transition:transform .2s,box-shadow .2s}" +
+    ".btn:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(14,10,30,.45)}.btn svg{flex:none;display:block}button:focus-visible{outline:3px solid #f2b84b;outline-offset:3px}" +
     ".panel{position:fixed;bottom:90px;" + side + ";z-index:2147483000;width:380px;height:min(620px,calc(100dvh - 110px));border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(20,24,60,.3);background:#f6f4ee;opacity:0;transform:translateY(12px);visibility:hidden;pointer-events:none;transition:opacity .2s,transform .2s,visibility 0s .2s}" +
     ".panel.open{opacity:1;transform:none;visibility:visible;pointer-events:auto;transition:opacity .2s,transform .2s,visibility 0s}iframe{border:0;width:100%;height:100%;display:block}" +
     ".err{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font:14px/1.5 system-ui,sans-serif;color:#8a3417;background:#f6f4ee}" +
@@ -78,7 +78,7 @@
     "<div class='err' role='alert'><p class='msg'>Le chat n'a pas pu être chargé.</p><div class='row'>" +
     "<button type='button' class='retry'>Réessayer</button><button type='button' class='close'>Fermer</button></div></div></div>" +
     "<button class='btn' type='button' aria-expanded='false' aria-label='Ouvrir le chat'>" +
-    "<svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' aria-hidden='true'><path d='M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z'/></svg></button>";
+    "<svg width='22' height='22' viewBox='0 0 24 24' fill='#fff' aria-hidden='true'><path d='M3 4.5 11 9 8.6 12z'/><path d='M3 19.5 11 15 8.6 12z'/><path d='M12.5 6 21 12l-8.5 0z'/><path d='M12.5 18 21 12l-8.5 0z'/><path d='M8.6 12l3.9-2.2v4.4z'/></svg><span>Sabito AI</span></button>";
   var panel = root.querySelector(".panel");
   var btn = root.querySelector(".btn");
   var errBox = root.querySelector(".err");
