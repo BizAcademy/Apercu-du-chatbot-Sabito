@@ -87,7 +87,9 @@ export function WidgetChat() {
 
   const connect = useCallback((sess: Session) => {
     const gen = genRef.current;
-    const s = io(window.location.origin, { path: SOCKET_PATH, auth: (cb) => cb({ token: tokenRef.current }), transports: ["websocket", "polling"] });
+    // Establish over HTTPS first: Plesk/Passenger may reject WebSocket upgrades.
+    // Socket.IO can then upgrade if supported, without making it a requirement.
+    const s = io(window.location.origin, { path: SOCKET_PATH, auth: (cb) => cb({ token: tokenRef.current }), transports: ["polling", "websocket"] });
     socketRef.current = s;
     const live = () => gen === genRef.current && socketRef.current === s;
     s.on("connect", () => { if (live()) { setConnected(true); setError(""); renewRef.current.delay = RENEW_MIN_MS; } });

@@ -112,7 +112,9 @@
   }
   function ensureIframe() { if (!iframe) buildIframe(); }
   function post(msg) {
-    if (!iframe || !iframe.contentWindow) return;
+    // Before the child confirms its channel it may still be about:blank, whose
+    // origin is the host site's rather than Sabito's.
+    if (!iframe || !iframe.contentWindow || !handshaken) return;
     msg.channel = channel;
     iframe.contentWindow.postMessage(msg, sabitoOrigin);
   }

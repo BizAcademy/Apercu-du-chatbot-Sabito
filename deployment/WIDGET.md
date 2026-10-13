@@ -26,6 +26,18 @@ connexion aux comptes et transactions privées.
 
 ## Mise à jour de Plesk
 
+Configurer aussi `PUBLIC_URL` dans les variables de l'application Node.js Plesk
+avec l'origine HTTPS exacte de Sabito, sans chemin ni `/` final, par exemple
+`https://sabito.bizconnectacademy.com`. Cette valeur est publique, pas une clé :
+elle autorise les connexions du chat depuis l'iframe hébergée par Sabito.
+Les domaines des sites qui intègrent le widget restent à configurer séparément
+dans le dashboard de chaque plateforme.
+
+Le chat démarre en HTTP polling et peut ensuite passer en WebSocket si le proxy
+l'autorise. Il n'est pas nécessaire d'activer WebSocket dans Plesk pour envoyer
+des messages via polling. Un refus d'origine reste bloquant pour les deux
+transports : ne pas le contourner en autorisant tous les domaines.
+
 Cette version ajoute uniquement la table de configuration du widget dans
 `002_widget_settings.sql`. Elle ne supprime ni ne modifie les données existantes.
 Après installation de la nouvelle release compilée :

@@ -44,8 +44,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
   let first: {project:{id:string};credentials:{clientId:string;clientSecret:string}};
   let second: typeof first;
   let token: string, conversationId: string;
-  const openSocket = async (accessToken: string) => {
-    const socket = io(localTestAddress,{auth:{token:accessToken},transports:["websocket"],reconnection:false});
+  const openSocket = async (accessToken: string, pollingOnly = false) => {
+    const socket = io(localTestAddress,{auth:{token:accessToken},transports:pollingOnly ? ["polling"] : ["websocket"],reconnection:false});
     sockets.push(socket);
     await Promise.race([socketOnce(socket,"session:ready"),socketOnce(socket,"connect_error").then(() => {throw new Error("Socket authentication failed");})]);
     return socket;
@@ -120,8 +120,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const listed = await request(app).get(`/v1/admin/projects/${first.project.id}/knowledge`).set("X-Admin-Key",adminKey).expect(200);
       assert.equal(listed.body.data.length,1);
     });
-    await t.test("Socket.IO streams a source-backed local answer and persists it",async () => {
-      const socket = await openSocket(token);
+    await t.test("Socket.IO HTTP polling streams a source-backed local answer and persists it without WebSocket",async () => {
+      const socket = await openSocket(token, true);
+      assert.equal(socket.io.engine.transport.name, "polling");
       const completed = socketOnce<{content:string}>(socket,"message:complete");
       let deltas = 0;
       socket.on("message:delta",() => deltas++);
