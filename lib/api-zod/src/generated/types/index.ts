@@ -7,11 +7,15 @@
  */
 
 export * from './answerUnansweredQuestionBody';
+export * from './assistantSettings';
+export * from './assistantSettingsResult';
+export * from './assistantSettingsUpdate';
 export * from './backendJob';
 export * from './backendJobFields';
 export * from './backendJobOperation';
 export * from './backendResultSubmission';
 export * from './backendResultSubmissionResult';
+export * from './chatSuggestion';
 export * from './coreStatus';
 export * from './credentialResult';
 export * from './documentInput';
@@ -20,6 +24,10 @@ export * from './documentResult';
 export * from './documentResultData';
 export * from './getBackendConnectionStatus200';
 export * from './healthStatus';
+export * from './intentDefinition';
+export * from './intentField';
+export * from './intentFieldType';
+export * from './intentResponses';
 export * from './knowledgeEntry';
 export * from './knowledgeInput';
 export * from './listSupportTickets200';

@@ -21,6 +21,8 @@ import type {
 
 import type {
   AnswerUnansweredQuestionBody,
+  AssistantSettingsResult,
+  AssistantSettingsUpdate,
   BackendResultSubmission,
   CoreStatus,
   CredentialResult,
@@ -76,6 +78,160 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetAssistantConfigurationUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/assistant-settings`
+}
+
+export const getAssistantConfiguration = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<AssistantSettingsResult> => {
+
+  return customFetch<AssistantSettingsResult>(getGetAssistantConfigurationUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAssistantConfigurationQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/assistant-settings`
+    ] as const;
+    }
+
+
+export const getGetAssistantConfigurationQueryOptions = <TData = Awaited<ReturnType<typeof getAssistantConfiguration>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAssistantConfiguration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAssistantConfigurationQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAssistantConfiguration>>> = ({ signal }) => getAssistantConfiguration(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAssistantConfiguration>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAssistantConfigurationQueryResult = NonNullable<Awaited<ReturnType<typeof getAssistantConfiguration>>>
+export type GetAssistantConfigurationQueryError = ErrorType<unknown>
+
+
+
+export function useGetAssistantConfiguration<TData = Awaited<ReturnType<typeof getAssistantConfiguration>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAssistantConfiguration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAssistantConfigurationQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAssistantConfigurationUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/assistant-settings`
+}
+
+export const updateAssistantConfiguration = async (projectId: string,
+    assistantSettingsUpdate: AssistantSettingsUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AssistantSettingsResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AssistantSettingsResult>(getUpdateAssistantConfigurationUrl(projectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(assistantSettingsUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssistantConfigurationMutationKey = () => ['updateAssistantConfiguration'] as const;
+
+export const getUpdateAssistantConfigurationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssistantConfiguration>>, TError,UpdateAssistantConfigurationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAssistantConfiguration>>, TError,UpdateAssistantConfigurationMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAssistantConfigurationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAssistantConfiguration>>, UpdateAssistantConfigurationMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  updateAssistantConfiguration(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssistantConfigurationMutationResult = NonNullable<Awaited<ReturnType<typeof updateAssistantConfiguration>>>
+    export type UpdateAssistantConfigurationMutationBody = BodyType<AssistantSettingsUpdate>
+    export type UpdateAssistantConfigurationMutationError = ErrorType<void>
+    export type UpdateAssistantConfigurationMutationVariables = {projectId: string;data: BodyType<AssistantSettingsUpdate>}
+
+    export const useUpdateAssistantConfiguration = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssistantConfiguration>>, TError,UpdateAssistantConfigurationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAssistantConfiguration>>,
+        TError,
+        UpdateAssistantConfigurationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAssistantConfigurationMutationOptions(options));
+    }
 
 export const getGetWidgetSettingsUrl = (projectId: string,) => {
 

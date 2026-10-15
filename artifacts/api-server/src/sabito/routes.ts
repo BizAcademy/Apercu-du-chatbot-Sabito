@@ -13,11 +13,13 @@ import { widgetOrigins, widgetOriginsSchema } from "./widget";
 import { supportAdminRoutes } from "./support-admin";
 import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
 import { normalizedText } from "./semantic";
+import { assistantAdminRoutes,touchAssistant } from "./assistant-settings";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
-const identitySchema = z.object({external_user_id:z.string().trim().min(1).max(191).optional()});
-const sensitiveLimiter = rateLimit({windowMs:60000,limit:120,standardHeaders:"draft-7",legacyHeaders:false});
+const identitySchema = z.object({external_user_id:z.string().trim().min(1).max(191).optional(),
+  external_user_name:z.string().trim().min(1).max(100).optional()});
+const sensitiveLimiter = rateLimit({windowMs:60000,limit:120,skipSuccessfulRequests:true,standardHeaders:"draft-7",legacyHeaders:false});
 coreRoutes.use("/v1",(_req,res,next) => {res.setHeader("Cache-Control","no-store");next();});
 coreRoutes.get("/v1/status",(_req,res) => { res.json(configurationStatus()); });
 coreRoutes.use("/v1/admin",sensitiveLimiter,(req,res,next) => {
@@ -29,8 +31,9 @@ coreRoutes.use("/v1/admin",sensitiveLimiter,(req,res,next) => {
   }
   next();
 });
-function tokenResponse(req: Request,res: Response,projectId: string,clientId: string,externalUserId: string,guest=false) {
+function tokenResponse(req: Request,res: Response,projectId: string,clientId: string,externalUserId: string,guest=false,externalUserName?:string) {
   const accessToken = signAccessToken({sub:projectId,clientId,externalUserId,
+    externalUserName:!guest?externalUserName:undefined,
     scope:["chat:connect",...(!guest && externalUserId!=="sabito-admin-preview" && !externalUserId.startsWith("guest:") ? ["member:verified"] : [])]});
   const url = process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
   res.json({success:true,data:{access_token:accessToken,token_type:"Bearer",expires_in:tokenTtl,
@@ -45,7 +48,7 @@ coreRoutes.post("/v1/auth/token",sensitiveLimiter,async (req,res) => {
   if (!credentials) {res.status(401).json({success:false,message:"Identifiants de plateforme requis."});return;}
   const project = await authenticateProject(credentials.clientId,credentials.clientSecret);
   if (!project) {res.status(401).json({success:false,message:"Identifiants invalides ou révoqués."});return;}
-  tokenResponse(req,res,project.id,project.clientId,body.data.external_user_id ?? `guest:${randomUUID()}`,!body.data.external_user_id);
+  tokenResponse(req,res,project.id,project.clientId,body.data.external_user_id ?? `guest:${randomUUID()}`,!body.data.external_user_id,body.data.external_user_name);
 });
 coreRoutes.get("/v1/admin/projects",async (_req,res) => {res.json({success:true,data:await listProjects()});});
 coreRoutes.get("/v1/admin/projects/:projectId/widget", async (req, res) => {
@@ -136,6 +139,7 @@ coreRoutes.delete("/v1/admin/projects/:projectId/knowledge/:documentId",async (r
   if (!id.success) {res.status(422).json({success:false,message:"Identifiant invalide."});return;}
   const result = await pool.query(`DELETE FROM sabito_core.knowledge_documents WHERE id=$1 AND project_id=$2`,[id.data,req.params.projectId]);
   if (!result.rowCount) {res.status(404).json({success:false,message:"Document introuvable."});return;}
+  await touchAssistant(String(req.params.projectId));
   res.status(204).end();
 });
 async function authorizedUser(req: Request): Promise<AccessClaims | null> {
@@ -155,6 +159,7 @@ coreRoutes.get("/v1/conversations/:conversationId/messages",async (req,res) => {
   res.json({success:true,data:await getConversationMessages(id.data)});
 });
 coreRoutes.use(supportAdminRoutes);
+coreRoutes.use(assistantAdminRoutes);
 coreRoutes.use(backendBridgeRoutes);
 coreRoutes.use((error: {code?:string},req: Request,res: Response,_next: NextFunction) => {
   if (error.code === "23505") {res.status(409).json({success:false,message:"Cet identifiant de plateforme existe déjà."});return;}

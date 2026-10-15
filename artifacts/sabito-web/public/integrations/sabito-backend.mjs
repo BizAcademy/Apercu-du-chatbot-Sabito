@@ -14,21 +14,22 @@ export async function startSabitoBackend({handlers,signal,onError=()=>{}}) {
   const sleep=()=>new Promise(resolve=>{
     let timer;
     const done=()=>{clearTimeout(timer);signal?.removeEventListener("abort",done);resolve();};
-    timer=setTimeout(done,1500);
+    timer=setTimeout(done,250);
     if(signal?.aborted) done(); else signal?.addEventListener("abort",done,{once:true});
   });
   while (!signal?.aborted) {
     try {
       const response=await fetch(`${url.origin}/v1/backend/jobs/poll`,{method:"POST",headers,redirect:"error",
+        body:JSON.stringify({operations:Object.keys(handlers).filter(key=>/^[a-z][a-z0-9_]{1,63}$/.test(key)&&typeof handlers[key]==="function")}),
         signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)});
       if (!response.ok) throw new Error(`BRIDGE_HTTP_${response.status}`);
       const {jobs}=await response.json();
       await Promise.all(jobs.map(async job=>{
-        if (!["account_activation","deposit_status","referral_code"].includes(job.operation)
+        if (!/^[a-z][a-z0-9_]{1,63}$/.test(job.operation)
           || !/^[0-9a-f-]{36}$/.test(job.id) || Date.parse(job.expires_at)<=Date.now()) return;
         let result={status:"error"};
         try {
-          if (typeof handlers[job.operation]==="function") {
+          if (Object.hasOwn(handlers,job.operation) && typeof handlers[job.operation]==="function") {
             const remaining=Math.max(1,Date.parse(job.expires_at)-Date.now()-500);
             let timer;
             try {

@@ -11,6 +11,34 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /v1/admin/projects/{projectId}/assistant-settings:
+    get:
+      operationId: getAssistantConfiguration
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Classical retrieval, authored messages and configured backend intentions
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AssistantSettingsResult"}
+    put:
+      operationId: updateAssistantConfiguration
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AssistantSettingsUpdate"}
+      responses:
+        "200":
+          description: Configuration saved and tenant index invalidated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AssistantSettingsResult"}
+        "409":
+          description: Revision changed; reload before saving
   /v1/admin/projects/{projectId}/widget:
     get:
       operationId: getWidgetSettings
@@ -413,6 +441,88 @@ paths:
           description: Job expiré, déjà consommé ou appartenant à une autre plateforme
 components:
   schemas:
+    ChatSuggestion:
+      type: object
+      required: [document_id, question]
+      properties:
+        document_id: {type: string}
+        question: {type: string}
+    IntentField:
+      type: object
+      required: [name, prompt, type, min_length, max_length]
+      properties:
+        name: {type: string, pattern: "^[a-z][a-z0-9_]{1,63}$"}
+        prompt: {type: string, minLength: 1, maxLength: 4000}
+        type: {type: string, enum: [text, identifier, country]}
+        min_length: {type: integer, minimum: 1, maximum: 500}
+        max_length: {type: integer, minimum: 1, maximum: 500}
+    IntentResponses:
+      type: object
+      required: [success, pending, not_found, error]
+      properties:
+        success: {type: string, minLength: 1, maxLength: 4000}
+        pending: {type: string, minLength: 1, maxLength: 4000}
+        not_found: {type: string, minLength: 1, maxLength: 4000}
+        error: {type: string, minLength: 1, maxLength: 4000}
+    IntentDefinition:
+      type: object
+      required: [id, name, enabled, triggers, fields, backend_function, guest_message, responses]
+      properties:
+        id: {type: string, pattern: "^[a-z][a-z0-9_]{1,63}$"}
+        name: {type: string, minLength: 2, maxLength: 100}
+        enabled: {type: boolean}
+        triggers:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: {type: string, minLength: 2, maxLength: 500}
+        fields:
+          type: array
+          maxItems: 15
+          items: {$ref: "#/components/schemas/IntentField"}
+        backend_function: {type: string, pattern: "^[a-z][a-z0-9_]{1,63}$"}
+        guest_message: {type: string, minLength: 1, maxLength: 4000}
+        responses: {$ref: "#/components/schemas/IntentResponses"}
+    AssistantSettings:
+      type: object
+      required: [confidence_threshold, synonyms, greeting_member, greeting_guest, greeting_member_no_name, closing_message, no_answer_message, suggestions_label, privacy_message, invalid_field_message, cancelled_message, checking_message, ticket_message, intents]
+      properties:
+        confidence_threshold: {type: number, minimum: 0.35, maximum: 1}
+        synonyms:
+          type: array
+          maxItems: 100
+          items:
+            type: array
+            minItems: 2
+            maxItems: 20
+            items: {type: string, minLength: 2, maxLength: 80}
+        greeting_member: {type: string, minLength: 1, maxLength: 4000}
+        greeting_guest: {type: string, minLength: 1, maxLength: 4000}
+        greeting_member_no_name: {type: string, minLength: 1, maxLength: 4000}
+        closing_message: {type: string, maxLength: 4000}
+        no_answer_message: {type: string, minLength: 1, maxLength: 4000}
+        suggestions_label: {type: string, minLength: 1, maxLength: 4000}
+        privacy_message: {type: string, minLength: 1, maxLength: 4000}
+        invalid_field_message: {type: string, minLength: 1, maxLength: 4000}
+        cancelled_message: {type: string, minLength: 1, maxLength: 4000}
+        checking_message: {type: string, minLength: 1, maxLength: 4000}
+        ticket_message: {type: string, minLength: 1, maxLength: 4000}
+        intents:
+          type: array
+          maxItems: 100
+          items: {$ref: "#/components/schemas/IntentDefinition"}
+    AssistantSettingsResult:
+      type: object
+      required: [settings, revision]
+      properties:
+        settings: {$ref: "#/components/schemas/AssistantSettings"}
+        revision: {type: integer}
+    AssistantSettingsUpdate:
+      type: object
+      required: [settings, expected_revision]
+      properties:
+        settings: {$ref: "#/components/schemas/AssistantSettings"}
+        expected_revision: {type: integer, minimum: 0}
     BackendJob:
       type: object
       required: [id, operation, external_user_id, fields, expires_at]

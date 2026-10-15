@@ -6,13 +6,14 @@ import {
   removePlatformKnowledge, rotateSabitoCredentials, updatePlatformKnowledge,
   type Platform, type PlatformCredentials, type PlatformDocument,
 } from "@workspace/api-client-react";
-import { BookOpen, Copy, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
+import { BookOpen, Copy, Settings2, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
 import { UnansweredQuestions } from "@/components/UnansweredQuestions";
 import { SupportTickets } from "@/components/SupportTickets";
 import { BackendConnection } from "@/components/BackendConnection";
+import { AssistantSettingsPanel } from "@/components/assistant/AssistantSettingsPanel";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 const input = "w-full rounded-[12px] border border-[#dfe2ef] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#9da5ff]";
@@ -135,6 +136,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href={`/projects/${p.id}/chat`} className={btn} data-testid="link-test-chat"><MessageCircle size={15} />Tester le chat</Link>
+            <a href="#assistant-settings" className={ghost} data-testid="link-assistant-settings"><Settings2 size={14} />Configurer l'assistant</a>
             <button className={ghost} onClick={() => setConfirm(true)} data-testid="button-rotate"><KeyRound size={14} />Régénérer les identifiants</button>
           </div>
         </div>
@@ -150,6 +152,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
           </div>
         )}
       </section>
+      <AssistantSettingsPanel projectId={p.id} />
       <SupportTickets projectId={p.id} />
       <UnansweredQuestions projectId={p.id} />
       <Knowledge projectId={p.id} />
@@ -227,7 +230,7 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
         <p className={`mt-1 text-[11px] ${badVariant || tooMany ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-variants-count">
           {variants.length} / 30 formulations{tooMany ? " · 30 maximum" : ""}{badVariant ? ` · « ${badVariant.slice(0, 40)}${badVariant.length > 40 ? "…" : ""} » doit faire entre 2 et 500 caractères` : ""}
         </p>
-        <p className="mt-0.5 text-[11px] leading-4 text-[#8b92a8]">Les formulations approuvées sont reconnues à l'identique. Sabito rapproche aussi localement les questions proches par concepts (ex. « voir mes cours » ≈ « accéder à mes formations ») : ce n'est pas un modèle d'IA générale, ajoutez les tournures réellement utilisées.</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-[#8b92a8]">Les formulations approuvées sont reconnues à l'identique. Sabito rapproche aussi les questions proches par recherche classique : mots-clés, BM25, trigrammes et groupes de synonymes définis dans la configuration. Aucune inférence ni IA : ajoutez les tournures réellement utilisées.</p>
         <textarea className={`${input} mt-3 min-h-[200px]`} placeholder="Contenu validé (20 caractères minimum)" value={content} onChange={(e) => setContent(e.target.value)} data-testid="input-doc-content" />
         <p className={`mt-1 text-[11px] ${contentTooLongForVariants ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-doc-length">
           {content.trim().length} caractères{variants.length > 0 ? " / 20 000 max avec des formulations" : ""}{contentTooLongForVariants ? " · une référence avec formulations est une réponse directe : raccourcissez-la ou retirez les formulations (les longues documentations restent possibles sans formulations)." : ""}

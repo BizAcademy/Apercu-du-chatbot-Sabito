@@ -6,8 +6,10 @@ import { createPlatformTestToken, getPlatformMessages, listSabitoProjects } from
 import { ArrowLeft, Plus, Send, Sparkles } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminDashboard, DocEditor } from "@/pages/admin-dashboard";
+import { AnswerExtras, GreetingBubble } from "@/components/chat/AnswerExtras";
+import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
 
-type Msg = { id: string; role: "user" | "assistant"; content: string; pending?: boolean; failed?: string };
+type Msg = ChatMsg;
 type Ack = { ok: boolean; data?: { conversationId: string; userMessageId: string; status: string; duplicate: boolean }; error?: { code?: string; message?: string } | string };
 const convKey = (pid: string) => `sabito:conversation:${pid}`;
 
@@ -25,6 +27,9 @@ function ChatInner() {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(() => localStorage.getItem(convKey(projectId)));
+  const [greeting, setGreeting] = useState<Greeting | null>(null);
+  const convRef = useRef<string | null>(conversationId); convRef.current = conversationId;
+  const startGen = useRef(0);
   const [error, setError] = useState("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -46,11 +51,23 @@ function ChatInner() {
     const t = tokenRef.current?.token; if (!t) return;
     try {
       const r = await getPlatformMessages(cid, { headers: { Authorization: `Bearer ${t}` } });
-      setMessages(r.data.map((m) => ({ id: m.id, role: m.role, content: m.content,
-        pending: m.status === "accepted" || m.status === "streaming",
-        failed: m.status === "failed" ? "Ce message a échoué." : undefined })));
+      if (convRef.current !== cid) return;
+      setMessages(fromHistory(r.data));
     } catch (e) { setError(`Historique indisponible : ${errMsg(e)}`); }
   }, []);
+
+  const startConversation = useCallback(() => {
+    const s = socketRef.current; const gen = startGen.current;
+    if (!s || convRef.current) return;
+    s.timeout(15_000).emit("conversation:start", {}, (err: Error | null, ack?: StartAck) => {
+      if (gen !== startGen.current || convRef.current) return;
+      if (err || !ack?.ok || !ack.data) { setError("Impossible de démarrer la conversation."); return; }
+      const d = ack.data;
+      convRef.current = d.conversationId; convRef.current = d.conversationId; setConversationId(d.conversationId); localStorage.setItem(convKey(projectId), d.conversationId);
+      setGreeting({ conversationId: d.conversationId, content: d.greeting });
+    });
+  }, [projectId]);
+  const startRef = useRef(startConversation); startRef.current = startConversation;
 
   useEffect(() => {
     let disposed = false;
@@ -100,13 +117,19 @@ function ChatInner() {
           setError("Connexion au serveur impossible. Nouvelle tentative automatique…");
           renewConnection();
         });
-        s.on("session:ready", () => { const cid = localStorage.getItem(convKey(projectId)); if (cid) void hydrate(cid); });
+        s.on("session:ready", () => { const cid = convRef.current; if (cid) void hydrate(cid); else startRef.current(); });
+        s.on("conversation:welcome", (e: { conversationId: string; content: string }) => {
+          if (e.conversationId && e.conversationId === convRef.current) setGreeting({ conversationId: e.conversationId, content: e.content });
+        });
+        const stale = (cid?: string) => !!cid && !!convRef.current && cid !== convRef.current;
         s.on("message:started", (e: { conversationId: string; messageId: string }) => {
+          if (stale(e.conversationId)) return;
           setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true }]);
         });
-        s.on("message:delta", (e: { messageId: string; delta: string }) => setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)));
-        s.on("message:complete", (e: { messageId: string; content: string }) => setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: e.content, pending: false } : x)));
-        s.on("message:error", (e: { messageId: string; code: string }) => {
+        s.on("message:delta", (e: { conversationId?: string; messageId: string; delta: string }) => !stale(e.conversationId) && setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)));
+        s.on("message:complete", (e: CompleteEvent) => { if (!stale(e.conversationId)) setMessages((m) => applyComplete(m, e)); });
+        s.on("message:error", (e: { conversationId?: string; messageId: string; code: string }) => {
+          if (stale(e.conversationId)) return;
           setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, pending: false, failed: e.code } : x));
           setError(`Réponse interrompue (${e.code}).`);
         });
@@ -117,14 +140,15 @@ function ChatInner() {
     return () => { disposed = true; off(); window.clearTimeout(timerRef.current); window.clearTimeout(retryTimer); socketRef.current?.disconnect(); socketRef.current = null; tokenRef.current = null; };
   }, [projectId, fetchToken, hydrate, onLogout]);
 
-  const send = (e?: FormEvent) => {
+  const send = (e?: FormEvent, picked?: string) => {
     e?.preventDefault();
-    const content = input.trim(); const s = socketRef.current;
+    const content = (picked ?? input).trim(); const s = socketRef.current;
     if (!content || !s || !connected || sending) return;
     const localId = `local-${crypto.randomUUID()}`;
     setMessages((m) => [...m, { id: localId, role: "user", content, pending: true }]);
-    setInput(""); setSending(true); setError("");
-    s.timeout(15_000).emit("message:send", { ...(conversationId ? { conversationId } : {}), idempotencyKey: crypto.randomUUID(), content }, (err: Error | null, ack?: Ack) => {
+    if (picked === undefined) setInput(""); setSending(true); setError("");
+    const cid = convRef.current;
+    s.timeout(15_000).emit("message:send", { ...(cid ? { conversationId: cid } : {}), idempotencyKey: crypto.randomUUID(), content }, (err: Error | null, ack?: Ack) => {
       setSending(false);
       if (err || !ack?.ok || !ack.data) {
         const msg = err ? "Délai dépassé, aucune confirmation du serveur." : typeof ack?.error === "string" ? ack.error : ack?.error?.message ?? ack?.error?.code ?? "Envoi refusé.";
@@ -132,12 +156,16 @@ function ChatInner() {
         setError(msg); return;
       }
       const d = ack.data;
-      setConversationId(d.conversationId); localStorage.setItem(convKey(projectId), d.conversationId);
+      convRef.current = d.conversationId; setConversationId(d.conversationId); localStorage.setItem(convKey(projectId), d.conversationId);
       setMessages((m) => m.map((x) => x.id === localId ? { ...x, id: d.userMessageId, pending: false } : x));
     });
   };
 
-  const reset = () => { localStorage.removeItem(convKey(projectId)); setConversationId(null); setMessages([]); setError(""); };
+  const reset = () => {
+    startGen.current++; localStorage.removeItem(convKey(projectId));
+    convRef.current = null; setConversationId(null); setGreeting(null); setMessages([]); setError("");
+    if (connected) startConversation();
+  };
   const correct = (i: number) => {
     const q = messages.slice(0, i).reverse().find((m) => m.role === "user")?.content ?? "";
     setCorrection({ title: q.slice(0, 255), content: `Question : ${q}\n\nRéponse approuvée : ${messages[i].content}` });
@@ -158,7 +186,13 @@ function ChatInner() {
           <button onClick={reset} disabled={sending} className="inline-flex items-center gap-1.5 rounded-xl border border-[#e3e6f8] px-3 py-2 text-[12px] font-medium text-[#48506a] hover:text-[#3641f5]" data-testid="button-new-conversation"><Plus size={14} />Nouvelle conversation</button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-          {messages.length === 0 && <div className="mx-auto max-w-lg rounded-[20px] border border-[#e8eaff] p-6 text-[13px] leading-6 text-[#6c748d]">Pose une question. Sabito répond uniquement à partir des références validées de cette plateforme. Corrige une réponse pour l'ajouter à la base de connaissances.</div>}
+          {greeting && greeting.conversationId === conversationId && (
+            <div className="mb-5 flex gap-3">
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br from-[#4e5af8] to-[#3039d8] text-white"><Sparkles size={14} /></div>
+              <GreetingBubble content={greeting.content} className="min-w-0 flex-1 text-[13px] leading-[1.75] text-[#3d4560]" />
+            </div>
+          )}
+          {messages.length === 0 && !greeting && <div className="mx-auto max-w-lg rounded-[20px] border border-[#e8eaff] p-6 text-[13px] leading-6 text-[#6c748d]">Pose une question. Sabito répond uniquement à partir des références validées de cette plateforme. Corrige une réponse pour l'ajouter à la base de connaissances.</div>}
           {messages.map((m, i) => m.role === "user" ? (
             <div key={m.id} className="mb-5 flex flex-col items-end">
               <div className={`max-w-[78%] whitespace-pre-wrap rounded-[18px] rounded-br-[5px] px-4 py-3 text-[13px] text-white ${m.failed ? "bg-[#b4441f]" : "bg-[#3641f5]"} ${m.pending ? "opacity-70" : ""}`}>{m.content}</div>
@@ -171,6 +205,7 @@ function ChatInner() {
               <div className="min-w-0 flex-1">
                 <p className="whitespace-pre-wrap text-[13px] leading-[1.75] text-[#3d4560]">{m.content || (m.pending ? "Sabito prépare sa réponse…" : "")}</p>
                 {m.failed && <p className="text-[11px] text-[#b4441f]">Erreur : {m.failed}</p>}
+                <AnswerExtras m={m} disabled={!connected || sending} onPick={(q) => send(undefined, q)} />
                 {!m.pending && m.content && <button className="mt-2 text-[12px] text-[#3641f5]" onClick={() => correct(i)} data-testid={`button-correct-${m.id}`}>Corriger la réponse</button>}
               </div>
             </div>

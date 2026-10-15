@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { io, type Socket } from "socket.io-client";
 import { getPlatformMessages } from "@workspace/api-client-react";
 import { RotateCw, Send, X } from "lucide-react";
+import { AnswerExtras, GreetingBubble } from "@/components/chat/AnswerExtras";
+import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
 
-type Msg = { id: string; role: "user" | "assistant"; content: string; pending?: boolean; failed?: string };
+type Msg = ChatMsg;
 type Ack = { ok: boolean; data?: { conversationId: string; userMessageId: string; status: string; duplicate: boolean }; error?: { code?: string; message?: string } | string };
 type Session = { access_token: string; expires_in: number; socket_path: string; external_user_id: string };
 type Phase = "loading" | "ready" | "error" | "logged_out";
@@ -41,6 +43,7 @@ export function WidgetChat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [greeting, setGreeting] = useState<Greeting | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const tokenRef = useRef<string | null>(null);
   const userRef = useRef<string | null>(null);
@@ -71,7 +74,7 @@ export function WidgetChat() {
     tokenRef.current = null;
     userRef.current = null;
     convRef.current = null;
-    setMessages([]); setConnected(false); setSending(false); setInput("");
+    setMessages([]); setGreeting(null); setConnected(false); setSending(false); setInput("");
   }, []);
 
   const renewSoon = useCallback(() => {
@@ -95,20 +98,34 @@ export function WidgetChat() {
     s.on("connect", () => { if (live()) { setConnected(true); setError(""); renewRef.current.delay = RENEW_MIN_MS; } });
     s.on("disconnect", (reason) => { if (!live()) return; setConnected(false); if (reason === "io server disconnect") renewSoon(); });
     s.on("connect_error", () => { if (!live()) return; setConnected(false); setError("Connexion au serveur impossible, nouvelle tentative…"); renewSoon(); });
+    const stale = (cid?: string) => !!cid && !!convRef.current && cid !== convRef.current;
     s.on("session:ready", async () => {
       const cid = convRef.current, t = tokenRef.current;
-      if (!live() || !cid || !t) return;
+      if (!live() || !t) return;
+      if (!cid) {
+        s.timeout(15_000).emit("conversation:start", {}, (err: Error | null, ack?: StartAck) => {
+          if (!live() || convRef.current) return;
+          if (err || !ack?.ok || !ack.data) { setError("Impossible de démarrer la conversation."); return; }
+          convRef.current = ack.data.conversationId;
+          setGreeting({ conversationId: ack.data.conversationId, content: ack.data.greeting });
+        });
+        return;
+      }
       try {
         const r = await getPlatformMessages(cid, { headers: { Authorization: `Bearer ${t}` } });
         if (!live()) return;
-        setMessages(r.data.map((m) => ({ id: m.id, role: m.role, content: m.content, pending: m.status === "accepted" || m.status === "streaming", failed: m.status === "failed" ? "Ce message a échoué." : undefined })));
+        if (convRef.current !== cid) return;
+        setMessages(fromHistory(r.data));
       } catch { if (live()) setError("Historique de la conversation indisponible."); }
     });
-    s.on("message:started", (e: { messageId: string }) => { if (live()) setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true }]); });
-    s.on("message:delta", (e: { messageId: string; delta: string }) => { if (live()) setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)); });
-    s.on("message:complete", (e: { messageId: string; content: string }) => { if (live()) setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: e.content, pending: false } : x)); });
-    s.on("message:error", (e: { messageId: string; code: string }) => {
-      if (!live()) return;
+    s.on("conversation:welcome", (e: { conversationId: string; content: string }) => {
+      if (live() && e.conversationId && e.conversationId === convRef.current) setGreeting({ conversationId: e.conversationId, content: e.content });
+    });
+    s.on("message:started", (e: { conversationId?: string; messageId: string }) => { if (live() && !stale(e.conversationId)) setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true }]); });
+    s.on("message:delta", (e: { conversationId?: string; messageId: string; delta: string }) => { if (live() && !stale(e.conversationId)) setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)); });
+    s.on("message:complete", (e: CompleteEvent) => { if (live() && !stale(e.conversationId)) setMessages((m) => applyComplete(m, e)); });
+    s.on("message:error", (e: { conversationId?: string; messageId: string; code: string }) => {
+      if (!live() || stale(e.conversationId)) return;
       setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, pending: false, failed: e.code } : x));
       setError(`Réponse interrompue (${e.code}).`);
     });
@@ -166,13 +183,13 @@ export function WidgetChat() {
     window.setTimeout(() => { if (phaseRef.current === "loading") { setPhase("error"); setError("Le chargement de la session a expiré."); } }, LOAD_TIMEOUT_MS);
   };
 
-  const send = (e?: FormEvent) => {
+  const send = (e?: FormEvent, picked?: string) => {
     e?.preventDefault();
-    const content = input.trim(); const s = socketRef.current; const gen = genRef.current;
+    const content = (picked ?? input).trim(); const s = socketRef.current; const gen = genRef.current;
     if (!content || !s || !connected || sending || phaseRef.current !== "ready") return;
     const localId = `local-${crypto.randomUUID()}`;
     setMessages((m) => [...m, { id: localId, role: "user", content, pending: true }]);
-    setInput(""); setSending(true); setError("");
+    if (picked === undefined) setInput(""); setSending(true); setError("");
     s.timeout(15_000).emit("message:send", { ...(convRef.current ? { conversationId: convRef.current } : {}), idempotencyKey: crypto.randomUUID(), content }, (err: Error | null, ack?: Ack) => {
       if (gen !== genRef.current) return;
       setSending(false);
@@ -220,7 +237,12 @@ export function WidgetChat() {
             {embedded && cfg.parentOrigin && <button onClick={retry} className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-medium text-[#fbfaf6]" style={{ background: accent }} data-testid="button-widget-retry"><RotateCw size={13} />Réessayer</button>}
           </div>
         )}
-        {phase === "ready" && messages.length === 0 && (
+        {phase === "ready" && greeting && greeting.conversationId === convRef.current && (
+          <div className="mb-4 max-w-[90%]">
+            <GreetingBubble content={greeting.content} className="rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]" />
+          </div>
+        )}
+        {phase === "ready" && messages.length === 0 && !greeting && (
           <div className="rounded-[20px] border border-[#e4dfd1] bg-[#fbfaf6] p-5 text-[13px] leading-6 text-[#5d6072]">Bonjour. Posez votre question, l'assistant répond à partir des informations validées.</div>
         )}
         {phase === "ready" && messages.map((m) => m.role === "user" ? (
@@ -232,6 +254,7 @@ export function WidgetChat() {
           <div key={m.id} className="mb-4 max-w-[90%]">
             <div className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]">{m.content || (m.pending ? "Rédaction de la réponse…" : "")}</div>
             {m.failed && <p className="mt-1 text-[11px] text-[#a3401c]">Erreur : {m.failed}</p>}
+            <AnswerExtras m={m} tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q) => send(undefined, q)} />
           </div>
         ))}
         {phase === "ready" && error && (

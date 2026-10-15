@@ -5,6 +5,173 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ChatSuggestion {
+  document_id: string;
+  question: string;
+}
+
+export type IntentFieldType = typeof IntentFieldType[keyof typeof IntentFieldType];
+
+
+export const IntentFieldType = {
+  text: 'text',
+  identifier: 'identifier',
+  country: 'country',
+} as const;
+
+export interface IntentField {
+  /** @pattern ^[a-z][a-z0-9_]{1,63}$ */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  prompt: string;
+  type: IntentFieldType;
+  /**
+     * @minimum 1
+     * @maximum 500
+     */
+  min_length: number;
+  /**
+     * @minimum 1
+     * @maximum 500
+     */
+  max_length: number;
+}
+
+export interface IntentResponses {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  success: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  pending: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  not_found: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  error: string;
+}
+
+export interface IntentDefinition {
+  /** @pattern ^[a-z][a-z0-9_]{1,63}$ */
+  id: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  name: string;
+  enabled: boolean;
+  /**
+     * @minItems 1
+     * @maxItems 30
+     * @items.minLength 2
+     * @items.maxLength 500
+     */
+  triggers: string[];
+  /** @maxItems 15 */
+  fields: IntentField[];
+  /** @pattern ^[a-z][a-z0-9_]{1,63}$ */
+  backend_function: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  guest_message: string;
+  responses: IntentResponses;
+}
+
+export interface AssistantSettings {
+  /**
+     * @minimum 0.35
+     * @maximum 1
+     */
+  confidence_threshold: number;
+  /**
+     * @maxItems 100
+     * @items.minItems 2
+     * @items.maxItems 20
+     * @items.items.minLength 2
+     * @items.items.maxLength 80
+     */
+  synonyms: string[][];
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  greeting_member: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  greeting_guest: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  greeting_member_no_name: string;
+  /** @maxLength 4000 */
+  closing_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  no_answer_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  suggestions_label: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  privacy_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  invalid_field_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  cancelled_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  checking_message: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  ticket_message: string;
+  /** @maxItems 100 */
+  intents: IntentDefinition[];
+}
+
+export interface AssistantSettingsResult {
+  settings: AssistantSettings;
+  revision: number;
+}
+
+export interface AssistantSettingsUpdate {
+  settings: AssistantSettings;
+  /** @minimum 0 */
+  expected_revision: number;
+}
+
 export type BackendJobOperation = typeof BackendJobOperation[keyof typeof BackendJobOperation];
 
 

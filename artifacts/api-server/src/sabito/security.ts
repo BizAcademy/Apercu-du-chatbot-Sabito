@@ -29,7 +29,7 @@ export function issueCredentials() {
 export function validAdminKey(value: string) {
   return safeEqual(value, secret("ADMIN_API_KEY"));
 }
-export type AccessClaims = { sub: string; clientId: string; externalUserId: string; scope: string[]; widgetOrigin?: string };
+export type AccessClaims = { sub: string; clientId: string; externalUserId: string; scope: string[]; widgetOrigin?: string; externalUserName?:string };
 export const tokenTtl = 900;
 const issuer = () => process.env.JWT_ISSUER || "sabito-bca";
 const audience = () => process.env.JWT_AUDIENCE || "sabito-platforms";
