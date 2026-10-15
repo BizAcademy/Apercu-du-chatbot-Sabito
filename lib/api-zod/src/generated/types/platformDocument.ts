@@ -10,4 +10,5 @@ export interface PlatformDocument {
   id: string;
   title: string;
   content: string;
+  variantes_de_question?: string[];
 }

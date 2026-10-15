@@ -145,7 +145,8 @@ export const ListPlatformKnowledgeResponse = zod.object({
   "data": zod.array(zod.object({
   "id": zod.string(),
   "title": zod.string(),
-  "content": zod.string()
+  "content": zod.string(),
+  "variantes_de_question": zod.array(zod.string()).optional()
 }))
 })
 
@@ -160,11 +161,17 @@ export const addPlatformKnowledgeBodyTitleMax = 255;
 export const addPlatformKnowledgeBodyContentMin = 20;
 export const addPlatformKnowledgeBodyContentMax = 1000000;
 
+export const addPlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
+export const addPlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
+
+export const addPlatformKnowledgeBodyVariantesDeQuestionMax = 30;
+
 
 
 export const AddPlatformKnowledgeBody = zod.object({
   "title": zod.string().min(addPlatformKnowledgeBodyTitleMin).max(addPlatformKnowledgeBodyTitleMax),
-  "content": zod.string().min(addPlatformKnowledgeBodyContentMin).max(addPlatformKnowledgeBodyContentMax)
+  "content": zod.string().min(addPlatformKnowledgeBodyContentMin).max(addPlatformKnowledgeBodyContentMax),
+  "variantes_de_question": zod.array(zod.string().min(addPlatformKnowledgeBodyVariantesDeQuestionItemMin).max(addPlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(addPlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 
 export const AddPlatformKnowledgeResponse = zod.object({
@@ -187,11 +194,17 @@ export const updatePlatformKnowledgeBodyTitleMax = 255;
 export const updatePlatformKnowledgeBodyContentMin = 20;
 export const updatePlatformKnowledgeBodyContentMax = 1000000;
 
+export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
+export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
+
+export const updatePlatformKnowledgeBodyVariantesDeQuestionMax = 30;
+
 
 
 export const UpdatePlatformKnowledgeBody = zod.object({
   "title": zod.string().min(updatePlatformKnowledgeBodyTitleMin).max(updatePlatformKnowledgeBodyTitleMax),
-  "content": zod.string().min(updatePlatformKnowledgeBodyContentMin).max(updatePlatformKnowledgeBodyContentMax)
+  "content": zod.string().min(updatePlatformKnowledgeBodyContentMin).max(updatePlatformKnowledgeBodyContentMax),
+  "variantes_de_question": zod.array(zod.string().min(updatePlatformKnowledgeBodyVariantesDeQuestionItemMin).max(updatePlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(updatePlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 
 export const UpdatePlatformKnowledgeResponse = zod.object({
@@ -331,5 +344,160 @@ export const DeleteSabitoKnowledgeResponse = zod.void()
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
+
+
+export const ListUnansweredQuestionsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const listUnansweredQuestionsQueryPageMin = 0;
+
+
+
+export const ListUnansweredQuestionsQueryParams = zod.object({
+  "status": zod.enum(['a_traiter', 'traite', 'all']).optional(),
+  "page": zod.coerce.number().int().min(listUnansweredQuestionsQueryPageMin).optional()
+})
+
+export const ListUnansweredQuestionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "question": zod.string(),
+  "plateforme": zod.string(),
+  "utilisateur_id": zod.string().nullish(),
+  "statut": zod.enum(['a_traiter', 'traite']),
+  "nombre_de_fois_posee": zod.number().int(),
+  "date_creation": zod.string(),
+  "derniere_date": zod.string(),
+  "document_id": zod.string().nullish()
+})),
+  "total": zod.number().int(),
+  "page": zod.number().int()
+})
+
+
+export const AnswerUnansweredQuestionParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "questionId": zod.coerce.string()
+})
+
+export const answerUnansweredQuestionBodyContentMin = 20;
+export const answerUnansweredQuestionBodyContentMax = 20000;
+
+
+
+export const AnswerUnansweredQuestionBody = zod.object({
+  "content": zod.string().min(answerUnansweredQuestionBodyContentMin).max(answerUnansweredQuestionBodyContentMax)
+})
+
+export const AnswerUnansweredQuestionResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "documentId": zod.string(),
+  "chunks": zod.number().int()
+})
+})
+
+
+export const GetBackendConnectionStatusParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetBackendConnectionStatusResponse = zod.object({
+  "connected": zod.boolean(),
+  "last_seen": zod.string().nullable()
+})
+
+
+export const ListSupportTicketsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const listSupportTicketsQueryPageMin = 0;
+
+
+
+export const ListSupportTicketsQueryParams = zod.object({
+  "status": zod.enum(['ouvert', 'ferme', 'all']).optional(),
+  "page": zod.coerce.number().int().min(listSupportTicketsQueryPageMin).optional()
+})
+
+export const ListSupportTicketsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "project_id": zod.string(),
+  "conversation_id": zod.string(),
+  "external_user_id": zod.string().nullish(),
+  "intent": zod.string(),
+  "reason": zod.string(),
+  "status": zod.enum(['ouvert', 'ferme']),
+  "created_at": zod.string(),
+  "updated_at": zod.string()
+})),
+  "total": zod.number().int(),
+  "page": zod.number().int()
+})
+
+
+export const UpdateSupportTicketParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "ticketId": zod.coerce.string()
+})
+
+export const UpdateSupportTicketBody = zod.object({
+  "status": zod.enum(['ouvert', 'ferme'])
+})
+
+export const UpdateSupportTicketResponse = zod.unknown()
+
+
+export const GetSupportTicketMessagesParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "ticketId": zod.coerce.string()
+})
+
+export const GetSupportTicketMessagesResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "status": zod.string()
+}))
+})
+
+
+/**
+ * Serveur uniquement. HTTP Basic avec les clés client générées par Sabito. Refuse tout en-tête Origin.
+ */
+export const PollBackendJobsResponse = zod.object({
+  "jobs": zod.array(zod.object({
+  "id": zod.string(),
+  "operation": zod.enum(['account_activation', 'deposit_status', 'referral_code']),
+  "external_user_id": zod.string(),
+  "fields": zod.record(zod.string(), zod.string()),
+  "expires_at": zod.string()
+}))
+})
+
+
+export const SubmitBackendJobResultParams = zod.object({
+  "jobId": zod.coerce.string()
+})
+
+export const submitBackendJobResultBodyResultTwoCodeMax = 100;
+
+
+
+export const SubmitBackendJobResultBody = zod.object({
+  "result": zod.union([zod.object({
+  "status": zod.enum(['pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error'])
+}),zod.object({
+  "status": zod.enum(['ok']),
+  "code": zod.string().min(1).max(submitBackendJobResultBodyResultTwoCodeMax)
+})])
+})
+
+export const SubmitBackendJobResultResponse = zod.unknown()
 
 

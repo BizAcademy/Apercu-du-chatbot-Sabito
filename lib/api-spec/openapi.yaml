@@ -279,8 +279,198 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /v1/admin/projects/{projectId}/unanswered:
+    get:
+      operationId: listUnansweredQuestions
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [a_traiter, traite, all]}}
+        - {name: page, in: query, schema: {type: integer, minimum: 0}}
+      responses:
+        "200":
+          description: Questions sans réponse triées par fréquence, 50 par page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page]
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/UnansweredQuestion"}}
+                  total: {type: integer}
+                  page: {type: integer}
+  /v1/admin/projects/{projectId}/unanswered/{questionId}/answer:
+    post:
+      operationId: answerUnansweredQuestion
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: questionId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: {type: string, minLength: 20, maxLength: 20000}
+      responses:
+        "201":
+          description: Référence créée et question traitée atomiquement
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DocumentResult"}
+        "409":
+          description: Question introuvable ou déjà traitée
+  /v1/admin/projects/{projectId}/backend-status:
+    get:
+      operationId: getBackendConnectionStatus
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Présence récente du backend serveur, pas un accès navigateur
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connected, last_seen]
+                properties:
+                  connected: {type: boolean}
+                  last_seen: {type: string, nullable: true}
+  /v1/admin/projects/{projectId}/tickets:
+    get:
+      operationId: listSupportTickets
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [ouvert, ferme, all]}}
+        - {name: page, in: query, schema: {type: integer, minimum: 0}}
+      responses:
+        "200":
+          description: Tickets de vérification
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page]
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}
+                  total: {type: integer}
+                  page: {type: integer}
+  /v1/admin/projects/{projectId}/tickets/{ticketId}:
+    patch:
+      operationId: updateSupportTicket
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: ticketId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TicketStatusInput"}
+      responses:
+        "200":
+          description: Ticket actualisé
+  /v1/admin/projects/{projectId}/tickets/{ticketId}/messages:
+    get:
+      operationId: getSupportTicketMessages
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: ticketId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Conversation du ticket, uniquement pour l’administrateur de la plateforme
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageList"}
+  /v1/backend/jobs/poll:
+    post:
+      operationId: pollBackendJobs
+      description: Serveur uniquement. HTTP Basic avec les clés client générées par Sabito. Refuse tout en-tête Origin.
+      responses:
+        "200":
+          description: Vérifications destinées uniquement à la plateforme authentifiée
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobs]
+                properties:
+                  jobs: {type: array, items: {$ref: "#/components/schemas/BackendJob"}}
+  /v1/backend/jobs/{jobId}/result:
+    post:
+      operationId: submitBackendJobResult
+      parameters:
+        - {name: jobId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BackendResultSubmission"}
+      responses:
+        "200":
+          description: Résultat accepté une fois pour cette plateforme et ce job non expiré
+        "404":
+          description: Job expiré, déjà consommé ou appartenant à une autre plateforme
 components:
   schemas:
+    BackendJob:
+      type: object
+      required: [id, operation, external_user_id, fields, expires_at]
+      properties:
+        id: {type: string}
+        operation: {type: string, enum: [account_activation, deposit_status, referral_code]}
+        external_user_id: {type: string}
+        fields: {type: object, additionalProperties: {type: string}}
+        expires_at: {type: string}
+    BackendResultSubmission:
+      type: object
+      required: [result]
+      additionalProperties: false
+      properties:
+        result:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: {type: string, enum: [pending, confirmed, failed, not_found, active, inactive, forbidden, error]}
+            - type: object
+              additionalProperties: false
+              required: [status, code]
+              properties:
+                status: {type: string, enum: [ok]}
+                code: {type: string, minLength: 1, maxLength: 100}
+    TicketStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ouvert, ferme]}
+    SupportTicket:
+      type: object
+      required: [id, project_id, conversation_id, intent, reason, status, created_at, updated_at]
+      properties:
+        id: {type: string}
+        project_id: {type: string}
+        conversation_id: {type: string}
+        external_user_id: {type: string, nullable: true}
+        intent: {type: string}
+        reason: {type: string}
+        status: {type: string, enum: [ouvert, ferme]}
+        created_at: {type: string}
+        updated_at: {type: string}
+    UnansweredQuestion:
+      type: object
+      required: [id, question, plateforme, statut, nombre_de_fois_posee, date_creation, derniere_date]
+      properties:
+        id: {type: string}
+        question: {type: string}
+        plateforme: {type: string}
+        utilisateur_id: {type: string, nullable: true}
+        statut: {type: string, enum: [a_traiter, traite]}
+        nombre_de_fois_posee: {type: integer}
+        date_creation: {type: string}
+        derniere_date: {type: string}
+        document_id: {type: string, nullable: true}
     WidgetSettings:
       type: object
       required: [origins]
@@ -359,6 +549,10 @@ components:
       properties:
         title: {type: string, minLength: 2, maxLength: 255}
         content: {type: string, minLength: 20, maxLength: 1000000}
+        variantes_de_question:
+          type: array
+          maxItems: 30
+          items: {type: string, minLength: 2, maxLength: 500}
     PlatformDocument:
       type: object
       required: [id, title, content]
@@ -366,6 +560,9 @@ components:
         id: {type: string}
         title: {type: string}
         content: {type: string}
+        variantes_de_question:
+          type: array
+          items: {type: string}
     DocumentList:
       type: object
       required: [success, data]

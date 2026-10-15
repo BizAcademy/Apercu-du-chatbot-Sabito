@@ -17,4 +17,10 @@ export interface DocumentInput {
      * @maxLength 1000000
      */
   content: string;
+  /**
+     * @maxItems 30
+     * @items.minLength 2
+     * @items.maxLength 500
+     */
+  variantes_de_question?: string[];
 }

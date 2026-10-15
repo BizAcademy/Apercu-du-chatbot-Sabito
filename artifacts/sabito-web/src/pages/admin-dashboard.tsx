@@ -10,6 +10,9 @@ import { BookOpen, Copy, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
+import { UnansweredQuestions } from "@/components/UnansweredQuestions";
+import { SupportTickets } from "@/components/SupportTickets";
+import { BackendConnection } from "@/components/BackendConnection";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 const input = "w-full rounded-[12px] border border-[#dfe2ef] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#9da5ff]";
@@ -147,11 +150,14 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
           </div>
         )}
       </section>
+      <SupportTickets projectId={p.id} />
+      <UnansweredQuestions projectId={p.id} />
       <Knowledge projectId={p.id} />
       <WidgetIntegration project={p} />
+      <BackendConnection projectId={p.id} />
       <section className={card}>
-        <h2 className="text-[15px] font-bold">Connexion serveur aux comptes privés (optionnelle)</h2>
-        <p className="mt-1 text-[12px] leading-5 text-[#6c748d]">Cette étape n'est pas nécessaire pour le widget visiteur ci-dessus. Elle concerne une future connexion aux données privées des membres. Le secret client reste sur le serveur de la plateforme, jamais dans le script public. L'adresse ci-dessous est celle du dashboard actuellement ouvert.</p>
+        <h2 className="text-[15px] font-bold">Jetons utilisateur pour le chat (intégration serveur)</h2>
+        <p className="mt-1 text-[12px] leading-5 text-[#6c748d]">Cette étape n'est pas nécessaire pour le widget visiteur ci-dessus. Elle permet d'ouvrir le chat au nom d'un membre identifié, condition pour que Sabito consulte ses données via le serveur de la plateforme. Le secret client reste sur le serveur de la plateforme, jamais dans le script public. L'adresse ci-dessous est celle du dashboard actuellement ouvert.</p>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-[#171d53] p-4 font-mono text-[11.5px] leading-6 text-[#dfe3ff]" data-testid="text-integration">{snippet}</pre>
       </section>
     </>
@@ -179,7 +185,7 @@ function Knowledge({ projectId }: { projectId: string }) {
       <div className="divide-y divide-[#eef0fa]">
         {docs.map((d) => (
           <div key={d.id} className="flex items-start gap-3 py-3" data-testid={`row-doc-${d.id}`}>
-            <div className="min-w-0 flex-1"><div className="text-[13px] font-semibold">{d.title}</div><p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[12px] text-[#6c748d]">{d.content}</p></div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">{d.title}{(d.variantes_de_question?.length ?? 0) > 0 && <span className="rounded-full bg-[#eef0ff] px-2 py-0.5 text-[10px] font-semibold text-[#3641f5]" title={d.variantes_de_question!.join("\n")} data-testid={`text-doc-variants-${d.id}`}>{d.variantes_de_question!.length} formulation{d.variantes_de_question!.length > 1 ? "s" : ""}</span>}</div>{(d.variantes_de_question?.length ?? 0) > 0 && <p className="mt-0.5 truncate text-[11px] italic text-[#8b92a8]">« {d.variantes_de_question![0]} »{d.variantes_de_question!.length > 1 ? ` +${d.variantes_de_question!.length - 1}` : ""}</p>}<p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[12px] text-[#6c748d]">{d.content}</p></div>
             <button className="p-1.5 text-[#737b94] hover:text-[#3641f5]" onClick={() => setEdit(d)} aria-label="Modifier" data-testid={`button-edit-doc-${d.id}`}><Pencil size={14} /></button>
             <button className="p-1.5 text-[#737b94] hover:text-[#b4441f]" disabled={del.isPending} onClick={() => { if (window.confirm(`Supprimer « ${d.title} » ?`)) del.mutate(d.id); }} aria-label="Supprimer" data-testid={`button-delete-doc-${d.id}`}><Trash2 size={14} /></button>
           </div>
@@ -195,18 +201,37 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
   const qc = useQueryClient();
   const [title, setTitle] = useState(doc?.title ?? initial?.title ?? "");
   const [content, setContent] = useState(doc?.content ?? initial?.content ?? "");
+  const [variantsText, setVariantsText] = useState((doc?.variantes_de_question ?? []).join("\n"));
+  const variants = variantsText.split("\n").map((v) => v.trim()).filter((v) => v.length > 0);
+  const badVariant = variants.find((v) => v.length < 2 || v.length > 500);
+  const tooMany = variants.length > 30;
+  const contentTooLongForVariants = variants.length > 0 && content.length > 20000;
   const m = useMutation({
-    mutationFn: () => doc ? updatePlatformKnowledge(projectId, doc.id, { title, content }, headers()) : addPlatformKnowledge(projectId, { title, content }, headers()),
+    mutationFn: () => {
+      const body = { title, content, variantes_de_question: variants };
+      return doc ? updatePlatformKnowledge(projectId, doc.id, body, headers()) : addPlatformKnowledge(projectId, body, headers());
+    },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sabito-admin", "knowledge", projectId] }); close(); },
   });
-  const valid = title.trim().length >= 2 && title.length <= 255 && content.trim().length >= 20;
+  const valid = title.trim().length >= 2 && title.length <= 255 && content.trim().length >= 20 && !badVariant && !tooMany && !contentTooLongForVariants;
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-[#11162b]/40 p-4">
-      <form onSubmit={(e) => { e.preventDefault(); if (valid) m.mutate(); }} className="w-full max-w-[560px] rounded-[22px] bg-white p-6 shadow-xl">
+      <form onSubmit={(e) => { e.preventDefault(); if (valid && !m.isPending) m.mutate(); }} className="max-h-[92dvh] w-full max-w-[600px] overflow-y-auto rounded-[22px] bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between"><h3 className="text-[16px] font-bold">{doc ? "Modifier la référence" : "Nouvelle référence"}</h3><button type="button" onClick={close} aria-label="Fermer"><X size={17} /></button></div>
         <input className={input} placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="input-doc-title" />
-        <textarea className={`${input} mt-2.5 min-h-[200px]`} placeholder="Contenu validé (20 caractères minimum)" value={content} onChange={(e) => setContent(e.target.value)} data-testid="input-doc-content" />
-        <p className="mt-1 text-[11px] text-[#8b92a8]">{content.trim().length} caractères</p>
+        <div className="mt-3 flex items-center justify-between">
+          <label className="text-[12px] font-semibold text-[#4a5270]" htmlFor="doc-variants">Formulations de la question <span className="font-normal text-[#8b92a8]">(optionnel, une par ligne)</span></label>
+          {variants.length > 0 && <button type="button" className="text-[11px] font-medium text-[#737b94] hover:text-[#b4441f]" onClick={() => setVariantsText("")} data-testid="button-clear-variants">Tout effacer</button>}
+        </div>
+        <textarea id="doc-variants" className={`${input} mt-1 min-h-[96px]`} placeholder={"Comment accéder à mes formations ?\nOù voir mes cours ?"} value={variantsText} onChange={(e) => setVariantsText(e.target.value)} data-testid="input-doc-variants" />
+        <p className={`mt-1 text-[11px] ${badVariant || tooMany ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-variants-count">
+          {variants.length} / 30 formulations{tooMany ? " · 30 maximum" : ""}{badVariant ? ` · « ${badVariant.slice(0, 40)}${badVariant.length > 40 ? "…" : ""} » doit faire entre 2 et 500 caractères` : ""}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-4 text-[#8b92a8]">Les formulations approuvées sont reconnues à l'identique. Sabito rapproche aussi localement les questions proches par concepts (ex. « voir mes cours » ≈ « accéder à mes formations ») : ce n'est pas un modèle d'IA générale, ajoutez les tournures réellement utilisées.</p>
+        <textarea className={`${input} mt-3 min-h-[200px]`} placeholder="Contenu validé (20 caractères minimum)" value={content} onChange={(e) => setContent(e.target.value)} data-testid="input-doc-content" />
+        <p className={`mt-1 text-[11px] ${contentTooLongForVariants ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-doc-length">
+          {content.trim().length} caractères{variants.length > 0 ? " / 20 000 max avec des formulations" : ""}{contentTooLongForVariants ? " · une référence avec formulations est une réponse directe : raccourcissez-la ou retirez les formulations (les longues documentations restent possibles sans formulations)." : ""}
+        </p>
         {m.error && <ErrorBox msg={errMsg(m.error)} />}
         <div className="mt-3 flex justify-end gap-2"><button type="button" className={ghost} onClick={close}>Annuler</button><button disabled={!valid || m.isPending} className={btn} data-testid="button-save-doc">{m.isPending ? "Enregistrement…" : "Enregistrer"}</button></div>
       </form>

@@ -7,7 +7,9 @@ import { activeCredential } from "./projects";
 import { widgetOrigins } from "./widget";
 import { acceptUserMessage,beginAssistantMessage,createConversation,findAssistantReply,finishMessage,getConversationMessages } from "./conversations";
 import { searchKnowledge } from "./knowledge";
-import { buildKnowledgeAnswer,streamParts } from "./knowledge-answer";
+import { knowledgeReply,streamParts } from "./knowledge-answer";
+import { recordUnanswered } from "./unanswered";
+import { handleIntent } from "./intents";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -102,13 +104,14 @@ export function attachSocketServer(httpServer: HttpServer) {
           else if (accepted.status === "failed") socket.emit("message:error",{conversationId,messageId:reply?.id,code:"PREVIOUS_MESSAGE_FAILED"});
           return;
         }
-        const history = await getConversationMessages(conversationId);
-        const priorQuestions = history.filter(message => message.role === "user" && message.status === "completed")
-          .slice(-2).map(message => message.content).join(" ");
-        const knowledge = await searchKnowledge(claims.sub,`${priorQuestions} ${parsed.data.content}`.trim());
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
-        const answer = buildKnowledgeAnswer(parsed.data.content,knowledge);
+        const intentAnswer = await handleIntent(claims,conversationId,parsed.data.content);
+        const knowledge = intentAnswer ? [] : await searchKnowledge(claims.sub,parsed.data.content);
+        const reply = intentAnswer ? {answer:intentAnswer,reliable:true} : knowledgeReply(parsed.data.content,knowledge);
+        if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
+          claims.externalUserId.startsWith("guest:") || claims.externalUserId === "sabito-admin-preview" ? undefined : claims.externalUserId);
+        const answer = reply.answer;
         for (const delta of streamParts(answer)) socket.emit("message:delta",{messageId:assistantId,delta});
         await finishMessage(assistantId,answer);
         await finishMessage(userMessageId);

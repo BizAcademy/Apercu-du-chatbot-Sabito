@@ -5,6 +5,92 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type BackendJobOperation = typeof BackendJobOperation[keyof typeof BackendJobOperation];
+
+
+export const BackendJobOperation = {
+  account_activation: 'account_activation',
+  deposit_status: 'deposit_status',
+  referral_code: 'referral_code',
+} as const;
+
+export type BackendJobFields = {[key: string]: string};
+
+export interface BackendJob {
+  id: string;
+  operation: BackendJobOperation;
+  external_user_id: string;
+  fields: BackendJobFields;
+  expires_at: string;
+}
+
+export type BackendResultSubmissionResult = {
+  status: 'pending' | 'confirmed' | 'failed' | 'not_found' | 'active' | 'inactive' | 'forbidden' | 'error';
+} | {
+  status: 'ok';
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  code: string;
+};
+
+export interface BackendResultSubmission {
+  result: BackendResultSubmissionResult;
+}
+
+export type TicketStatusInputStatus = typeof TicketStatusInputStatus[keyof typeof TicketStatusInputStatus];
+
+
+export const TicketStatusInputStatus = {
+  ouvert: 'ouvert',
+  ferme: 'ferme',
+} as const;
+
+export interface TicketStatusInput {
+  status: TicketStatusInputStatus;
+}
+
+export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
+
+
+export const SupportTicketStatus = {
+  ouvert: 'ouvert',
+  ferme: 'ferme',
+} as const;
+
+export interface SupportTicket {
+  id: string;
+  project_id: string;
+  conversation_id: string;
+  external_user_id?: string | null;
+  intent: string;
+  reason: string;
+  status: SupportTicketStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type UnansweredQuestionStatut = typeof UnansweredQuestionStatut[keyof typeof UnansweredQuestionStatut];
+
+
+export const UnansweredQuestionStatut = {
+  a_traiter: 'a_traiter',
+  traite: 'traite',
+} as const;
+
+export interface UnansweredQuestion {
+  id: string;
+  question: string;
+  plateforme: string;
+  utilisateur_id?: string | null;
+  statut: UnansweredQuestionStatut;
+  nombre_de_fois_posee: number;
+  date_creation: string;
+  derniere_date: string;
+  document_id?: string | null;
+}
+
 export interface WidgetSettings {
   /** @maxItems 10 */
   origins: string[];
@@ -112,12 +198,19 @@ export interface DocumentInput {
      * @maxLength 1000000
      */
   content: string;
+  /**
+     * @maxItems 30
+     * @items.minLength 2
+     * @items.maxLength 500
+     */
+  variantes_de_question?: string[];
 }
 
 export interface PlatformDocument {
   id: string;
   title: string;
   content: string;
+  variantes_de_question?: string[];
 }
 
 export interface DocumentList {
@@ -238,4 +331,67 @@ export interface KnowledgeEntry {
   question: string;
   answer: string;
 }
+
+export type ListUnansweredQuestionsParams = {
+status?: ListUnansweredQuestionsStatus;
+/**
+ * @minimum 0
+ */
+page?: number;
+};
+
+export type ListUnansweredQuestionsStatus = typeof ListUnansweredQuestionsStatus[keyof typeof ListUnansweredQuestionsStatus];
+
+
+export const ListUnansweredQuestionsStatus = {
+  a_traiter: 'a_traiter',
+  traite: 'traite',
+  all: 'all',
+} as const;
+
+export type ListUnansweredQuestions200 = {
+  data: UnansweredQuestion[];
+  total: number;
+  page: number;
+};
+
+export type AnswerUnansweredQuestionBody = {
+  /**
+     * @minLength 20
+     * @maxLength 20000
+     */
+  content: string;
+};
+
+export type GetBackendConnectionStatus200 = {
+  connected: boolean;
+  last_seen: string | null;
+};
+
+export type ListSupportTicketsParams = {
+status?: ListSupportTicketsStatus;
+/**
+ * @minimum 0
+ */
+page?: number;
+};
+
+export type ListSupportTicketsStatus = typeof ListSupportTicketsStatus[keyof typeof ListSupportTicketsStatus];
+
+
+export const ListSupportTicketsStatus = {
+  ouvert: 'ouvert',
+  ferme: 'ferme',
+  all: 'all',
+} as const;
+
+export type ListSupportTickets200 = {
+  data: SupportTicket[];
+  total: number;
+  page: number;
+};
+
+export type PollBackendJobs200 = {
+  jobs: BackendJob[];
+};
 

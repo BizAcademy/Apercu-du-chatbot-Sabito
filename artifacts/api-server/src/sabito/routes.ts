@@ -10,6 +10,9 @@ import { saveKnowledge } from "./knowledge";
 import { getConversationMessages } from "./conversations";
 import { revokeProjectSockets } from "./socket";
 import { widgetOrigins, widgetOriginsSchema } from "./widget";
+import { supportAdminRoutes } from "./support-admin";
+import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
+import { normalizedText } from "./semantic";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
@@ -27,12 +30,14 @@ coreRoutes.use("/v1/admin",sensitiveLimiter,(req,res,next) => {
   next();
 });
 function tokenResponse(req: Request,res: Response,projectId: string,clientId: string,externalUserId: string,guest=false) {
-  const accessToken = signAccessToken({sub:projectId,clientId,externalUserId,scope:["chat:connect"]});
+  const accessToken = signAccessToken({sub:projectId,clientId,externalUserId,
+    scope:["chat:connect",...(!guest && externalUserId!=="sabito-admin-preview" && !externalUserId.startsWith("guest:") ? ["member:verified"] : [])]});
   const url = process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
   res.json({success:true,data:{access_token:accessToken,token_type:"Bearer",expires_in:tokenTtl,
     socket_url:url,socket_path:"/socket.io",external_user_id:externalUserId,identity_type:guest ? "guest" : "platform_user"}});
 }
 coreRoutes.post("/v1/auth/token",sensitiveLimiter,async (req,res) => {
+  if (req.headers.origin) {res.status(403).json({message:"L’échange de clés est réservé au serveur de la plateforme."});return;}
   if (!configurationStatus().configured) {res.status(503).json({success:false,message:"Sabito n’est pas encore configuré."});return;}
   const credentials = parseBasicCredentials(req.header("authorization"));
   const body = identitySchema.safeParse(req.body ?? {});
@@ -72,6 +77,7 @@ coreRoutes.post("/v1/admin/projects/:projectId/credentials/rotate",async (req,re
   if (!id.success) {res.status(422).json({success:false,message:"Identifiant invalide."});return;}
   const credentials = await rotateProjectCredential(id.data);
   if (!credentials) {res.status(404).json({success:false,message:"Plateforme introuvable."});return;}
+  revokeBackendJobs(id.data);
   revokeProjectSockets(id.data);
   res.json({success:true,data:credentials});
 });
@@ -89,16 +95,24 @@ coreRoutes.use("/v1/admin/projects/:projectId/knowledge",async (req,res,next) =>
   next();
 });
 coreRoutes.get("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
-  const result = await pool.query(`SELECT id,title,content FROM sabito_core.knowledge_documents
-    WHERE project_id=$1 AND status='ready' ORDER BY updated_at DESC`,[req.params.projectId]);
-  res.json({success:true,data:result.rows});
+  const result = await pool.query(`SELECT kd.id,kd.title,kd.content,q.variantes_de_question FROM sabito_core.knowledge_documents kd
+    LEFT JOIN sabito_core.knowledge_question_variants q ON q.document_id=kd.id AND q.project_id=kd.project_id
+    WHERE kd.project_id=$1 AND kd.status='ready' ORDER BY kd.updated_at DESC`,[req.params.projectId]);
+  res.json({success:true,data:result.rows.map(row=>({...row,variantes_de_question:JSON.parse(String(row.variantes_de_question??"[]"))}))});
 });
 coreRoutes.post("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
   const parsed = AddPlatformKnowledgeBody.safeParse(req.body);
   if (!parsed.success || parsed.data.title.trim().length < 2 || parsed.data.content.trim().length < 20) {
     res.status(422).json({success:false,message:"Titre ou contenu invalide (20 caractères minimum)."});return;
   }
-  const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim());
+  if(parsed.data.variantes_de_question?.length && parsed.data.content.length>20000) {
+    res.status(422).json({message:"Une réponse associée à des variantes doit faire au maximum 20 000 caractères."});return;
+  }
+  if(parsed.data.variantes_de_question?.some(value=>normalizedText(value).length<2)) {
+    res.status(422).json({message:"Chaque formulation doit contenir au moins deux lettres ou chiffres."});return;
+  }
+  const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),
+    undefined,undefined,parsed.data.variantes_de_question);
   res.status(201).json({success:true,data:document});
 });
 coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,res) => {
@@ -106,7 +120,14 @@ coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,
   if (!id.success || !parsed.success || parsed.data.title.trim().length < 2 || parsed.data.content.trim().length < 20) {
     res.status(422).json({success:false,message:"Document invalide."});return;
   }
-  const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),id.data);
+  if(parsed.data.variantes_de_question?.length && parsed.data.content.length>20000) {
+    res.status(422).json({message:"Une réponse associée à des variantes doit faire au maximum 20 000 caractères."});return;
+  }
+  if(parsed.data.variantes_de_question?.some(value=>normalizedText(value).length<2)) {
+    res.status(422).json({message:"Chaque formulation doit contenir au moins deux lettres ou chiffres."});return;
+  }
+  const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),id.data,
+    undefined,parsed.data.variantes_de_question);
   if (!document) {res.status(404).json({success:false,message:"Document introuvable."});return;}
   res.json({success:true,data:document});
 });
@@ -133,6 +154,8 @@ coreRoutes.get("/v1/conversations/:conversationId/messages",async (req,res) => {
   if (!result.rowCount) {res.status(404).json({success:false,message:"Conversation introuvable."});return;}
   res.json({success:true,data:await getConversationMessages(id.data)});
 });
+coreRoutes.use(supportAdminRoutes);
+coreRoutes.use(backendBridgeRoutes);
 coreRoutes.use((error: {code?:string},req: Request,res: Response,_next: NextFunction) => {
   if (error.code === "23505") {res.status(409).json({success:false,message:"Cet identifiant de plateforme existe déjà."});return;}
   req.log.error({err:error},"Sabito request failed");

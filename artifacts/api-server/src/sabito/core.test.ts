@@ -12,7 +12,13 @@ import { widgetPublicRoutes } from "./widget";
 import { initializeSabitoCore,pool,databaseDialect } from "./database";
 import { attachSocketServer } from "./socket";
 import { buildKnowledgeAnswer } from "./knowledge-answer";
-import { acceptUserMessage } from "./conversations";
+import { knowledgeReply } from "./knowledge-answer";
+import { acceptUserMessage, createConversation } from "./conversations";
+import { recordUnanswered } from "./unanswered";
+import { handleIntent } from "./intents";
+import { verifyAccessToken } from "./security";
+import { searchKnowledge } from "./knowledge";
+import { semanticSimilarity } from "./semantic";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -139,6 +145,127 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal(history.body.data.length,2);
       assert.ok(history.body.data.every((message:{status:string}) => message.status==="completed"));
       assert.equal(history.body.data.find((message:{role:string}) => message.role === "assistant").content, reply.content);
+    });
+    await t.test("Unanswered inbox is authenticated, deduplicated, isolated and resolves atomically into knowledge",async () => {
+      const url = `/v1/admin/projects/${first.project.id}/unanswered`;
+      await request(app).get(url).expect(401);
+      await Promise.all(Array.from({length:6}, () => recordUnanswered(first.project.id,"Où trouver le justificatif cosmique ?", "test-user")));
+      await recordUnanswered(first.project.id,"OU trouver le justificatif cosmique!");
+      await recordUnanswered(second.project.id,"Où trouver le justificatif cosmique ?");
+      const list = await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      const item = list.body.data.find((q:{question:string}) => q.question.includes("justificatif"));
+      assert.equal(Number(item.nombre_de_fois_posee),7);
+      await request(app).post(`/v1/admin/projects/${second.project.id}/unanswered/${item.id}/answer`)
+        .set("X-Admin-Key",adminKey).send({content:"Le justificatif est disponible auprès de votre conseiller."}).expect(409);
+      await request(app).post(`${url}/${item.id}/answer`).set("X-Admin-Key",adminKey)
+        .send({content:"Le justificatif est disponible auprès de votre conseiller."}).expect(201);
+      await request(app).post(`${url}/${item.id}/answer`).set("X-Admin-Key",adminKey)
+        .send({content:"Ne pas créer une deuxième référence pour cette question."}).expect(409);
+      const done = await request(app).get(`${url}?status=traite`).set("X-Admin-Key",adminKey).expect(200);
+      assert.ok(done.body.data.some((q:{id:string;document_id:string}) => q.id === item.id && q.document_id));
+    });
+    await t.test("Uncertain questions refuse an exact answer and propose at most three approved references",async () => {
+      const reply = knowledgeReply("Le montant du solde bancaire intergalactique ?", [
+        {title:"Solde pédagogique",content:"Le solde pédagogique figure dans le menu des formations."},
+        {title:"Factures",content:"Les factures validées sont disponibles auprès du support."},
+        {title:"Assistance",content:"Notre assistance vous accompagne sur les questions documentées."},
+        {title:"Quatrième",content:"Cette référence ne doit pas être proposée en quatrième position."},
+      ]);
+      assert.equal(reply.reliable,false);
+      assert.ok(reply.answer.startsWith("Je n'ai pas de réponse exacte"));
+      assert.ok(!reply.answer.includes("Quatrième"));
+      assert.ok(!reply.answer.includes("[Source:"));
+      assert.equal(knowledgeReply("Mystère sans aucune référence",[]).reliable,false);
+    });
+    await t.test("Offline backend creates a protected support ticket without inventing a personal result",async () => {
+      const claims=verifyAccessToken(token);
+      const conv=await createConversation(first.project.id,claims.externalUserId);
+      const answer=await handleIntent(claims,conv,"Quel est mon code parrain ?");
+      assert.ok(answer?.includes("Un ticket a été créé"));
+      assert.ok(!answer?.includes("Votre code parrain est"));
+      const url=`/v1/admin/projects/${first.project.id}/tickets`;
+      await request(app).get(url).expect(401);
+      const tickets=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      const item=tickets.body.data.find((t:{conversation_id:string})=>t.conversation_id===conv);
+      assert.equal(item.reason,"BACKEND_OFFLINE");
+      await request(app).patch(`${url}/${item.id}`).set("X-Admin-Key",adminKey).send({status:"ferme"}).expect(200);
+      await request(app).get(`${url}/${item.id}/messages`).set("X-Admin-Key",adminKey).expect(200);
+      await request(app).get(`/v1/admin/projects/${second.project.id}/tickets/${item.id}/messages`).set("X-Admin-Key",adminKey).expect(404);
+    });
+    await t.test("Existing platform keys authenticate live jobs; identity, fields, results and tenant isolation are enforced",async () => {
+      const basic=`Basic ${Buffer.from(`${first.credentials.clientId}:${first.credentials.clientSecret}`).toString("base64")}`;
+      const other=`Basic ${Buffer.from(`${second.credentials.clientId}:${second.credentials.clientSecret}`).toString("base64")}`;
+      await request(app).post("/v1/backend/jobs/poll").set("Authorization",`Bearer ${token}`).expect(401);
+      await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).set("Origin","https://bca.example").expect(403);
+      await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).expect(200);
+      const claims=verifyAccessToken(token),conv=await createConversation(first.project.id,claims.externalUserId);
+      assert.ok((await handleIntent(claims,conv,"Mon dépôt n'est pas reçu"))?.includes("numéro de dépôt"));
+      assert.ok((await handleIntent(claims,conv,"DEP-42"))?.includes("quel pays"));
+      assert.ok((await handleIntent(claims,conv,"Cameroun"))?.includes("moyen de paiement"));
+      assert.ok((await handleIntent(claims,conv,"Mobile Money"))?.includes("ID de la transaction"));
+      const answering=handleIntent(claims,conv,"TX-42");
+      let job:any;
+      for(let attempt=0;attempt<40 && !job;attempt++){
+        await new Promise(resolve=>setTimeout(resolve,10));
+        const polled=await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).expect(200);
+        job=polled.body.jobs[0];
+      }
+      assert.ok(job);
+      assert.equal(job.external_user_id,"test-user");
+      assert.equal(job.operation,"deposit_status");
+      assert.deepEqual(job.fields,{deposit_number:"DEP-42",country:"Cameroun",payment_method:"Mobile Money",transaction_id:"TX-42"});
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).set("Authorization",other).send({result:{status:"confirmed"}}).expect(404);
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).set("Authorization",basic).send({result:{status:"confirmed",arbitraryData:"blocked"}}).expect(422);
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).set("Authorization",basic).send({result:{status:"confirmed"}}).expect(200);
+      assert.ok((await answering)?.includes("confirme que votre dépôt a été reçu"));
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).set("Authorization",basic).send({result:{status:"confirmed"}}).expect(404);
+      const stolen={...claims,sub:second.project.id};
+      await assert.rejects(handleIntent(stolen,conv,"Mon dépôt est non reçu"),/CONVERSATION_NOT_FOUND/);
+    });
+    await t.test("Anonymous referral gives the approved guide; anonymous financial checks never reach the backend",async () => {
+      const basic=`Basic ${Buffer.from(`${second.credentials.clientId}:${second.credentials.clientSecret}`).toString("base64")}`;
+      const issued=await request(app).post("/v1/auth/token").set("Authorization",basic).send({}).expect(200);
+      const claims=verifyAccessToken(issued.body.data.access_token);
+      const conv=await createConversation(second.project.id,claims.externalUserId);
+      const guide=await handleIntent(claims,conv,"Mon code parrain");
+      assert.ok(guide?.includes("Connectez-vous"));
+      assert.ok(!guide?.includes("Biz Connect Academy"),"A different platform must not inherit BCA navigation");
+      await handleIntent(claims,conv,"Compte non activé");
+      for(const field of ["DEP-44","Cameroun","Carte bancaire"]) await handleIntent(claims,conv,field);
+      assert.ok((await handleIntent(claims,conv,"TX-44"))?.includes("connexion membre vérifiée"));
+      const polled=await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).expect(200);
+      assert.equal(polled.body.jobs.length,0);
+    });
+    await t.test("Approved question variants support semantic paraphrases, edits, deletion and ambiguous-answer refusal",async () => {
+      assert.equal(semanticSimilarity("voir mes cours","accéder aux formations"),1);
+      assert.ok(semanticSimilarity("supprimer mon compte","créer mon compte")<0.85);
+      const url=`/v1/admin/projects/${first.project.id}/knowledge`;
+      const content="Les modules sont disponibles dans votre espace pédagogique, rubrique Bibliothèque.";
+      const created=await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Documentation pédagogique",content,variantes_de_question:["Comment accéder à mes formations ?","Où voir mes cours ?"],
+      }).expect(201);
+      const id=created.body.data.documentId;
+      const matches=await searchKnowledge(first.project.id,"Je souhaite consulter mes leçons");
+      assert.equal(knowledgeReply("Je souhaite consulter mes leçons",matches).answer,content);
+      assert.ok(!((await searchKnowledge(second.project.id,"Je souhaite consulter mes leçons")).some(row=>row.documentId===id)));
+      const listed=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(listed.body.data.find((doc:{id:string})=>doc.id===id).variantes_de_question.length,2);
+      const duplicate=await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Autre documentation",content:"Une autre réponse approuvée mais différente ne doit pas être choisie arbitrairement.",
+        variantes_de_question:["Comment accéder à mes formations ?"],
+      }).expect(201);
+      assert.equal(knowledgeReply("Je souhaite consulter mes leçons",await searchKnowledge(first.project.id,"Je souhaite consulter mes leçons")).reliable,false);
+      await request(app).delete(`${url}/${duplicate.body.data.documentId}`).set("X-Admin-Key",adminKey).expect(204);
+      await request(app).put(`${url}/${id}`).set("X-Admin-Key",adminKey).send({
+        title:"Documentation pédagogique",content,variantes_de_question:[],
+      }).expect(200);
+      const edited=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      assert.deepEqual(edited.body.data.find((doc:{id:string})=>doc.id===id).variantes_de_question,[]);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Trop de variantes",content,variantes_de_question:Array.from({length:31},(_,index)=>`Question ${index}`),
+      }).expect(422);
+      await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
+      assert.ok(!(await searchKnowledge(first.project.id,"Je souhaite consulter mes leçons")).some(row=>row.documentId===id));
     });
     await t.test("Conversations and knowledge cannot cross platforms or user identities",async () => {
       const otherToken = await request(app).post(`/v1/admin/projects/${second.project.id}/test-token`).set("X-Admin-Key",adminKey).expect(200);
