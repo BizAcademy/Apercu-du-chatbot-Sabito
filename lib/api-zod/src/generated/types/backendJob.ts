@@ -6,11 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BackendJobFields } from './backendJobFields';
-import type { BackendJobOperation } from './backendJobOperation';
 
 export interface BackendJob {
   id: string;
-  operation: BackendJobOperation;
+  /** @pattern ^[a-z][a-z0-9_]{1,63}$ */
+  operation: string;
   external_user_id: string;
   fields: BackendJobFields;
   expires_at: string;

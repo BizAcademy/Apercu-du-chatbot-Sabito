@@ -199,12 +199,12 @@ function Knowledge({ projectId }: { projectId: string }) {
   );
 }
 
-export function DocEditor({ projectId, doc, initial, close }: { projectId: string; doc?: PlatformDocument; initial?: { title: string; content: string }; close: () => void }) {
+export function DocEditor({ projectId, doc, initial, close }: { projectId: string; doc?: PlatformDocument; initial?: { title: string; content: string; variants?: string[] }; close: () => void }) {
   const { headers } = useAdmin();
   const qc = useQueryClient();
   const [title, setTitle] = useState(doc?.title ?? initial?.title ?? "");
   const [content, setContent] = useState(doc?.content ?? initial?.content ?? "");
-  const [variantsText, setVariantsText] = useState((doc?.variantes_de_question ?? []).join("\n"));
+  const [variantsText, setVariantsText] = useState((doc?.variantes_de_question ?? initial?.variants ?? []).join("\n"));
   const variants = variantsText.split("\n").map((v) => v.trim()).filter((v) => v.length > 0);
   const badVariant = variants.find((v) => v.length < 2 || v.length > 500);
   const tooMany = variants.length > 30;

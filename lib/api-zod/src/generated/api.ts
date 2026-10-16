@@ -604,7 +604,13 @@ export const GetPlatformMessagesResponse = zod.object({
   "id": zod.string(),
   "role": zod.enum(['user', 'assistant']),
   "content": zod.string(),
-  "status": zod.string()
+  "status": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "document_id": zod.string(),
+  "question": zod.string()
+})).optional(),
+  "suggestions_label": zod.string().optional(),
+  "closing_message": zod.string().optional()
 }))
 })
 
@@ -792,7 +798,13 @@ export const GetSupportTicketMessagesResponse = zod.object({
   "id": zod.string(),
   "role": zod.enum(['user', 'assistant']),
   "content": zod.string(),
-  "status": zod.string()
+  "status": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "document_id": zod.string(),
+  "question": zod.string()
+})).optional(),
+  "suggestions_label": zod.string().optional(),
+  "closing_message": zod.string().optional()
 }))
 })
 
@@ -800,10 +812,13 @@ export const GetSupportTicketMessagesResponse = zod.object({
 /**
  * Serveur uniquement. HTTP Basic avec les clés client générées par Sabito. Refuse tout en-tête Origin.
  */
+export const pollBackendJobsResponseJobsItemOperationRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+
+
 export const PollBackendJobsResponse = zod.object({
   "jobs": zod.array(zod.object({
   "id": zod.string(),
-  "operation": zod.enum(['account_activation', 'deposit_status', 'referral_code']),
+  "operation": zod.string().regex(pollBackendJobsResponseJobsItemOperationRegExp),
   "external_user_id": zod.string(),
   "fields": zod.record(zod.string(), zod.string()),
   "expires_at": zod.string()
@@ -815,17 +830,18 @@ export const SubmitBackendJobResultParams = zod.object({
   "jobId": zod.coerce.string()
 })
 
-export const submitBackendJobResultBodyResultTwoCodeMax = 100;
+export const submitBackendJobResultBodyResultCodeMax = 100;
+
+export const submitBackendJobResultBodyResultDataOneMax = 2000;
 
 
 
 export const SubmitBackendJobResultBody = zod.object({
-  "result": zod.union([zod.object({
-  "status": zod.enum(['pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error'])
-}),zod.object({
-  "status": zod.enum(['ok']),
-  "code": zod.string().min(1).max(submitBackendJobResultBodyResultTwoCodeMax)
-})])
+  "result": zod.object({
+  "status": zod.enum(['ok', 'success', 'pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error']),
+  "code": zod.string().min(1).max(submitBackendJobResultBodyResultCodeMax).optional(),
+  "data": zod.record(zod.string(), zod.union([zod.string().max(submitBackendJobResultBodyResultDataOneMax),zod.number(),zod.boolean()]).nullable()).optional()
+})
 })
 
 export const SubmitBackendJobResultResponse = zod.unknown()

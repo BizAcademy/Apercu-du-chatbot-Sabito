@@ -6,7 +6,7 @@ import { errMsg, useAdmin } from "@/lib/admin";
 import { MessagesEditor } from "./MessagesEditor";
 import { SynonymsEditor } from "./SynonymsEditor";
 import { IntentEditor } from "./IntentEditor";
-import { blankIntent, validateSettings } from "./validate";
+import { blankIntent, settingsWarnings, validateSettings } from "./validate";
 import { btn, card, ghost, hint, label } from "./styles";
 
 type Tab = "retrieval" | "messages" | "intents";
@@ -58,6 +58,7 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
   if (q.error || !draft) return <section className={card} id="assistant-settings">{header}<div role="alert" className="rounded-xl border border-[#f3d2d2] bg-[#fff6f6] p-3 text-[12px] text-[#9b2c2c]">{errMsg(q.error)} <button className="ml-2 font-semibold underline" onClick={() => void q.refetch()}>Réessayer</button></div></section>;
 
   const errors = validateSettings(draft);
+  const warnings = settingsWarnings(draft);
   const dirty = JSON.stringify(draft) !== baseline.current;
   const patch = (p: Partial<AssistantSettings>) => setDraft({ ...draft, ...p });
   const tabs: { k: Tab; l: string }[] = [{ k: "intents", l: `Intentions (${draft.intents.length})` }, { k: "messages", l: "Messages" }, { k: "retrieval", l: "Recherche" }];
@@ -105,6 +106,7 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
       {save.error && !conflict && <div role="alert" className="mt-4 rounded-xl border border-[#f3d2d2] bg-[#fff6f6] p-3 text-[12px] text-[#9b2c2c]" data-testid="text-settings-error">{errMsg(save.error)}</div>}
       {errors.length > 0 && dirty && <ul className="mt-4 max-h-32 list-disc overflow-y-auto rounded-xl bg-[#fff6f6] py-2 pl-7 pr-3 text-[11px] text-[#9b2c2c]" data-testid="text-settings-errors">{errors.slice(0, 12).map((e) => <li key={e}>{e}</li>)}{errors.length > 12 && <li>… et {errors.length - 12} autre(s)</li>}</ul>}
 
+      {warnings.length > 0 && <ul className="mt-4 list-disc rounded-xl bg-[#fffaf0] py-2 pl-7 pr-3 text-[11px] text-[#7a5a12]" data-testid="text-settings-warnings">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
       <div className="sticky bottom-3 mt-5 flex flex-wrap items-center justify-end gap-2 rounded-[14px] bg-white/90 py-1 backdrop-blur">
         <span className="mr-auto text-[11px] text-[#8b92a8]" data-testid="text-settings-state">{saved ? "Enregistré." : dirty ? "Modifications non enregistrées" : "À jour"}</span>
         <button type="button" className={ghost} disabled={!dirty || save.isPending} onClick={() => { setDraft(JSON.parse(baseline.current)); save.reset(); }} data-testid="button-discard-settings">Annuler les modifications</button>

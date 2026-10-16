@@ -172,34 +172,43 @@ export interface AssistantSettingsUpdate {
   expected_revision: number;
 }
 
-export type BackendJobOperation = typeof BackendJobOperation[keyof typeof BackendJobOperation];
-
-
-export const BackendJobOperation = {
-  account_activation: 'account_activation',
-  deposit_status: 'deposit_status',
-  referral_code: 'referral_code',
-} as const;
-
 export type BackendJobFields = {[key: string]: string};
 
 export interface BackendJob {
   id: string;
-  operation: BackendJobOperation;
+  /** @pattern ^[a-z][a-z0-9_]{1,63}$ */
+  operation: string;
   external_user_id: string;
   fields: BackendJobFields;
   expires_at: string;
 }
 
+export type BackendResultSubmissionResultStatus = typeof BackendResultSubmissionResultStatus[keyof typeof BackendResultSubmissionResultStatus];
+
+
+export const BackendResultSubmissionResultStatus = {
+  ok: 'ok',
+  success: 'success',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  failed: 'failed',
+  not_found: 'not_found',
+  active: 'active',
+  inactive: 'inactive',
+  forbidden: 'forbidden',
+  error: 'error',
+} as const;
+
+export type BackendResultSubmissionResultData = {[key: string]: string | number | boolean | null};
+
 export type BackendResultSubmissionResult = {
-  status: 'pending' | 'confirmed' | 'failed' | 'not_found' | 'active' | 'inactive' | 'forbidden' | 'error';
-} | {
-  status: 'ok';
+  status: BackendResultSubmissionResultStatus;
   /**
      * @minLength 1
      * @maxLength 100
      */
-  code: string;
+  code?: string;
+  data?: BackendResultSubmissionResultData;
 };
 
 export interface BackendResultSubmission {
@@ -431,6 +440,9 @@ export interface PlatformMessage {
   role: PlatformMessageRole;
   content: string;
   status: string;
+  suggestions?: ChatSuggestion[];
+  suggestions_label?: string;
+  closing_message?: string;
 }
 
 export interface MessageList {

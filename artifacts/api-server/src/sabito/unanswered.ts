@@ -34,6 +34,8 @@ export async function answerUnanswered(projectId: string, id: string, content: s
       "UPDATE questions_sans_reponse SET statut='traite',document_id=$1 WHERE id=$2 AND plateforme=$3",
       [document!.documentId, id, projectId]);
     await connection.query("COMMIT");
+    const {invalidateAssistant}=await import("./assistant-settings");
+    invalidateAssistant(projectId);
     return document;
   } catch (error) {
     await connection.query("ROLLBACK");

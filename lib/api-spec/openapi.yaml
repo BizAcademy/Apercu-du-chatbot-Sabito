@@ -528,7 +528,7 @@ components:
       required: [id, operation, external_user_id, fields, expires_at]
       properties:
         id: {type: string}
-        operation: {type: string, enum: [account_activation, deposit_status, referral_code]}
+        operation: {type: string, pattern: "^[a-z][a-z0-9_]{1,63}$"}
         external_user_id: {type: string}
         fields: {type: object, additionalProperties: {type: string}}
         expires_at: {type: string}
@@ -538,18 +538,21 @@ components:
       additionalProperties: false
       properties:
         result:
-          oneOf:
-            - type: object
-              additionalProperties: false
-              required: [status]
-              properties:
-                status: {type: string, enum: [pending, confirmed, failed, not_found, active, inactive, forbidden, error]}
-            - type: object
-              additionalProperties: false
-              required: [status, code]
-              properties:
-                status: {type: string, enum: [ok]}
-                code: {type: string, minLength: 1, maxLength: 100}
+          type: object
+          additionalProperties: false
+          required: [status]
+          properties:
+            status: {type: string, enum: [ok, success, pending, confirmed, failed, not_found, active, inactive, forbidden, error]}
+            code: {type: string, minLength: 1, maxLength: 100}
+            data:
+              type: object
+              maxProperties: 32
+              additionalProperties:
+                nullable: true
+                oneOf:
+                  - {type: string, maxLength: 2000}
+                  - {type: number}
+                  - {type: boolean}
     TicketStatusInput:
       type: object
       required: [status]
@@ -718,6 +721,9 @@ components:
         role: {type: string, enum: [user, assistant]}
         content: {type: string}
         status: {type: string}
+        suggestions: {type: array, items: {$ref: "#/components/schemas/ChatSuggestion"}}
+        suggestions_label: {type: string}
+        closing_message: {type: string}
     MessageList:
       type: object
       required: [success, data]

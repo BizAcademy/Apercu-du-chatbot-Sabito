@@ -5,14 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BackendResultSubmissionResultData } from './backendResultSubmissionResultData';
+import type { BackendResultSubmissionResultStatus } from './backendResultSubmissionResultStatus';
 
 export type BackendResultSubmissionResult = {
-  status: 'pending' | 'confirmed' | 'failed' | 'not_found' | 'active' | 'inactive' | 'forbidden' | 'error';
-} | {
-  status: 'ok';
+  status: BackendResultSubmissionResultStatus;
   /**
      * @minLength 1
      * @maxLength 100
      */
-  code: string;
+  code?: string;
+  data?: BackendResultSubmissionResultData;
 };

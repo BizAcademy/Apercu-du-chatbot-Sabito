@@ -32,7 +32,8 @@ export function createSabitoSessionHandler({
       const response = await fetchImpl(new URL("/v1/auth/token", upstream), {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(10000),
         headers: { Authorization: authorization, "Content-Type": "application/json" },
-        body: JSON.stringify({ external_user_id: user.id }),
+        body: JSON.stringify({ external_user_id: user.id,
+          ...(typeof user.name==="string"&&user.name.trim() ? {external_user_name:user.name.trim().slice(0,100)}:{}) }),
       });
       if (!response.ok) return fail(502, "SABITO_SESSION_UNAVAILABLE");
       const payload = await response.json();

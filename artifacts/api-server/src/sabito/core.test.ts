@@ -16,7 +16,10 @@ import { knowledgeReply } from "./knowledge-answer";
 import { acceptUserMessage, createConversation } from "./conversations";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
-import { verifyAccessToken } from "./security";
+import { verifyAccessToken,signAccessToken } from "./security";
+import { defaultSettings,readAssistantSettings } from "./assistant-settings";
+import { retrieveReply,scoreQuestion } from "./question-search";
+import { conversationGreeting } from "./welcome";
 import { searchKnowledge } from "./knowledge";
 import { semanticSimilarity } from "./semantic";
 
@@ -114,12 +117,12 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     await t.test("Unknown answers are explicit and approved knowledge has real create/edit/delete",async () => {
       assert.ok(buildKnowledgeAnswer("formations",[]).includes("pas encore"));
       const created = await request(app).post(`/v1/admin/projects/${first.project.id}/knowledge`).set("X-Admin-Key",adminKey)
-        .send({title:"Accès formations",content:"Les formations BCA sont accessibles depuis le menu Mes formations du tableau de bord."}).expect(201);
+        .send({title:"Accès formations",content:"Les formations BCA sont accessibles depuis le menu Mes formations du tableau de bord.",variantes_de_question:["Comment accéder aux formations BCA ?"]}).expect(201);
       const documentId=created.body.data.documentId;
       await request(app).put(`/v1/admin/projects/${second.project.id}/knowledge/${documentId}`).set("X-Admin-Key",adminKey)
         .send({title:"Mauvais propriétaire",content:"Ce contenu ne doit jamais remplacer la référence de la plateforme BCA."}).expect(404);
       await request(app).put(`/v1/admin/projects/${first.project.id}/knowledge/${documentId}`).set("X-Admin-Key",adminKey)
-        .send({title:"Accès formations",content:"Les formations BCA sont accessibles depuis le menu Mes formations du tableau de bord."}).expect(200);
+        .send({title:"Accès formations",content:"Les formations BCA sont accessibles depuis le menu Mes formations du tableau de bord.",variantes_de_question:["Comment accéder aux formations BCA ?"]}).expect(200);
       const temporary = await request(app).post(`/v1/admin/projects/${first.project.id}/knowledge`).set("X-Admin-Key",adminKey)
         .send({title:"Référence temporaire",content:"Cette référence temporaire peut être supprimée par l’administrateur."}).expect(201);
       await request(app).delete(`/v1/admin/projects/${first.project.id}/knowledge/${temporary.body.data.documentId}`).set("X-Admin-Key",adminKey).expect(204);
@@ -172,7 +175,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         {title:"Quatrième",content:"Cette référence ne doit pas être proposée en quatrième position."},
       ]);
       assert.equal(reply.reliable,false);
-      assert.ok(reply.answer.startsWith("Je n'ai pas de réponse exacte"));
+      assert.match(reply.answer,/pas encore.*répondre/);
       assert.ok(!reply.answer.includes("Quatrième"));
       assert.ok(!reply.answer.includes("[Source:"));
       assert.equal(knowledgeReply("Mystère sans aucune référence",[]).reliable,false);
@@ -286,6 +289,93 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.ok(a.isNew !== b.isNew);
       const conflict = await acceptUserMessage({...input,content:"Une autre question"});
       assert.ok(conflict.conflict);
+    });
+    await t.test("Configuration is protected, revision-controlled, literal and immediately invalidates the search cache",async()=>{
+      const url=`/v1/admin/projects/${second.project.id}/assistant-settings`;
+      await request(app).get(url).expect(401);
+      const before=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      const settings={...before.body.settings,no_answer_message:"Réponse administrateur : aucune correspondance.",closing_message:"Texte de clôture administrateur.",
+        synonyms:[...before.body.settings.synonyms,["souscrire","adhérer"]]};
+      await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:before.body.revision}).expect(200);
+      await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:before.body.revision}).expect(409);
+      const reply=await retrieveReply(second.project.id,"Mystère xylophonique inconnu");
+      assert.equal(reply.answer,settings.no_answer_message);assert.equal(reply.closing_message,settings.closing_message);
+      assert.ok(reply.suggestions.length<=3);
+      assert.ok(scoreQuestion("Je veux adhérer","Je veux souscrire",settings)>.9);
+      assert.ok(scoreQuestion("ma transaction","ma transacion",settings)>.7);
+      assert.ok(scoreQuestion("supprimer mon compte","créer mon compte",settings)<.72);
+    });
+    await t.test("New configured intents dispatch registered backend functions, interpolate trusted data, and can be disabled without code changes",async()=>{
+      const id=second.project.id,url=`/v1/admin/projects/${id}/assistant-settings`;
+      const current=await readAssistantSettings(id);
+      const settings={...current.settings,intents:[...current.settings.intents,{
+        id:"invoice_status",name:"Suivi facture",enabled:true,triggers:["Suivre la facture"],
+        fields:[{name:"invoice_number",prompt:"Quel numéro de facture ?",type:"identifier",min_length:2,max_length:30}],
+        backend_function:"invoice_status",guest_message:"Connectez-vous pour consulter votre facture.",
+        responses:{success:"Facture {numero} : {etat}.",pending:"Vérification en attente.",not_found:"Facture introuvable.",error:"Vérification indisponible."},
+      }]};
+      await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:current.revision}).expect(200);
+      const auth=()=>request(app).post("/v1/backend/jobs/poll").auth(second.credentials.clientId,second.credentials.clientSecret)
+        .send({operations:["invoice_status","user_profile"]});
+      await auth().expect(200);
+      const claims={sub:id,clientId:second.credentials.clientId,externalUserId:"invoice-member",scope:["chat:connect","member:verified"]};
+      const conv=await createConversation(id,claims.externalUserId);
+      assert.match((await handleIntent(claims,conv,"Suivre la facture"))!,/numéro de facture/);
+      const answer=handleIntent(claims,conv,"FCT-7");
+      async function completeJob(operation:string,data:Record<string,string>) {
+        for(let attempt=0;attempt<100;attempt++) {
+          const polled=await auth().expect(200),job=polled.body.jobs.find((j:{operation:string})=>j.operation===operation);
+          if(job) {
+            assert.equal(job.external_user_id,claims.externalUserId);
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(second.credentials.clientId,second.credentials.clientSecret)
+              .send({result:{status:"ok",data}}).expect(200);return;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        assert.fail("Configured backend operation was not delivered");
+      }
+      await completeJob("invoice_status",{numero:"FCT-7",etat:"confirmée"});
+      assert.equal(await answer,"Facture FCT-7 : confirmée.");
+      const greeting=conversationGreeting(claims,conv);
+      await completeJob("user_profile",{nom_utilisateur:"Léa"});
+      assert.equal(await greeting,"Bonjour Léa 👋, comment puis-je vous aider ?");
+      const next=await readAssistantSettings(id);
+      next.settings.intents.find(i=>i.id==="invoice_status")!.enabled=false;
+      await request(app).put(url).set("X-Admin-Key",adminKey).send({settings:next.settings,expected_revision:next.revision}).expect(200);
+      assert.equal(await handleIntent(claims,await createConversation(id,claims.externalUserId),"Suivre la facture"),null);
+    });
+    await t.test("500 simultaneous conversations receive their own authored answer with no missing or mixed messages",async()=>{
+      const response=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`load-${randomUUID()}`,name:"Isolated load test",assistant_name:"Sabito",system_prompt:"Return only approved administrator answers."}).expect(201);
+      const fixture=response.body.data;projectIds.push(fixture.project.id);
+      const values:unknown[]=[],rows:string[]=[];
+      for(let i=0;i<500;i++) {
+        const offset=values.length;rows.push(`($${offset+1},$${offset+2},$${offset+3},$${offset+4},'ready')`);
+        values.push(randomUUID(),fixture.project.id,`Question charge identifiant${i}`,`Réponse approuvée identifiant${i}.`);
+      }
+      await pool.query(`INSERT INTO sabito_core.knowledge_documents(id,project_id,title,content,status) VALUES ${rows.join(",")}`,values);
+      const started=Date.now(),ids=new Set<string>();
+      await Promise.all(Array.from({length:500},async(_,i)=>{
+        const loadToken=signAccessToken({sub:fixture.project.id,clientId:fixture.credentials.clientId,
+          externalUserId:`load-user-${i}`,externalUserName:`Membre ${i}`,scope:["chat:connect","member:verified"]});
+        const client=await openSocket(loadToken);
+        const greeting=await client.timeout(30000).emitWithAck("conversation:start",{});
+        assert.ok(greeting.ok);assert.ok(greeting.data.greeting.includes(`Membre ${i}`));
+        ids.add(greeting.data.conversationId);
+        const complete=socketOnce<{content:string;conversationId:string;suggestions:unknown[]}>(client,"message:complete");
+        const ack=await client.timeout(60000).emitWithAck("message:send",{conversationId:greeting.data.conversationId,
+          idempotencyKey:randomUUID(),content:`Question charge identifiant${i}`});
+        assert.ok(ack.ok);
+        const [answer]=await complete;
+        assert.equal(answer.content,`Réponse approuvée identifiant${i}.`);
+        assert.equal(answer.conversationId,greeting.data.conversationId);
+        assert.ok(answer.suggestions.length<=3);
+        client.disconnect();
+      }));
+      assert.equal(ids.size,500);
+      const saved=await pool.query(`SELECT COUNT(*) AS n FROM sabito_core.messages WHERE project_id=$1 AND status='completed'`,[fixture.project.id]);
+      assert.equal(Number(saved.rows[0].n),1000);
+      console.info(`LOAD_TEST: 500/500 conversations, 1000/1000 completed messages, ${Date.now()-started}ms (isolated local database).`);
     });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");

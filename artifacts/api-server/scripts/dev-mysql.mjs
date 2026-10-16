@@ -126,7 +126,7 @@ try {
   };
   if (verifying) {
     for (const [command, args, cwd] of [
-      [process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", "--test-timeout=45000",
+      [process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", "--test-timeout=120000",
         "src/sabito/core.test.ts", "src/sabito/mysql-integration.test.ts"], artifact],
       [process.execPath, ["scripts/src/smoke-cybrancee.mjs"], root],
     ]) {

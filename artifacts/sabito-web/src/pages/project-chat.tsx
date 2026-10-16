@@ -33,7 +33,7 @@ function ChatInner() {
   const [error, setError] = useState("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [correction, setCorrection] = useState<{ title: string; content: string } | null>(null);
+  const [correction, setCorrection] = useState<{ title: string; content: string; variants?: string[] } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const tokenRef = useRef<{ token: string; exp: number } | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
@@ -168,7 +168,8 @@ function ChatInner() {
   };
   const correct = (i: number) => {
     const q = messages.slice(0, i).reverse().find((m) => m.role === "user")?.content ?? "";
-    setCorrection({ title: q.slice(0, 255), content: `Question : ${q}\n\nRéponse approuvée : ${messages[i].content}` });
+    const question = q.trim().slice(0, 500);
+    setCorrection({ title: q.slice(0, 255), content: messages[i].content, variants: question.length >= 2 ? [question] : [] });
   };
 
   return (

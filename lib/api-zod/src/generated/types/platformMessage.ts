@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChatSuggestion } from './chatSuggestion';
 import type { PlatformMessageRole } from './platformMessageRole';
 
 export interface PlatformMessage {
@@ -12,4 +13,7 @@ export interface PlatformMessage {
   role: PlatformMessageRole;
   content: string;
   status: string;
+  suggestions?: ChatSuggestion[];
+  suggestions_label?: string;
+  closing_message?: string;
 }

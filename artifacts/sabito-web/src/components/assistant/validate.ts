@@ -59,11 +59,16 @@ export function validateSettings(s: AssistantSettings): string[] {
     if (v.length > 4000) e.push(`${m.label} : 4000 caractères max.`);
     if (!m.optional && !v.trim()) e.push(`${m.label} : obligatoire.`);
   });
-  if (!s.greeting_member.includes("{nom_utilisateur}")) e.push("Accueil membre : doit contenir {nom_utilisateur}.");
-  if (!s.ticket_message.includes("{ticket_id}")) e.push("Message de ticket : doit contenir {ticket_id}.");
   if (s.intents.length > 100) e.push("100 intentions maximum.");
   s.intents.forEach((it) => validateIntent(it, s.intents).forEach((x) => e.push(`Intention « ${it.name || it.id} » — ${x}`)));
   return e;
+}
+
+export function settingsWarnings(s: AssistantSettings): string[] {
+  const w: string[] = [];
+  if (!s.greeting_member.includes("{nom_utilisateur}")) w.push("Accueil membre sans {nom_utilisateur} : le nom du membre ne sera pas affiché.");
+  if (!s.ticket_message.includes("{ticket_id}")) w.push("Message de ticket sans {ticket_id} : le numéro du ticket ne sera pas communiqué.");
+  return w;
 }
 
 export function blankIntent(existing: IntentDefinition[]): IntentDefinition {

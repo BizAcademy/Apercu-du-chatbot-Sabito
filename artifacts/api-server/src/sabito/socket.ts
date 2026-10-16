@@ -5,9 +5,11 @@ import { logger } from "../lib/logger";
 import { verifyAccessToken } from "./security";
 import { activeCredential } from "./projects";
 import { widgetOrigins } from "./widget";
-import { acceptUserMessage,beginAssistantMessage,createConversation,findAssistantReply,finishMessage,getConversationMessages } from "./conversations";
-import { searchKnowledge } from "./knowledge";
-import { knowledgeReply,streamParts } from "./knowledge-answer";
+import { acceptUserMessage,beginAssistantMessage,createConversation,findAssistantReply,finishMessage,saveMessagePresentation } from "./conversations";
+import { streamParts } from "./knowledge-answer";
+import { retrieveReply,searchState } from "./question-search";
+import { conversationGreeting,initialGreeting } from "./welcome";
+import { isVerifiedMember } from "./templates";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 
@@ -18,6 +20,14 @@ const messageSchema = z.object({
 });
 const startSchema = z.object({metadata:z.record(z.string(),z.unknown()).optional()});
 let currentIo: Server | undefined;
+const budgets=new Map<string,{time:number;count:number}>();
+function allowMessage(key:string) {
+  const now=Date.now();
+  if(budgets.size>20000)for(const [key,value] of budgets)if(now-value.time>=60000)budgets.delete(key);
+  const value=budgets.get(key);
+  if(!value||now-value.time>=60000){budgets.set(key,{time:now,count:1});return true;}
+  return ++value.count<=20;
+}
 export function revokeProjectSockets(projectId: string) {
   currentIo?.in(`project:${projectId}`).disconnectSockets(true);
 }
@@ -76,8 +86,13 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (!parsed.success) return acknowledge({ok:false,error:{code:"INVALID_PAYLOAD"}});
       try {
         if (!await authorized()) return acknowledge({ok:false,error:{code:"UNAUTHORIZED"}});
+        if(!allowMessage(`start:${claims.sub}:${claims.externalUserId}`))return acknowledge({ok:false,error:{code:"RATE_LIMITED"}});
         const conversationId = await createConversation(claims.sub,claims.externalUserId,parsed.data.metadata);
-        acknowledge({ok:true,data:{conversationId}});
+        const {settings}=await searchState(claims.sub);
+        acknowledge({ok:true,data:{conversationId,greeting:initialGreeting(claims,settings)}});
+        void conversationGreeting(claims,conversationId).then(content=>{
+          if(socket.connected)socket.emit("conversation:welcome",{conversationId,content});
+        }).catch(error=>logger.error({err:error},"Conversation welcome unavailable"));
       } catch {
         acknowledge({ok:false,error:{code:"INTERNAL_ERROR"}});
       }
@@ -86,10 +101,7 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (typeof acknowledge !== "function") return;
       const parsed = messageSchema.safeParse(payload);
       if (!parsed.success) return acknowledge({ok:false,error:{code:"INVALID_PAYLOAD",message:"Message invalide."}});
-      const now = Date.now();
-      socket.data.messageTimestamps = socket.data.messageTimestamps.filter((timestamp:number) => timestamp > now-60000);
-      if (socket.data.messageTimestamps.length >= 20) return acknowledge({ok:false,error:{code:"RATE_LIMITED",message:"Veuillez patienter."}});
-      socket.data.messageTimestamps.push(now);
+      if (!allowMessage(`send:${claims.sub}:${claims.externalUserId}`)) return acknowledge({ok:false,error:{code:"RATE_LIMITED",message:"Veuillez patienter."}});
       let userMessageId: string | undefined, assistantId: string | undefined, conversationId: string | undefined;
       try {
         if (!await authorized()) return acknowledge({ok:false,error:{code:"UNAUTHORIZED",message:"Connexion expirée ou révoquée."}});
@@ -100,22 +112,24 @@ export function attachSocketServer(httpServer: HttpServer) {
         acknowledge({ok:true,data:{conversationId,userMessageId,duplicate:!accepted.isNew,status:accepted.status}});
         if (!accepted.isNew) {
           const reply = await findAssistantReply(userMessageId);
-          if (reply?.status === "completed") socket.emit("message:complete",{conversationId,messageId:reply.id,content:reply.content,replayed:true});
+          if (reply?.status === "completed") socket.emit("message:complete",{...reply,conversationId,messageId:reply.id,replayed:true});
           else if (accepted.status === "failed") socket.emit("message:error",{conversationId,messageId:reply?.id,code:"PREVIOUS_MESSAGE_FAILED"});
           return;
         }
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
         const intentAnswer = await handleIntent(claims,conversationId,parsed.data.content);
-        const knowledge = intentAnswer ? [] : await searchKnowledge(claims.sub,parsed.data.content);
-        const reply = intentAnswer ? {answer:intentAnswer,reliable:true} : knowledgeReply(parsed.data.content,knowledge);
+        const reply = await retrieveReply(claims.sub,parsed.data.content);
+        if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;}
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
-          claims.externalUserId.startsWith("guest:") || claims.externalUserId === "sabito-admin-preview" ? undefined : claims.externalUserId);
+          isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = reply.answer;
-        for (const delta of streamParts(answer)) socket.emit("message:delta",{messageId:assistantId,delta});
+        for (const delta of streamParts(answer)) socket.emit("message:delta",{conversationId,messageId:assistantId,delta});
+        await saveMessagePresentation(assistantId,reply);
         await finishMessage(assistantId,answer);
         await finishMessage(userMessageId);
-        socket.emit("message:complete",{conversationId,messageId:assistantId,content:answer});
+        socket.emit("message:complete",{conversationId,messageId:assistantId,content:answer,
+          suggestions:reply.suggestions,suggestions_label:reply.suggestions_label,closing_message:reply.closing_message});
       } catch (error) {
         const code = error instanceof Error && error.message === "CONVERSATION_NOT_FOUND" ? error.message : "INTERNAL_ERROR";
         logger.error({err:error,projectId:claims.sub},"Sabito message failed");

@@ -39,7 +39,7 @@ function tokenSimilarity(a:string,b:string):number {
 type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>};
 type State={settings:AssistantSettings;revision:number;entries:Entry[];df:Map<string,number>;average:number;checked:number};
 const cache=new Map<string,State>(),loading=new Map<string,Promise<State>>(),generations=new Map<string,number>();
-onAssistantChange(id=>{cache.delete(id);generations.set(id,(generations.get(id)??0)+1);});
+onAssistantChange(id=>{cache.delete(id);loading.delete(id);generations.set(id,(generations.get(id)??0)+1);});
 export async function searchState(projectId:string):Promise<State> {
   const previous=cache.get(projectId);
   if(previous && Date.now()-previous.checked<1000) return previous;
