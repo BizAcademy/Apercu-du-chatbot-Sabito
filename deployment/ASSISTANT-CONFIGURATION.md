@@ -21,7 +21,15 @@ Dans une plateforme, ouvrir **Configurer l’assistant** :
 - **Recherche** : seuil de confiance et groupes de synonymes.
 - **Intentions** : déclencheurs, champs demandés dans l’ordre, fonction métier et réponses par résultat.
 
-Une référence contient la réponse à afficher **telle quelle**, avec ses variantes de questions. Les boutons de suggestion viennent de ces questions enregistrées. Si plusieurs réponses différentes sont trop proches, Sabito refuse de choisir arbitrairement et enregistre la question dans la boîte des questions sans réponse.
+Une référence contient la réponse à afficher **telle quelle**, avec ses variantes de questions. Dans **Ajouter / Modifier une référence**, la section **Questions proposées après cette réponse** permet de définir jusqu’à trois couples question/réponse, de les réordonner et de les supprimer. Enregistrer puis rouvrir la référence pour les retrouver.
+
+Après une réponse reconnue, seuls ces boutons configurés pour cette référence sont affichés ; sans configuration, aucun autre titre de référence (« bonjour », « salut », etc.) n’est proposé. Un clic affiche exactement la réponse approuvée associée, sans inférence ni recherche d’une autre référence. Les variantes servent uniquement à reconnaître différentes formulations de la question principale. Les questions sans réponse peuvent toujours proposer jusqu’à trois références issues de la recherche classique.
+
+Cette fonctionnalité nécessite la migration additive **007_knowledge_follow_ups.sql**. Après le push et le succès de GitHub Actions, faire **Pull → Deploy Now** dans Plesk, puis exécuter dans **Run script** : `plesk:migrate:plan`, `plesk:migrate:apply:reviewed`, `plesk:migrate:status`, et enfin **Restart App**. Le statut doit indiquer `pending: []`. Aucun build dans Plesk. Si MySQL renvoie `ER_ACCESS_DENIED_ERROR`, rétablir d’abord la connexion ; le déploiement seul ne corrige pas l’authentification.
+
+Un ancien bouton dont la question/réponse a été modifiée ou supprimée affiche un message explicite invitant à reposer la question, jamais une réponse choisie ailleurs. Les réponses des boutons sont enregistrées dans l’historique de la conversation. Ces boutons ne consultent pas de données personnelles en temps réel : les opérations métier continuent d’utiliser le raccordement sécurisé.
+
+Si plusieurs réponses différentes sont trop proches, Sabito refuse de choisir arbitrairement et enregistre la question dans la boîte des questions sans réponse.
 
 ## Fonctions du backend de chaque plateforme
 

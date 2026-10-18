@@ -183,14 +183,14 @@ export function WidgetChat() {
     window.setTimeout(() => { if (phaseRef.current === "loading") { setPhase("error"); setError("Le chargement de la session a expiré."); } }, LOAD_TIMEOUT_MS);
   };
 
-  const send = (e?: FormEvent, picked?: string) => {
+  const send = (e?: FormEvent, picked?: string, followUpId?: string) => {
     e?.preventDefault();
     const content = (picked ?? input).trim(); const s = socketRef.current; const gen = genRef.current;
     if (!content || !s || !connected || sending || phaseRef.current !== "ready") return;
     const localId = `local-${crypto.randomUUID()}`;
     setMessages((m) => [...m, { id: localId, role: "user", content, pending: true }]);
     if (picked === undefined) setInput(""); setSending(true); setError("");
-    s.timeout(15_000).emit("message:send", { ...(convRef.current ? { conversationId: convRef.current } : {}), idempotencyKey: crypto.randomUUID(), content }, (err: Error | null, ack?: Ack) => {
+    s.timeout(15_000).emit("message:send", { ...(convRef.current ? { conversationId: convRef.current } : {}), idempotencyKey: crypto.randomUUID(), content, ...(followUpId !== undefined ? { follow_up_id: followUpId } : {}) }, (err: Error | null, ack?: Ack) => {
       if (gen !== genRef.current) return;
       setSending(false);
       if (err || !ack?.ok || !ack.data) {
@@ -254,7 +254,7 @@ export function WidgetChat() {
           <div key={m.id} className="mb-4 max-w-[90%]">
             <div className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]">{m.content || (m.pending ? "Rédaction de la réponse…" : "")}</div>
             {m.failed && <p className="mt-1 text-[11px] text-[#a3401c]">Erreur : {m.failed}</p>}
-            <AnswerExtras m={m} tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q) => send(undefined, q)} />
+            <AnswerExtras m={m} tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
           </div>
         ))}
         {phase === "ready" && error && (

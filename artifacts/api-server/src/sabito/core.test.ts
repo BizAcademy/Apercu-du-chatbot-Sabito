@@ -377,6 +377,45 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal(Number(saved.rows[0].n),1000);
       console.info(`LOAD_TEST: 500/500 conversations, 1000/1000 completed messages, ${Date.now()-started}ms (isolated local database).`);
     });
+    await t.test("Authored follow-up buttons persist, answer exactly, reject stale/cross-tenant selections and clear on edit",async()=>{
+      const url=`/v1/admin/projects/${first.project.id}/knowledge`;
+      const pairs=[{question:"Et ensuite ?",answer:"Choisissez votre formation dans votre espace."},
+        {question:"Où trouver de l'aide ?",answer:"Contactez notre équipe via le formulaire de contact."}];
+      const body={title:"Guide personnalisé des premiers pas",content:"Bienvenue ! Voici les étapes pour commencer votre parcours.",follow_up_questions:pairs};
+      await request(app).post(url).send(body).expect(401);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({...body,follow_up_questions:[{question:"  ",answer:" "}]}).expect(422);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({...body,follow_up_questions:[...pairs,...pairs]}).expect(422);
+      const created=await request(app).post(url).set("X-Admin-Key",adminKey).send(body).expect(201);
+      const id=created.body.data.documentId;
+      const list=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      assert.deepEqual(list.body.data.find((doc:{id:string})=>doc.id===id).follow_up_questions,pairs);
+      const reply=await retrieveReply(first.project.id,body.title);
+      assert.deepEqual(reply.suggestions.map(s=>s.question),pairs.map(s=>s.question));
+      const selection=reply.suggestions[0];
+      assert.ok("follow_up_id" in selection);
+      const client=await openSocket(token,true);
+      const send=async(followUpId:string)=>{
+        const complete=socketOnce<{content:string;conversationId:string;suggestions:unknown[]}>(client,"message:complete");
+        const ack=await client.emitWithAck("message:send",{idempotencyKey:randomUUID(),content:selection.question,follow_up_id:followUpId});
+        assert.equal(ack.ok,true);
+        return (await complete)[0];
+      };
+      const answer=await send(String(selection.follow_up_id));
+      assert.equal(answer.content,pairs[0].answer);
+      assert.deepEqual(answer.suggestions,[]);
+      const history=await request(app).get(`/v1/conversations/${answer.conversationId}/messages`).set("Authorization",`Bearer ${token}`).expect(200);
+      assert.ok(history.body.data.some((m:{content:string})=>m.content===pairs[0].answer));
+      const {selectedFollowUp}=await import("./knowledge-follow-ups");
+      assert.equal(await selectedFollowUp(second.project.id,String(selection.follow_up_id),selection.question),null);
+      assert.equal(await selectedFollowUp(first.project.id,String(selection.follow_up_id),"another question"),null);
+      await request(app).put(`${url}/${id}`).set("X-Admin-Key",adminKey).send({...body,
+        follow_up_questions:[{...pairs[0],answer:"Nouvelle réponse approuvée."}]}).expect(200);
+      assert.match((await send(String(selection.follow_up_id))).content,/modifiée ou supprimée/);
+      await request(app).put(`${url}/${id}`).set("X-Admin-Key",adminKey).send({...body,follow_up_questions:[]}).expect(200);
+      assert.deepEqual((await retrieveReply(first.project.id,body.title)).suggestions,[]);
+      await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
+      assert.equal(await selectedFollowUp(first.project.id,String(selection.follow_up_id),selection.question),null);
+    });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);

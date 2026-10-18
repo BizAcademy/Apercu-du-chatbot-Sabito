@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { KnowledgeFollowUp } from './knowledgeFollowUp';
 
 export interface PlatformDocument {
   id: string;
   title: string;
   content: string;
+  follow_up_questions?: KnowledgeFollowUp[];
   variantes_de_question?: string[];
 }

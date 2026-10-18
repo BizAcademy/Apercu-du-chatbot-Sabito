@@ -656,12 +656,22 @@ components:
           properties:
             project: {$ref: "#/components/schemas/Platform"}
             credentials: {$ref: "#/components/schemas/PlatformCredentials"}
+    KnowledgeFollowUp:
+      type: object
+      required: [question, answer]
+      properties:
+        question: {type: string, minLength: 2, maxLength: 500}
+        answer: {type: string, minLength: 1, maxLength: 20000}
     DocumentInput:
       type: object
       required: [title, content]
       properties:
         title: {type: string, minLength: 2, maxLength: 255}
         content: {type: string, minLength: 20, maxLength: 1000000}
+        follow_up_questions:
+          type: array
+          maxItems: 3
+          items: {$ref: "#/components/schemas/KnowledgeFollowUp"}
         variantes_de_question:
           type: array
           maxItems: 30
@@ -673,6 +683,9 @@ components:
         id: {type: string}
         title: {type: string}
         content: {type: string}
+        follow_up_questions:
+          type: array
+          items: {$ref: "#/components/schemas/KnowledgeFollowUp"}
         variantes_de_question:
           type: array
           items: {type: string}

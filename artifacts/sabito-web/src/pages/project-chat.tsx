@@ -140,7 +140,7 @@ function ChatInner() {
     return () => { disposed = true; off(); window.clearTimeout(timerRef.current); window.clearTimeout(retryTimer); socketRef.current?.disconnect(); socketRef.current = null; tokenRef.current = null; };
   }, [projectId, fetchToken, hydrate, onLogout]);
 
-  const send = (e?: FormEvent, picked?: string) => {
+  const send = (e?: FormEvent, picked?: string, followUpId?: string) => {
     e?.preventDefault();
     const content = (picked ?? input).trim(); const s = socketRef.current;
     if (!content || !s || !connected || sending) return;
@@ -148,7 +148,7 @@ function ChatInner() {
     setMessages((m) => [...m, { id: localId, role: "user", content, pending: true }]);
     if (picked === undefined) setInput(""); setSending(true); setError("");
     const cid = convRef.current;
-    s.timeout(15_000).emit("message:send", { ...(cid ? { conversationId: cid } : {}), idempotencyKey: crypto.randomUUID(), content }, (err: Error | null, ack?: Ack) => {
+    s.timeout(15_000).emit("message:send", { ...(cid ? { conversationId: cid } : {}), idempotencyKey: crypto.randomUUID(), content, ...(followUpId !== undefined ? { follow_up_id: followUpId } : {}) }, (err: Error | null, ack?: Ack) => {
       setSending(false);
       if (err || !ack?.ok || !ack.data) {
         const msg = err ? "Délai dépassé, aucune confirmation du serveur." : typeof ack?.error === "string" ? ack.error : ack?.error?.message ?? ack?.error?.code ?? "Envoi refusé.";
@@ -206,7 +206,7 @@ function ChatInner() {
               <div className="min-w-0 flex-1">
                 <p className="whitespace-pre-wrap text-[13px] leading-[1.75] text-[#3d4560]">{m.content || (m.pending ? "Sabito prépare sa réponse…" : "")}</p>
                 {m.failed && <p className="text-[11px] text-[#b4441f]">Erreur : {m.failed}</p>}
-                <AnswerExtras m={m} disabled={!connected || sending} onPick={(q) => send(undefined, q)} />
+                <AnswerExtras m={m} disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
                 {!m.pending && m.content && <button className="mt-2 text-[12px] text-[#3641f5]" onClick={() => correct(i)} data-testid={`button-correct-${m.id}`}>Corriger la réponse</button>}
               </div>
             </div>

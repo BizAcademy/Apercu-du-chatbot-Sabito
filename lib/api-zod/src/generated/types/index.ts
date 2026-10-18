@@ -30,6 +30,7 @@ export * from './intentField';
 export * from './intentFieldType';
 export * from './intentResponses';
 export * from './knowledgeEntry';
+export * from './knowledgeFollowUp';
 export * from './knowledgeInput';
 export * from './listSupportTickets200';
 export * from './listSupportTicketsParams';

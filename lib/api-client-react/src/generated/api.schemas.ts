@@ -363,6 +363,19 @@ export interface ProjectCreated {
   data: ProjectCreatedData;
 }
 
+export interface KnowledgeFollowUp {
+  /**
+     * @minLength 2
+     * @maxLength 500
+     */
+  question: string;
+  /**
+     * @minLength 1
+     * @maxLength 20000
+     */
+  answer: string;
+}
+
 export interface DocumentInput {
   /**
      * @minLength 2
@@ -374,6 +387,8 @@ export interface DocumentInput {
      * @maxLength 1000000
      */
   content: string;
+  /** @maxItems 3 */
+  follow_up_questions?: KnowledgeFollowUp[];
   /**
      * @maxItems 30
      * @items.minLength 2
@@ -386,6 +401,7 @@ export interface PlatformDocument {
   id: string;
   title: string;
   content: string;
+  follow_up_questions?: KnowledgeFollowUp[];
   variantes_de_question?: string[];
 }
 

@@ -470,12 +470,23 @@ export const ListPlatformKnowledgeParams = zod.object({
   "projectId": zod.coerce.string()
 })
 
+export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMin = 2;
+export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMax = 500;
+
+export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemAnswerMax = 20000;
+
+
+
 export const ListPlatformKnowledgeResponse = zod.object({
   "success": zod.boolean(),
   "data": zod.array(zod.object({
   "id": zod.string(),
   "title": zod.string(),
   "content": zod.string(),
+  "follow_up_questions": zod.array(zod.object({
+  "question": zod.string().min(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMin).max(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMax),
+  "answer": zod.string().min(1).max(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemAnswerMax)
+})).optional(),
   "variantes_de_question": zod.array(zod.string()).optional()
 }))
 })
@@ -491,6 +502,13 @@ export const addPlatformKnowledgeBodyTitleMax = 255;
 export const addPlatformKnowledgeBodyContentMin = 20;
 export const addPlatformKnowledgeBodyContentMax = 1000000;
 
+export const addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin = 2;
+export const addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax = 500;
+
+export const addPlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax = 20000;
+
+export const addPlatformKnowledgeBodyFollowUpQuestionsMax = 3;
+
 export const addPlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
 export const addPlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
 
@@ -501,6 +519,10 @@ export const addPlatformKnowledgeBodyVariantesDeQuestionMax = 30;
 export const AddPlatformKnowledgeBody = zod.object({
   "title": zod.string().min(addPlatformKnowledgeBodyTitleMin).max(addPlatformKnowledgeBodyTitleMax),
   "content": zod.string().min(addPlatformKnowledgeBodyContentMin).max(addPlatformKnowledgeBodyContentMax),
+  "follow_up_questions": zod.array(zod.object({
+  "question": zod.string().min(addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin).max(addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax),
+  "answer": zod.string().min(1).max(addPlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax)
+})).max(addPlatformKnowledgeBodyFollowUpQuestionsMax).optional(),
   "variantes_de_question": zod.array(zod.string().min(addPlatformKnowledgeBodyVariantesDeQuestionItemMin).max(addPlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(addPlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 
@@ -524,6 +546,13 @@ export const updatePlatformKnowledgeBodyTitleMax = 255;
 export const updatePlatformKnowledgeBodyContentMin = 20;
 export const updatePlatformKnowledgeBodyContentMax = 1000000;
 
+export const updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin = 2;
+export const updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax = 500;
+
+export const updatePlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax = 20000;
+
+export const updatePlatformKnowledgeBodyFollowUpQuestionsMax = 3;
+
 export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
 export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
 
@@ -534,6 +563,10 @@ export const updatePlatformKnowledgeBodyVariantesDeQuestionMax = 30;
 export const UpdatePlatformKnowledgeBody = zod.object({
   "title": zod.string().min(updatePlatformKnowledgeBodyTitleMin).max(updatePlatformKnowledgeBodyTitleMax),
   "content": zod.string().min(updatePlatformKnowledgeBodyContentMin).max(updatePlatformKnowledgeBodyContentMax),
+  "follow_up_questions": zod.array(zod.object({
+  "question": zod.string().min(updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin).max(updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax),
+  "answer": zod.string().min(1).max(updatePlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax)
+})).max(updatePlatformKnowledgeBodyFollowUpQuestionsMax).optional(),
   "variantes_de_question": zod.array(zod.string().min(updatePlatformKnowledgeBodyVariantesDeQuestionItemMin).max(updatePlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(updatePlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 

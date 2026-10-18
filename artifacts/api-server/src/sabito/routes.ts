@@ -98,10 +98,13 @@ coreRoutes.use("/v1/admin/projects/:projectId/knowledge",async (req,res,next) =>
   next();
 });
 coreRoutes.get("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
-  const result = await pool.query(`SELECT kd.id,kd.title,kd.content,q.variantes_de_question FROM sabito_core.knowledge_documents kd
+  const result = await pool.query(`SELECT kd.id,kd.title,kd.content,q.variantes_de_question,f.questions_json FROM sabito_core.knowledge_documents kd
     LEFT JOIN sabito_core.knowledge_question_variants q ON q.document_id=kd.id AND q.project_id=kd.project_id
+    LEFT JOIN sabito_core.knowledge_follow_ups f ON f.document_id=kd.id AND f.project_id=kd.project_id
     WHERE kd.project_id=$1 AND kd.status='ready' ORDER BY kd.updated_at DESC`,[req.params.projectId]);
-  res.json({success:true,data:result.rows.map(row=>({...row,variantes_de_question:JSON.parse(String(row.variantes_de_question??"[]"))}))});
+  res.json({success:true,data:result.rows.map(({questions_json,...row})=>({...row,
+    variantes_de_question:JSON.parse(String(row.variantes_de_question??"[]")),
+    follow_up_questions:JSON.parse(String(questions_json??"[]"))}))});
 });
 coreRoutes.post("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
   const parsed = AddPlatformKnowledgeBody.safeParse(req.body);
@@ -114,8 +117,11 @@ coreRoutes.post("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
   if(parsed.data.variantes_de_question?.some(value=>normalizedText(value).length<2)) {
     res.status(422).json({message:"Chaque formulation doit contenir au moins deux lettres ou chiffres."});return;
   }
+  if(parsed.data.follow_up_questions?.some(item=>item.question.trim().length<2||!item.answer.trim().length)) {
+    res.status(422).json({message:"Chaque question proposée doit contenir une question et une réponse non vides."});return;
+  }
   const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),
-    undefined,undefined,parsed.data.variantes_de_question);
+    undefined,undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions);
   res.status(201).json({success:true,data:document});
 });
 coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,res) => {
@@ -129,8 +135,11 @@ coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,
   if(parsed.data.variantes_de_question?.some(value=>normalizedText(value).length<2)) {
     res.status(422).json({message:"Chaque formulation doit contenir au moins deux lettres ou chiffres."});return;
   }
+  if(parsed.data.follow_up_questions?.some(item=>item.question.trim().length<2||!item.answer.trim().length)) {
+    res.status(422).json({message:"Chaque question proposée doit contenir une question et une réponse non vides."});return;
+  }
   const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),id.data,
-    undefined,parsed.data.variantes_de_question);
+    undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions);
   if (!document) {res.status(404).json({success:false,message:"Document introuvable."});return;}
   res.json({success:true,data:document});
 });

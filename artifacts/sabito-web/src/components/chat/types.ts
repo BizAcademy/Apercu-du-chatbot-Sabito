@@ -1,4 +1,4 @@
-export type Suggestion = { document_id: string; question: string };
+export type Suggestion = { document_id: string; question: string; follow_up_id?: string };
 export type ChatMsg = {
   id: string; role: "user" | "assistant"; content: string; pending?: boolean; failed?: string;
   suggestions?: Suggestion[]; suggestions_label?: string; closing_message?: string;

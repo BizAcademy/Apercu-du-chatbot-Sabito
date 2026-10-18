@@ -1,5 +1,6 @@
 // Deterministic retrieval only. No model, inference service or generated answer.
 import { pool } from "./database";
+import { followUpSuggestions,type FollowUp } from "./knowledge-follow-ups";
 import { readAssistantSettings,onAssistantChange,type AssistantSettings } from "./assistant-settings";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
@@ -36,7 +37,7 @@ function tokenSimilarity(a:string,b:string):number {
   const value=previous[b.length]<=2 ? Math.max(0,1-previous[b.length]/Math.max(a.length,b.length)):0;
   if(edits.size>20000)edits.clear();edits.set(key,value);return value;
 }
-type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>};
+type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>;followUps:FollowUp[]};
 type State={settings:AssistantSettings;revision:number;entries:Entry[];df:Map<string,number>;average:number;checked:number};
 const cache=new Map<string,State>(),loading=new Map<string,Promise<State>>(),generations=new Map<string,number>();
 onAssistantChange(id=>{cache.delete(id);loading.delete(id);generations.set(id,(generations.get(id)??0)+1);});
@@ -49,8 +50,9 @@ export async function searchState(projectId:string):Promise<State> {
     const data=await readAssistantSettings(projectId);
     if(previous && previous.revision===data.revision) {previous.checked=Date.now();return previous;}
     const tokenize=tokenizer(data.settings);
-    const rows=await pool.query(`SELECT d.id,d.title,d.content,v.variantes_de_question FROM sabito_core.knowledge_documents d
+    const rows=await pool.query(`SELECT d.id,d.title,d.content,v.variantes_de_question,f.questions_json FROM sabito_core.knowledge_documents d
       LEFT JOIN sabito_core.knowledge_question_variants v ON v.document_id=d.id AND v.project_id=d.project_id
+      LEFT JOIN sabito_core.knowledge_follow_ups f ON f.document_id=d.id AND f.project_id=d.project_id
       WHERE d.project_id=$1 AND d.status='ready' ORDER BY d.id`,[projectId]);
     const entries:Entry[]=[];let bytes=0;
     for(const row of rows.rows) {
@@ -59,6 +61,7 @@ export async function searchState(projectId:string):Promise<State> {
       for(const question of [...new Set(questions)]) {
         const tokens=tokenize(question);
         entries.push({documentId:String(row.id),title:String(row.title),content:String(row.content),question,
+          followUps:JSON.parse(String(row.questions_json??"[]")),
           tokens,canonical:normalized(question),grams:grams(tokens.join(" "))});
       }
     }
@@ -81,7 +84,7 @@ export function scoreQuestion(query:string,question:string,settings:AssistantSet
   const overlap=a.reduce((sum,t)=>sum+Math.max(0,...b.map(other=>tokenSimilarity(t,other))),0)/Math.max(a.length,b.length);
   return Math.min(0.99,0.65*overlap+0.35*dice(grams(a.join(" ")),grams(b.join(" "))));
 }
-export type RankedQuestion={documentId:string;title:string;content:string;question:string;similarity:number;directAnswer:boolean};
+export type RankedQuestion={documentId:string;title:string;content:string;question:string;similarity:number;directAnswer:boolean;followUps:FollowUp[]};
 export async function rankedQuestions(projectId:string,query:string):Promise<{settings:AssistantSettings;matches:RankedQuestion[]}> {
   const state=await searchState(projectId),settings=state.settings;
   const tokens=tokenizer(settings)(query).slice(0,100),canonical=normalized(query);
@@ -100,7 +103,7 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
     const keyword=unique.length?unique.reduce((sum,t)=>sum+Math.max(0,...e.tokens.map(other=>tokenSimilarity(t,other))),0)/Math.max(unique.length,new Set(e.tokens).size):0;
     const fuzzy=dice(qgrams,e.grams);
     const similarity=exact?1:Math.min(0.99,0.5*keyword+0.25*(maxBm?Math.min(1,2*bm/maxBm):0)+0.25*fuzzy);
-    const item={documentId:e.documentId,title:e.title,content:e.content,question:e.question,similarity,directAnswer:false};
+    const item={documentId:e.documentId,title:e.title,content:e.content,question:e.question,similarity,directAnswer:false,followUps:e.followUps};
     if(!best.has(e.documentId)||best.get(e.documentId)!.similarity<similarity) best.set(e.documentId,item);
   }
   const matches=[...best.values()].sort((a,b)=>b.similarity-a.similarity||a.documentId.localeCompare(b.documentId));
@@ -114,7 +117,7 @@ export async function retrieveReply(projectId:string,question:string) {
   const {settings,matches}=await rankedQuestions(projectId,question);
   const match=matches[0],reliable=!!match?.directAnswer;
   return {answer:reliable?match.content:settings.no_answer_message,reliable,
-    suggestions:matches.filter(m=>!reliable||m.documentId!==match.documentId).slice(0,3)
-      .map(m=>({document_id:m.documentId,question:m.question})),closing_message:settings.closing_message,
+    suggestions:reliable ? followUpSuggestions(match.documentId,match.followUps) :
+      matches.slice(0,3).map(m=>({document_id:m.documentId,question:m.question})),closing_message:settings.closing_message,
     suggestions_label:settings.suggestions_label};
 }

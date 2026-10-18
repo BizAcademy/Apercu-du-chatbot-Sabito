@@ -24,7 +24,8 @@ export function chunkText(text: string, maximumLength = 1400, overlap = 150): st
   return chunks.filter(Boolean);
 }
 export async function saveKnowledge(projectId: string, title: string, content: string, existingId?: string,
-  transaction?: Awaited<ReturnType<typeof pool.connect>>, variants?:string[]) {
+  transaction?: Awaited<ReturnType<typeof pool.connect>>, variants?:string[],
+  followUps?:{question:string;answer:string}[]) {
   const documentId = existingId ?? randomUUID(), chunks = chunkText(content);
   const connection = transaction ?? await pool.connect();
   try {
@@ -49,6 +50,11 @@ export async function saveKnowledge(projectId: string, title: string, content: s
       await connection.query(`INSERT INTO sabito_core.knowledge_question_variants (document_id,project_id,variantes_de_question)
         VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE variantes_de_question=VALUES(variantes_de_question)`,
         [documentId,projectId,JSON.stringify(distinct)]);
+    }
+    if (followUps!==undefined) {
+      await connection.query(`INSERT INTO sabito_core.knowledge_follow_ups(document_id,project_id,questions_json)
+        VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE questions_json=VALUES(questions_json)`,
+        [documentId,projectId,JSON.stringify(followUps.map(item=>({question:item.question.trim(),answer:item.answer.trim()})))]);
     }
     await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
       VALUES ($1,'admin',$2,$3)`,

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { KnowledgeFollowUp } from './knowledgeFollowUp';
 
 export interface DocumentInput {
   /**
@@ -17,6 +18,8 @@ export interface DocumentInput {
      * @maxLength 1000000
      */
   content: string;
+  /** @maxItems 3 */
+  follow_up_questions?: KnowledgeFollowUp[];
   /**
      * @maxItems 30
      * @items.minLength 2

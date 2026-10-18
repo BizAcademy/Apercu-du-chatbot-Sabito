@@ -12,11 +12,14 @@ import { conversationGreeting,initialGreeting } from "./welcome";
 import { isVerifiedMember } from "./templates";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
+import { selectedFollowUp } from "./knowledge-follow-ups";
+import { readAssistantSettings } from "./assistant-settings";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
   idempotencyKey:z.string().min(8).max(100).regex(/^[A-Za-z0-9._:-]+$/),
   content:z.string().trim().min(1).max(20000),
+  follow_up_id:z.string().regex(/^[0-9a-f-]{36}:[0-9a-f]{24}$/).optional(),
 });
 const startSchema = z.object({metadata:z.record(z.string(),z.unknown()).optional()});
 let currentIo: Server | undefined;
@@ -118,9 +121,19 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
-        const intentAnswer = await handleIntent(claims,conversationId,parsed.data.content);
-        const reply = await retrieveReply(claims.sub,parsed.data.content);
-        if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;}
+        const followUp = parsed.data.follow_up_id
+          ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
+        const intentAnswer = parsed.data.follow_up_id ? null : await handleIntent(claims,conversationId,parsed.data.content);
+        const reply = parsed.data.follow_up_id
+          ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
+            ...await readAssistantSettings(claims.sub).then(({settings})=>({
+              suggestions_label:settings.suggestions_label,closing_message:settings.closing_message}))}
+          : await retrieveReply(claims.sub,parsed.data.content);
+        if(parsed.data.follow_up_id) {
+          reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
+          reply.reliable=true;
+          reply.suggestions=[];
+        } else if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;reply.suggestions=[];}
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = reply.answer;

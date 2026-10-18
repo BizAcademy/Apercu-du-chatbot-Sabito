@@ -6,7 +6,7 @@ import {
   removePlatformKnowledge, rotateSabitoCredentials, updatePlatformKnowledge,
   type Platform, type PlatformCredentials, type PlatformDocument,
 } from "@workspace/api-client-react";
-import { BookOpen, Copy, Settings2, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, Copy, Settings2, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
@@ -209,14 +209,19 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
   const badVariant = variants.find((v) => v.length < 2 || v.length > 500);
   const tooMany = variants.length > 30;
   const contentTooLongForVariants = variants.length > 0 && content.length > 20000;
+  const [followUps, setFollowUps] = useState<{ question: string; answer: string }[]>(() => (doc?.follow_up_questions ?? []).slice(0, 3).map((f) => ({ question: f.question, answer: f.answer })));
+  const fuErr = (f: { question: string; answer: string }) => { const q = f.question.trim().length, a = f.answer.trim().length; return q < 2 || q > 500 ? "La question doit faire entre 2 et 500 caractères." : a < 1 || a > 20000 ? "La réponse doit faire entre 1 et 20 000 caractères." : ""; };
+  const badFollowUp = followUps.some((f) => fuErr(f));
+  const setFu = (i: number, k: "question" | "answer", v: string) => setFollowUps((l) => l.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
+  const moveFu = (i: number, d: number) => setFollowUps((l) => { const n = [...l]; const j = i + d; if (j < 0 || j >= n.length) return l; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const m = useMutation({
     mutationFn: () => {
-      const body = { title, content, variantes_de_question: variants };
+      const body = { title, content, variantes_de_question: variants, follow_up_questions: followUps.map((f) => ({ question: f.question.trim(), answer: f.answer.trim() })) };
       return doc ? updatePlatformKnowledge(projectId, doc.id, body, headers()) : addPlatformKnowledge(projectId, body, headers());
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sabito-admin", "knowledge", projectId] }); close(); },
   });
-  const valid = title.trim().length >= 2 && title.length <= 255 && content.trim().length >= 20 && !badVariant && !tooMany && !contentTooLongForVariants;
+  const valid = title.trim().length >= 2 && title.length <= 255 && content.trim().length >= 20 && !badVariant && !tooMany && !contentTooLongForVariants && !badFollowUp && followUps.length <= 3;
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-[#11162b]/40 p-4">
       <form onSubmit={(e) => { e.preventDefault(); if (valid && !m.isPending) m.mutate(); }} className="max-h-[92dvh] w-full max-w-[600px] overflow-y-auto rounded-[22px] bg-white p-6 shadow-xl">
@@ -235,6 +240,25 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
         <p className={`mt-1 text-[11px] ${contentTooLongForVariants ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-doc-length">
           {content.trim().length} caractères{variants.length > 0 ? " / 20 000 max avec des formulations" : ""}{contentTooLongForVariants ? " · une référence avec formulations est une réponse directe : raccourcissez-la ou retirez les formulations (les longues documentations restent possibles sans formulations)." : ""}
         </p>
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-[12px] font-semibold text-[#4a5270]">Questions proposées après cette réponse <span className="font-normal text-[#8b92a8]">(optionnel, {followUps.length} / 3)</span></span>
+          <button type="button" className={ghost} disabled={followUps.length >= 3} onClick={() => setFollowUps((l) => [...l, { question: "", answer: "" }])} data-testid="button-add-followup"><Plus size={13} />Ajouter</button>
+        </div>
+        <p className="mt-0.5 text-[11px] leading-4 text-[#8b92a8]">Différentes des formulations ci-dessus : ce sont des boutons affichés sous la réponse. Quand l'utilisateur clique, la réponse approuvée saisie ici est envoyée telle quelle, sans recherche.</p>
+        <div className="mt-2 space-y-2">
+          {followUps.map((f, i) => { const err = fuErr(f); return (
+            <div key={i} className="rounded-[14px] border border-[#e8eaff] bg-[#f8f9ff] p-3" data-testid={`row-followup-${i}`}>
+              <div className="flex items-center gap-2">
+                <input className={input} placeholder="Question proposée" value={f.question} onChange={(e) => setFu(i, "question", e.target.value)} data-testid={`input-followup-question-${i}`} />
+                <button type="button" className="p-1 text-[#737b94] hover:text-[#3641f5] disabled:opacity-30" disabled={i === 0} onClick={() => moveFu(i, -1)} aria-label="Monter" data-testid={`button-followup-up-${i}`}><ArrowUp size={14} /></button>
+                <button type="button" className="p-1 text-[#737b94] hover:text-[#3641f5] disabled:opacity-30" disabled={i === followUps.length - 1} onClick={() => moveFu(i, 1)} aria-label="Descendre" data-testid={`button-followup-down-${i}`}><ArrowDown size={14} /></button>
+                <button type="button" className="p-1 text-[#737b94] hover:text-[#b4441f]" onClick={() => setFollowUps((l) => l.filter((_, j) => j !== i))} aria-label="Retirer" data-testid={`button-followup-remove-${i}`}><Trash2 size={14} /></button>
+              </div>
+              <textarea className={`${input} mt-2 min-h-[80px]`} placeholder="Réponse approuvée envoyée au clic" value={f.answer} onChange={(e) => setFu(i, "answer", e.target.value)} data-testid={`input-followup-answer-${i}`} />
+              {err && <p className="mt-1 text-[11px] text-[#b4441f]" data-testid={`text-followup-error-${i}`}>{err}</p>}
+            </div>
+          ); })}
+        </div>
         {m.error && <ErrorBox msg={errMsg(m.error)} />}
         <div className="mt-3 flex justify-end gap-2"><button type="button" className={ghost} onClick={close}>Annuler</button><button disabled={!valid || m.isPending} className={btn} data-testid="button-save-doc">{m.isPending ? "Enregistrement…" : "Enregistrer"}</button></div>
       </form>
