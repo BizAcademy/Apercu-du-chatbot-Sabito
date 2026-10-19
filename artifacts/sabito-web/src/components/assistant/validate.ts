@@ -81,3 +81,18 @@ export function blankIntent(existing: IntentDefinition[]): IntentDefinition {
     responses: { success: "", pending: "", not_found: "", error: "" },
   };
 }
+
+export function depositIntent(existing: IntentDefinition[]): IntentDefinition {
+  const base=blankIntent(existing);
+  const id=existing.some(i=>i.id==="deposit_status")?base.id:"deposit_status";
+  const result="Statut de votre transaction : {statut}.\n{details_transaction}";
+  return {
+    ...base,id,name:"Vérification d'un dépôt",enabled:true,
+    triggers:["dépôt non reçu","dépôt en attente","vérifier mon dépôt"],
+    backend_function:"deposit_status",
+    fields:[{name:"deposit_number",prompt:"Veuillez me communiquer le numéro utilisé pour effectuer le dépôt.",
+      type:"text",min_length:1,max_length:100}],
+    responses:{success:result,pending:result,error:result,
+      not_found:"Aucune transaction accessible à votre compte ne correspond à ce numéro."},
+  };
+}

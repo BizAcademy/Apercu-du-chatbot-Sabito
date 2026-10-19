@@ -24,6 +24,26 @@ function tokenizer(settings:AssistantSettings) {
     return normalizeTokens(value).map(t=>singles.get(t)??t);
   };
 }
+// Only configured phrases/synonyms can trigger containment. Whole tokens avoid
+// matching "recharge" inside "rechargement"; surrounding prose is not penalized.
+export function containedTriggerLength(query:string,trigger:string,settings:AssistantSettings):number {
+  const tokenize=tokenizer(settings),queryTokens=tokenize(query),triggerTokens=tokenize(trigger);
+  if(!triggerTokens.length)return 0;
+  return queryTokens.some((_,start)=>triggerTokens.every((token,i)=>queryTokens[start+i]===token))
+    ? triggerTokens.length : 0;
+}
+export function detectIntent(text:string,settings:AssistantSettings):string|undefined {
+  const candidates=settings.intents.filter(i=>i.enabled).map(i=>({
+    id:i.id,
+    contained:Math.max(0,...i.triggers.map(t=>containedTriggerLength(text,t,settings))),
+    score:Math.max(0,...i.triggers.map(t=>scoreQuestion(text,t,settings))),
+  }));
+  const exact=candidates.filter(i=>i.contained>0).sort((a,b)=>b.contained-a.contained);
+  // Prefer the most specific configured phrase, but never guess between ties.
+  if(exact.length)return !exact[1]||exact[0].contained>exact[1].contained ? exact[0].id : undefined;
+  const fuzzy=candidates.filter(i=>i.score>=settings.confidence_threshold).sort((a,b)=>b.score-a.score);
+  return fuzzy[0]&&(!fuzzy[1]||fuzzy[0].score-fuzzy[1].score>=0.06)?fuzzy[0].id:undefined;
+}
 const edits=new Map<string,number>();
 function tokenSimilarity(a:string,b:string):number {
   if(a===b)return 1;

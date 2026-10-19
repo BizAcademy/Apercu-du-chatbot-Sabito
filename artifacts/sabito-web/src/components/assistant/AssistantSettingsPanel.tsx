@@ -6,7 +6,7 @@ import { errMsg, useAdmin } from "@/lib/admin";
 import { MessagesEditor } from "./MessagesEditor";
 import { SynonymsEditor } from "./SynonymsEditor";
 import { IntentEditor } from "./IntentEditor";
-import { blankIntent, settingsWarnings, validateSettings } from "./validate";
+import { blankIntent, depositIntent, settingsWarnings, validateSettings } from "./validate";
 import { btn, card, ghost, hint, label } from "./styles";
 
 type Tab = "retrieval" | "messages" | "intents";
@@ -84,6 +84,15 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
       {tab === "intents" && (
         <div>
           <p className={`${hint} mb-3`}>Une intention reconnaît une question de compte, collecte les champs nécessaires, puis appelle une fonction en lecture seule du serveur de la plateforme. Activation, suppression et modifications sont appliquées à l'enregistrement.</p>
+          <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3">
+            <div className={label}>Synonymes propres à cette plateforme</div>
+            <p className={`${hint} mb-2`}>Exemple : dépôt, recharge, versement. Ils sont reconnus dans les déclencheurs, même au milieu d'une phrase. Préférez « dépôt non reçu » à un mot trop général comme « compte ».</p>
+            <SynonymsEditor value={draft.synonyms} onChange={(synonyms) => patch({ synonyms })} />
+          </div>
+          <button type="button" className={`${ghost} mb-3`} disabled={draft.intents.length >= 100}
+            onClick={() => patch({ intents: [...draft.intents, depositIntent(draft.intents)] })}
+            data-testid="button-add-deposit-intent">Ajouter le modèle « Dépôt non reçu »</button>
+          <p className={`${hint} mb-3`}>Le modèle ajoute une nouvelle règle sans modifier vos règles existantes. Si une ancienne règle utilise les mêmes déclencheurs, désactivez-la pour éviter une ambiguïté. Le numéro doit toujours être recoupé avec l'identité du membre par votre backend.</p>
           {draft.intents.length === 0 && <p className="rounded-xl bg-[#f6f7ff] p-4 text-[12px] text-[#6c748d]">Aucune intention. Les questions de compte recevront le message « aucune réponse ».</p>}
           <div className="space-y-2">
             {draft.intents.map((it, i) => (

@@ -18,7 +18,7 @@ import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { verifyAccessToken,signAccessToken } from "./security";
 import { defaultSettings,readAssistantSettings } from "./assistant-settings";
-import { retrieveReply,scoreQuestion } from "./question-search";
+import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
 import { searchKnowledge } from "./knowledge";
 import { semanticSimilarity } from "./semantic";
@@ -312,7 +312,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         id:"invoice_status",name:"Suivi facture",enabled:true,triggers:["Suivre la facture"],
         fields:[{name:"invoice_number",prompt:"Quel numéro de facture ?",type:"identifier",min_length:2,max_length:30}],
         backend_function:"invoice_status",guest_message:"Connectez-vous pour consulter votre facture.",
-        responses:{success:"Facture {numero} : {etat}.",pending:"Vérification en attente.",not_found:"Facture introuvable.",error:"Vérification indisponible."},
+        responses:{success:"Facture {numero} : {etat}.",pending:"Statut exact : {statut}.\n{details_transaction}",
+          not_found:"Facture introuvable.",error:"Statut exact : {statut}.\n{details_transaction}"},
       }]};
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:current.revision}).expect(200);
       const auth=()=>request(app).post("/v1/backend/jobs/poll").auth(second.credentials.clientId,second.credentials.clientSecret)
@@ -320,15 +321,15 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await auth().expect(200);
       const claims={sub:id,clientId:second.credentials.clientId,externalUserId:"invoice-member",scope:["chat:connect","member:verified"]};
       const conv=await createConversation(id,claims.externalUserId);
-      assert.match((await handleIntent(claims,conv,"Suivre la facture"))!,/numéro de facture/);
+      assert.match((await handleIntent(claims,conv,"Bonjour, depuis hier je souhaite suivre la facture et connaître sa situation exacte, merci."))!,/numéro de facture/);
       const answer=handleIntent(claims,conv,"FCT-7");
-      async function completeJob(operation:string,data:Record<string,string>) {
+      async function completeJob(operation:string,data:Record<string,string>,status="ok") {
         for(let attempt=0;attempt<100;attempt++) {
           const polled=await auth().expect(200),job=polled.body.jobs.find((j:{operation:string})=>j.operation===operation);
           if(job) {
             assert.equal(job.external_user_id,claims.externalUserId);
             await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(second.credentials.clientId,second.credentials.clientSecret)
-              .send({result:{status:"ok",data}}).expect(200);return;
+              .send({result:{status,data}}).expect(200);return;
           }
           await new Promise(resolve=>setTimeout(resolve,10));
         }
@@ -336,6 +337,17 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       }
       await completeJob("invoice_status",{numero:"FCT-7",etat:"confirmée"});
       assert.equal(await answer,"Facture FCT-7 : confirmée.");
+      for(const status of ["pending","failed"]) {
+        const nextConv=await createConversation(id,claims.externalUserId);
+        await handleIntent(claims,nextConv,"Suivre la facture");
+        const result=handleIntent(claims,nextConv,"FCT-8");
+        await completeJob("invoice_status",{statut:status==="failed"?"refusée par le prestataire":"en attente du prestataire",
+          numero:"FCT-8",montant:"15000",devise:"XAF",date:"2026-10-19"},status);
+        const rendered=await result;
+        assert.match(rendered!,/FCT-8/);assert.match(rendered!,/15000/);assert.match(rendered!,/XAF/);
+        assert.match(rendered!,status==="failed"?/refusée par le prestataire/:/en attente du prestataire/);
+        assert.doesNotMatch(rendered!,/ticket a été créé/);
+      }
       const greeting=conversationGreeting(claims,conv);
       await completeJob("user_profile",{nom_utilisateur:"Léa"});
       assert.equal(await greeting,"Bonjour Léa 👋, comment puis-je vous aider ?");
@@ -343,6 +355,22 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       next.settings.intents.find(i=>i.id==="invoice_status")!.enabled=false;
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings:next.settings,expected_revision:next.revision}).expect(200);
       assert.equal(await handleIntent(claims,await createConversation(id,claims.externalUserId),"Suivre la facture"),null);
+    });
+    await t.test("Intent keywords in prose use platform synonyms, whole tokens, specificity and safe ambiguity",()=>{
+      const settings=defaultSettings(false);
+      const deposit=settings.intents.find(i=>i.id==="deposit_status")!;
+      const broad={...deposit,id:"general_deposit",triggers:["dépôt"]};
+      settings.intents=[{...deposit,triggers:["dépôt non reçu"]},broad];
+      assert.equal(detectIntent("Bonsoir, hier mon versement non reçu me pose un problème, pouvez-vous vérifier ?",settings),"deposit_status");
+      assert.equal(detectIntent("Je voudrais parler de ma recharge aujourd'hui",settings),"general_deposit");
+      settings.confidence_threshold=1;
+      assert.equal(detectIntent("Un rechargement de page est nécessaire",settings),undefined);
+      const isolated={...settings,synonyms:[]};
+      assert.equal(detectIntent("Mon versement non reçu depuis hier",isolated),undefined);
+      settings.intents.push({...deposit,id:"duplicate",triggers:["dépôt non reçu"]});
+      assert.equal(detectIntent("Mon dépôt non reçu depuis hier",settings),undefined);
+      settings.intents[2].enabled=false;
+      assert.equal(detectIntent("Mon dépôt non reçu depuis hier",settings),"deposit_status");
     });
     await t.test("500 simultaneous conversations receive their own authored answer with no missing or mixed messages",async()=>{
       const response=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)

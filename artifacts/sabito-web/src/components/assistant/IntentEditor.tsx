@@ -49,7 +49,7 @@ export function IntentEditor({ intent, all, onChange, onDelete }: { intent: Inte
             <div><label className={label}>Identifiant stable</label><input className={`${input} mt-1 font-mono`} value={intent.id} onChange={(e) => set({ id: e.target.value })} data-testid={`input-intent-id-${p}`} /><p className={hint}>snake_case unique. Évitez de le changer une fois en production.</p></div>
           </div>
           <div>
-            <label className={label}>Questions déclencheuses (une par ligne, 1 à 30)</label>
+            <label className={label}>Mots ou expressions déclencheurs (un par ligne, 1 à 30)</label>
             <textarea className={`${input} mt-1 min-h-[90px]`} value={intent.triggers.join("\n")} onChange={(e) => set({ triggers: e.target.value.split("\n") })} onBlur={() => set({ triggers: intent.triggers.map((t) => t.trim()).filter(Boolean) })} data-testid={`input-intent-triggers-${p}`} />
           </div>
           <div>
@@ -69,7 +69,7 @@ export function IntentEditor({ intent, all, onChange, onDelete }: { intent: Inte
           </div>
           <div>
             <div className={label}>Réponses selon le résultat du serveur</div>
-            <p className={hint}>Seules les valeurs transmises par le serveur sont interpolées, par ex. {"{code_parrain}"}, {"{statut}"}, {"{nom_utilisateur}"}. Aucun code n'est évalué. Si une variable est absente ou inconnue, Sabito n'invente rien et crée un ticket de support.</p>
+            <p className={hint}>Seules les valeurs transmises par le serveur sont interpolées : {"{statut}"} conserve le statut métier exact fourni dans data.statut, {"{details_transaction}"} affiche tous les champs autorisés de data. Vous pouvez aussi utiliser {"{montant}"}, {"{devise}"}, {"{date}"} ou {"{code_parrain}"} si votre backend les fournit. La réponse « Erreur » sert aussi à une transaction refusée (failed). Aucun code n'est évalué. Une variable manquante entraîne un ticket, jamais une réponse inventée.</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {RESP.map((r) => (
                 <div key={r.k}><span className="text-[11px] font-semibold text-[#6c748d]">{r.l}</span>

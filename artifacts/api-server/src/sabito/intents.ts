@@ -3,7 +3,7 @@ import { pool } from "./database";
 import { requestBackend, type BackendOperation, type BackendResult } from "./backend-bridge";
 import type { AccessClaims } from "./security";
 import { normalizeQuestion, recordUnanswered } from "./unanswered";
-import { searchState,scoreQuestion } from "./question-search";
+import { searchState,detectIntent } from "./question-search";
 import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
 export { isVerifiedMember } from "./templates";
@@ -28,9 +28,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     ...d,backendOperation:d.backend_function,
     required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
   }]));
-  const scored=Object.values(intentRegistry).map(d=>({id:d.id,score:Math.max(...d.triggers.map(q=>scoreQuestion(text,q,settings)))}))
-    .filter(d=>d.score>=settings.confidence_threshold).sort((a,b)=>b.score-a.score);
-  const detected=scored[0] && (!scored[1]||scored[0].score-scored[1].score>=0.06) ? scored[0].id:undefined;
+  const detected=detectIntent(text,settings);
   if(!detected) {
     const owner=await pool.query(`SELECT c.id,s.status FROM sabito_core.conversations c LEFT JOIN sabito_core.intent_sessions s
       ON s.conversation_id=c.id AND s.project_id=c.project_id WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
@@ -106,10 +104,14 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,fields!);
     const outcome: keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success"
       : ["pending","inactive"].includes(response.status)?"pending":["not_found","forbidden"].includes(response.status)?"not_found":"error";
-    const data={...response.data,statut:response.status,code_parrain:response.code??response.data?.code_parrain,
+    const data={...response.data,statut:response.data?.statut??response.status,
+      details_transaction:Object.entries(response.data??{})
+        .filter(([,value])=>value!==null).map(([key,value])=>`${key} : ${String(value)}`).join("\n"),
+      code_parrain:response.code??response.data?.code_parrain,
       nom_utilisateur:claims.externalUserName??response.data?.nom_utilisateur};
     const answer=renderTemplate(definition.responses[outcome],data);
-    if (answer && (outcome==="success"||outcome==="pending")) return answer;
+    // A failed transaction is a verified business result, not a connector outage.
+    if (answer && (outcome==="success"||outcome==="pending"||response.status==="failed")) return answer;
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";
   } catch (error) {
