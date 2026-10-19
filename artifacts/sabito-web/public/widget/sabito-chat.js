@@ -50,7 +50,7 @@
   var rawColor = ds.primaryColor || ds.color || "";
   var color = HEX.test(rawColor) ? rawColor : "#2f3bd6";
   var position = ds.position === "left" ? "left" : "right";
-  var productCode = (ds.productCode || "").slice(0, 64); // display hint only
+  var productCode = (ds.productCode || "").slice(0, 80); // project slug used for frame authorization, never member authentication
   var HANDSHAKE_MS = 12000, FETCH_MS = 10000;
 
   var rnd = new Uint8Array(16); crypto.getRandomValues(rnd);

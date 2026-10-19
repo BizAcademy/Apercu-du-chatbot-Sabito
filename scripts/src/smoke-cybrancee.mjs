@@ -108,6 +108,24 @@ try {
   assert.equal(created.response.status, 201);
   projectId = created.data.data.project.id;
   assert.ok(created.data.data.credentials.clientSecret);
+  // The member iframe must resolve its project slug BEFORE receiving a token,
+  // even when its approved host is not in the server-wide origin list.
+  const memberOrigin="https://member.fixture.example";
+  const widgetSettings=await json(`/api/v1/admin/projects/${projectId}/widget`,"PUT",{origins:[memberOrigin]});
+  assert.equal(widgetSettings.response.status,200);
+  const slug=created.data.data.project.slug;
+  for (const selector of [`product=${slug}`,`projectId=${projectId}`]) {
+    const frame=await fetch(`${origin}/widget/chat?${selector}&parentOrigin=${encodeURIComponent(memberOrigin)}`);
+    assert.equal(frame.status,200);
+    assert.equal(frame.headers.get("content-security-policy"),`frame-ancestors 'self' ${memberOrigin}`);
+  }
+  for (const selector of [`product=unknown-project`,`product=${slug}&projectId=invalid`]) {
+    const denied=await fetch(`${origin}/widget/chat?${selector}&parentOrigin=${encodeURIComponent(origin)}`);
+    assert.equal(denied.status,403);
+    assert.equal(denied.headers.get("content-security-policy"),"frame-ancestors 'none'");
+  }
+  // An origin approved for this project does not authorize a different project.
+  assert.equal((await fetch(`${origin}/widget/chat?product=${slug}&parentOrigin=https://evil.example`)).status,403);
   const listed = await json("/api/v1/admin/projects");
   assert.ok(listed.data.data.some(project => project.id === projectId));
   const knowledge = await json(`/api/v1/admin/projects/${projectId}/knowledge`, "POST", {

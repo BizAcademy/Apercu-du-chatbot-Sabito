@@ -7,7 +7,8 @@ import { coreRoutes } from "./sabito/routes";
 import { permittedOrigin } from "./sabito/socket";
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { widgetPublicRoutes, widgetOrigins } from "./sabito/widget";
+import { widgetPublicRoutes } from "./sabito/widget";
+import { widgetFrameOrigins } from "./widget-frame";
 
 const app: Express = express();
 
@@ -48,26 +49,15 @@ if (process.env.SABITO_WEB_DIR) {
   const indexFile = path.join(webDir, "index.html");
   if (!existsSync(indexFile)) throw new Error("SABITO_WEB_DIR does not contain the built dashboard.");
   app.get("/widget/chat", async (req, res) => {
-    const origins = [process.env.PUBLIC_URL, ...(process.env.CORS_ORIGINS || "").split(",")]
-      .filter((value): value is string => Boolean(value))
-      .map(value => value.trim())
-      .filter(value => {
-        try {
-          const url = new URL(value);
-          return url.origin === value && (url.protocol === "https:" ||
-            (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)));
-        } catch { return false; }
-      });
-    if (typeof req.query.projectId === "string" && /^[a-f0-9-]{36}$/i.test(req.query.projectId)) {
-      origins.splice(0, origins.length, ...await widgetOrigins(req.query.projectId));
-    }
-    res.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${origins.join(" ")}`);
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Cache-Control", "no-store");
+    const origins = await widgetFrameOrigins(req.query);
     if (typeof req.query.parentOrigin !== "string" || !origins.includes(req.query.parentOrigin)) {
       res.status(403).type("text").send("Origine du site non autorisée pour le widget Sabito.");
       return;
     }
+    res.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${origins.join(" ")}`);
     res.sendFile("index.html", { root: webDir });
   });
   app.use(express.static(webDir, { index: false, dotfiles: "deny" }));

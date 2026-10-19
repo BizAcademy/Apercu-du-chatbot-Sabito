@@ -13,6 +13,14 @@ Le moteur renvoie les réponses rédigées par l’administrateur. Il ne fait au
 
 Ne pas préfixer les noms de scripts par `npm run` ou `run` dans la fenêtre **Run script**.
 
+## Autorisation de l’iframe membre
+
+Pour le widget membre Buzz Booster, utiliser `data-session-url="/api/sabito/session"` et `data-product-code="buzzbooster"` (l’identifiant exact de sa plateforme dans Sabito). Ne pas ajouter `data-project-id` simplement pour contourner un refus : en l’absence de fournisseur personnalisé, le chargeur bascule alors en session visiteur.
+
+Avant de recevoir le jeton membre, `/widget/chat?product=buzzbooster&parentOrigin=...` retrouve la plateforme active par son identifiant, puis utilise uniquement ses origines approuvées dans le dashboard pour autoriser le chargement et construire `frame-ancestors`. Un projet inconnu, désactivé, un sélecteur invalide ou un désaccord entre `projectId` et `product` est refusé sans repli sur les origines globales. Le paramètre `product` ne prouve jamais l’identité du membre : son jeton provient toujours du backend de la plateforme.
+
+Cette correction d’autorisation ne nécessite aucune nouvelle migration. Déployer le code via GitHub Actions, puis **Pull → Deploy Now → Restart App** dans Plesk.
+
 ## Réponses et recherche
 
 Dans une plateforme, ouvrir **Configurer l’assistant** :
