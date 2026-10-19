@@ -5,6 +5,33 @@ ni du SQL ni une autorisation de lire une base. Les actions réelles sont défin
 par les règles structurées de **Configuration de l'assistant → Intentions**.
 Les accueils membre et visiteur se configurent dans **Messages**.
 
+## Répondre d'abord, proposer une vérification ensuite
+
+Pour chaque déclencheur, Sabito répond d'abord à la question à partir de sa
+référence approuvée. Si aucune référence ne correspond, il utilise la **Réponse
+initiale** configurée pour cette intention ; sans texte approuvé, il indique
+qu'il ne connaît pas la réponse, sans inventer de délai.
+
+Il termine par la **Question de confirmation**, par exemple :
+« Avez-vous effectué un retrait ? Répondez par oui ou non. »
+
+- `oui` : demander le premier champ configuré, puis les suivants si nécessaire ;
+  le backend n'est appelé qu'une fois tous les champs valides recueillis ;
+- `non` ou `annuler` : fermer la démarche, sans consulter les transactions ;
+- réponse ambiguë ou numéro envoyé avant confirmation : redemander oui/non,
+  sans conserver ce numéro comme champ de recherche ;
+- visiteur non vérifié : après confirmation, demander une connexion membre
+  plutôt que collecter des données personnelles ou appeler le backend.
+
+Cette confirmation s'applique aussi aux règles existantes. Leur question par
+défaut est personnalisable dans l'éditeur. L'attente est enregistrée dans la
+conversation existante ; aucune migration SQL supplémentaire n'est nécessaire.
+
+Le modèle **Retrait** configure `withdrawal_status`, demande le champ
+`withdrawal_number` après confirmation, puis affiche `{statut}` et
+`{details_transaction}`. Cette fonction doit être raccordée dans le connecteur
+de la plateforme, avec les mêmes contrôles de droits que `deposit_status`.
+
 ## Exemple : dépôt non reçu
 
 1. Sélectionner la plateforme concernée dans le dashboard.
@@ -18,6 +45,7 @@ Les accueils membre et visiteur se configurent dans **Messages**.
 4. Champ `deposit_number`, question :
    « Veuillez me communiquer le numéro utilisé pour effectuer le dépôt. »
    Le modèle accepte un texte, notamment un numéro de téléphone avec indicatif.
+   Cette question n'est posée qu'après la confirmation de l'utilisateur.
 5. Fonction serveur : `deposit_status`. Enregistrer les réglages.
 6. Réponses succès / attente / erreur de transaction :
 

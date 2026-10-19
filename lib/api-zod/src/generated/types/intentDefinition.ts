@@ -24,6 +24,17 @@ export interface IntentDefinition {
      * @items.maxLength 500
      */
   triggers: string[];
+  /**
+     * Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.
+     * @maxLength 4000
+     */
+  initial_response?: string;
+  /**
+     * Question oui/non posée après la réponse, avant toute collecte ou vérification.
+     * @minLength 1
+     * @maxLength 4000
+     */
+  confirmation_question?: string;
   /** @maxItems 15 */
   fields: IntentField[];
   /** @pattern ^[a-z][a-z0-9_]{1,63}$ */

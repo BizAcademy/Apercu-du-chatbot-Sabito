@@ -476,6 +476,15 @@ components:
           minItems: 1
           maxItems: 30
           items: {type: string, minLength: 2, maxLength: 500}
+        initial_response:
+          type: string
+          maxLength: 4000
+          description: Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.
+        confirmation_question:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: Question oui/non posée après la réponse, avant toute collecte ou vérification.
         fields:
           type: array
           maxItems: 15

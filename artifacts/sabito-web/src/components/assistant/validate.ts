@@ -24,6 +24,9 @@ export function validateIntent(it: IntentDefinition, all: IntentDefinition[]): s
   if (it.name.trim().length < 2 || it.name.length > 100) e.push("Nom : 2 à 100 caractères.");
   if (it.triggers.length < 1 || it.triggers.length > 30) e.push("Déclencheurs : 1 à 30 questions.");
   if (it.triggers.some((t) => t.trim().length < 2 || t.length > 500)) e.push("Chaque déclencheur : 2 à 500 caractères.");
+  if ((it.initial_response?.length??0)>4000) e.push("Réponse initiale : 4000 caractères maximum.");
+  if (it.confirmation_question!==undefined && (!it.confirmation_question.trim()||it.confirmation_question.length>4000))
+    e.push("Question de confirmation : obligatoire, 4000 caractères maximum.");
   if (it.fields.length > 15) e.push("15 champs maximum.");
   const names = new Set<string>();
   it.fields.forEach((f, i) => {
@@ -88,6 +91,8 @@ export function depositIntent(existing: IntentDefinition[]): IntentDefinition {
   const result="Statut de votre transaction : {statut}.\n{details_transaction}";
   return {
     ...base,id,name:"Vérification d'un dépôt",enabled:true,
+    initial_response:"Si vous avez effectué un dépôt, son délai de réception dépend du moyen de paiement utilisé. Je peux proposer une vérification de son statut.",
+    confirmation_question:"Avez-vous effectué un dépôt ? Répondez par oui ou non.",
     triggers:["dépôt non reçu","dépôt en attente","vérifier mon dépôt"],
     backend_function:"deposit_status",
     fields:[{name:"deposit_number",prompt:"Veuillez me communiquer le numéro utilisé pour effectuer le dépôt.",
@@ -95,4 +100,15 @@ export function depositIntent(existing: IntentDefinition[]): IntentDefinition {
     responses:{success:result,pending:result,error:result,
       not_found:"Aucune transaction accessible à votre compte ne correspond à ce numéro."},
   };
+}
+
+export function withdrawalIntent(existing: IntentDefinition[]): IntentDefinition {
+  const base=depositIntent(existing);
+  return {...base,id:existing.some(i=>i.id==="withdrawal_status")?blankIntent(existing).id:"withdrawal_status",
+    name:"Vérification d'un retrait",backend_function:"withdrawal_status",
+    triggers:["retrait","retrait non reçu","délai de retrait"],
+    initial_response:"Si vous avez effectué un retrait, son délai de réception dépend du moyen de paiement utilisé. Je peux proposer une vérification de son statut.",
+    confirmation_question:"Avez-vous effectué un retrait ? Répondez par oui ou non.",
+    fields:[{name:"withdrawal_number",prompt:"Veuillez me communiquer le numéro utilisé pour effectuer le retrait.",
+      type:"text",min_length:1,max_length:100}]};
 }

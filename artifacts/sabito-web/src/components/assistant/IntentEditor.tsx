@@ -53,6 +53,21 @@ export function IntentEditor({ intent, all, onChange, onDelete }: { intent: Inte
             <textarea className={`${input} mt-1 min-h-[90px]`} value={intent.triggers.join("\n")} onChange={(e) => set({ triggers: e.target.value.split("\n") })} onBlur={() => set({ triggers: intent.triggers.map((t) => t.trim()).filter(Boolean) })} data-testid={`input-intent-triggers-${p}`} />
           </div>
           <div>
+            <label className={label}>Réponse initiale avant de proposer la vérification</label>
+            <textarea className={`${input} mt-1 min-h-[70px]`} maxLength={4000}
+              value={intent.initial_response ?? ""} onChange={(e) => set({ initial_response: e.target.value })}
+              data-testid={`input-intent-initial-response-${p}`} />
+            <p className={hint}>Sabito répond d'abord avec la référence approuvée correspondant à la question. Ce texte sert de secours si aucune référence ne correspond. Sans l'un ni l'autre, il indique qu'il ne connaît pas la réponse. Ne promettez pas un délai ou un statut non vérifié.</p>
+          </div>
+          <div>
+            <label className={label}>Question de confirmation (oui / non)</label>
+            <textarea className={`${input} mt-1 min-h-[60px]`} maxLength={4000}
+              value={intent.confirmation_question ?? `Souhaitez-vous lancer la vérification « ${intent.name} » ? Répondez par oui ou non.`}
+              onChange={(e) => set({ confirmation_question: e.target.value })}
+              data-testid={`input-intent-confirmation-${p}`} />
+            <p className={hint}>Posée à la fin de la réponse. Aucun champ ni appel au backend avant un « oui ». Un « non » ferme la vérification.</p>
+          </div>
+          <div>
             <label className={label}>Champs à collecter</label>
             <FieldsEditor prefix={p} value={intent.fields} onChange={(fields) => set({ fields })} />
           </div>

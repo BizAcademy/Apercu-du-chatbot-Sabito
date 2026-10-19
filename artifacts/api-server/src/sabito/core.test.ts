@@ -183,7 +183,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     await t.test("Offline backend creates a protected support ticket without inventing a personal result",async () => {
       const claims=verifyAccessToken(token);
       const conv=await createConversation(first.project.id,claims.externalUserId);
-      const answer=await handleIntent(claims,conv,"Quel est mon code parrain ?");
+      const introduction=await handleIntent(claims,conv,"Quel est mon code parrain ?");
+      assert.match(introduction!,/oui ou non/);
+      const answer=await handleIntent(claims,conv,"oui");
       assert.ok(answer?.includes("Un ticket a été créé"));
       assert.ok(!answer?.includes("Votre code parrain est"));
       const url=`/v1/admin/projects/${first.project.id}/tickets`;
@@ -202,7 +204,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).set("Origin","https://bca.example").expect(403);
       await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).expect(200);
       const claims=verifyAccessToken(token),conv=await createConversation(first.project.id,claims.externalUserId);
-      assert.ok((await handleIntent(claims,conv,"Mon dépôt n'est pas reçu"))?.includes("numéro de dépôt"));
+      assert.match((await handleIntent(claims,conv,"Mon dépôt n'est pas reçu"))!,/oui ou non/);
+      assert.ok((await handleIntent(claims,conv,"oui"))?.includes("numéro de dépôt"));
       assert.ok((await handleIntent(claims,conv,"DEP-42"))?.includes("quel pays"));
       assert.ok((await handleIntent(claims,conv,"Cameroun"))?.includes("moyen de paiement"));
       assert.ok((await handleIntent(claims,conv,"Mobile Money"))?.includes("ID de la transaction"));
@@ -230,12 +233,12 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const issued=await request(app).post("/v1/auth/token").set("Authorization",basic).send({}).expect(200);
       const claims=verifyAccessToken(issued.body.data.access_token);
       const conv=await createConversation(second.project.id,claims.externalUserId);
-      const guide=await handleIntent(claims,conv,"Mon code parrain");
+      await handleIntent(claims,conv,"Mon code parrain");
+      const guide=await handleIntent(claims,conv,"oui");
       assert.ok(guide?.includes("Connectez-vous"));
       assert.ok(!guide?.includes("Biz Connect Academy"),"A different platform must not inherit BCA navigation");
       await handleIntent(claims,conv,"Compte non activé");
-      for(const field of ["DEP-44","Cameroun","Carte bancaire"]) await handleIntent(claims,conv,field);
-      assert.ok((await handleIntent(claims,conv,"TX-44"))?.includes("connexion membre vérifiée"));
+      assert.ok((await handleIntent(claims,conv,"oui"))?.includes("connexion membre vérifiée"));
       const polled=await request(app).post("/v1/backend/jobs/poll").set("Authorization",basic).expect(200);
       assert.equal(polled.body.jobs.length,0);
     });
@@ -321,7 +324,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await auth().expect(200);
       const claims={sub:id,clientId:second.credentials.clientId,externalUserId:"invoice-member",scope:["chat:connect","member:verified"]};
       const conv=await createConversation(id,claims.externalUserId);
-      assert.match((await handleIntent(claims,conv,"Bonjour, depuis hier je souhaite suivre la facture et connaître sa situation exacte, merci."))!,/numéro de facture/);
+      assert.match((await handleIntent(claims,conv,"Bonjour, depuis hier je souhaite suivre la facture et connaître sa situation exacte, merci."))!,/oui ou non/);
+      assert.match((await handleIntent(claims,conv,"oui"))!,/numéro de facture/);
       const answer=handleIntent(claims,conv,"FCT-7");
       async function completeJob(operation:string,data:Record<string,string>,status="ok") {
         for(let attempt=0;attempt<100;attempt++) {
@@ -340,6 +344,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       for(const status of ["pending","failed"]) {
         const nextConv=await createConversation(id,claims.externalUserId);
         await handleIntent(claims,nextConv,"Suivre la facture");
+        await handleIntent(claims,nextConv,"oui");
         const result=handleIntent(claims,nextConv,"FCT-8");
         await completeJob("invoice_status",{statut:status==="failed"?"refusée par le prestataire":"en attente du prestataire",
           numero:"FCT-8",montant:"15000",devise:"XAF",date:"2026-10-19"},status);
@@ -355,6 +360,69 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       next.settings.intents.find(i=>i.id==="invoice_status")!.enabled=false;
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings:next.settings,expected_revision:next.revision}).expect(200);
       assert.equal(await handleIntent(claims,await createConversation(id,claims.externalUserId),"Suivre la facture"),null);
+    });
+    await t.test("Answer first, confirm explicitly, then collect and check the member withdrawal; no and ambiguous replies never dispatch",async()=>{
+      const id=second.project.id,url=`/v1/admin/projects/${id}/assistant-settings`;
+      const before=await readAssistantSettings(id);
+      const withdrawal={
+        id:"withdrawal_status",name:"Retrait",enabled:true,triggers:["retrait"],backend_function:"withdrawal_status",
+        initial_response:"Le délai dépend du prestataire de paiement.",
+        confirmation_question:"Avez-vous effectué un retrait ? Répondez par oui ou non.",
+        fields:[{name:"withdrawal_number",prompt:"Quel numéro avez-vous utilisé pour le retrait ?",type:"text",min_length:2,max_length:100}],
+        guest_message:"Connectez-vous pour consulter vos retraits.",
+        responses:{success:"Statut : {statut}.\n{details_transaction}",pending:"Statut : {statut}.\n{details_transaction}",
+          not_found:"Aucun retrait accessible.",error:"Vérification impossible."},
+      };
+      await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:{...before.settings,intents:[...before.settings.intents,withdrawal]},expected_revision:before.revision}).expect(200);
+      const poll=()=>request(app).post("/v1/backend/jobs/poll")
+        .auth(second.credentials.clientId,second.credentials.clientSecret).send({operations:["withdrawal_status"]});
+      await poll().expect(200);
+      const claims={sub:id,clientId:second.credentials.clientId,externalUserId:"withdrawal-member",scope:["chat:connect","member:verified"]};
+      const question="Combien de temps faut-il pour recevoir mon retrait ?";
+      for(const refusal of ["non","annuler"]) {
+        const conv=await createConversation(id,claims.externalUserId);
+        assert.equal(await handleIntent(claims,conv,question),`${withdrawal.initial_response}\n\n${withdrawal.confirmation_question}`);
+        assert.match((await handleIntent(claims,conv,refusal))!,/annulée/);
+        assert.equal(await handleIntent(claims,conv,"oui"),null);
+        assert.deepEqual((await poll()).body.jobs,[]);
+      }
+      const conv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,conv,question);
+      const persisted=await pool.query("SELECT collected_json,status FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+      assert.equal(persisted.rows[0].status,"collecting");
+      assert.equal(JSON.parse(String(persisted.rows[0].collected_json)).__awaiting_confirmation,"true");
+      assert.match((await handleIntent(claims,conv,"+237 600 000 000"))!,/répondre par oui ou non/);
+      assert.deepEqual((await poll()).body.jobs,[]);
+      assert.match((await handleIntent(claims,conv,"oui"))!,/Quel numéro/);
+      assert.deepEqual((await poll()).body.jobs,[]);
+      const result=handleIntent(claims,conv,"+237 600 000 000");
+      let job:any;
+      for(let attempt=0;attempt<100&&!job;attempt++) {
+        job=(await poll()).body.jobs[0];
+        if(!job)await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      assert.ok(job);assert.equal(job.operation,"withdrawal_status");
+      assert.equal(job.external_user_id,claims.externalUserId);
+      assert.deepEqual(job.fields,{withdrawal_number:"+237 600 000 000"});
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(first.credentials.clientId,first.credentials.clientSecret)
+        .send({result:{status:"confirmed"}}).expect(404);
+      await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(second.credentials.clientId,second.credentials.clientSecret)
+        .send({result:{status:"confirmed",data:{statut:"Payé par le prestataire",montant:5000,devise:"XAF",reference:"RET-42"}}}).expect(200);
+      assert.match((await result)!,/Payé par le prestataire/);
+      // A reliable approved answer to the actual question takes priority over
+      // a generic intent introduction, and confirmation is still always last.
+      await request(app).post(`/v1/admin/projects/${id}/knowledge`).set("X-Admin-Key",adminKey)
+        .send({title:question,content:"Le délai de traitement documenté est de 48 heures."}).expect(201);
+      const next=await createConversation(id,claims.externalUserId);
+      assert.equal(await handleIntent(claims,next,question),
+        `Le délai de traitement documenté est de 48 heures.\n\n${withdrawal.confirmation_question}`);
+      assert.deepEqual((await poll()).body.jobs,[]);
+      const issued=await request(app).post("/v1/auth/token").auth(second.credentials.clientId,second.credentials.clientSecret).send({}).expect(200);
+      const guest=verifyAccessToken(issued.body.data.access_token),guestConv=await createConversation(id,guest.externalUserId);
+      await handleIntent(guest,guestConv,question);
+      assert.equal(await handleIntent(guest,guestConv,"oui"),withdrawal.guest_message);
+      assert.deepEqual((await poll()).body.jobs,[]);
     });
     await t.test("Intent keywords in prose use platform synonyms, whole tokens, specificity and safe ambiguity",()=>{
       const settings=defaultSettings(false);

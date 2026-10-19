@@ -8,6 +8,8 @@ const text=z.string().trim().min(1).max(4000);
 export const intentDefinition=z.object({
   id:identifier,name:z.string().trim().min(2).max(100),enabled:z.boolean(),
   triggers:z.array(z.string().trim().min(2).max(500)).min(1).max(30),
+  initial_response:z.string().trim().max(4000).optional(),
+  confirmation_question:text.optional(),
   fields:z.array(z.object({name:identifier,prompt:text,type:z.enum(["text","identifier","country"]),
     min_length:z.number().int().min(1).max(500),max_length:z.number().int().min(1).max(500)}).strict()
     .refine(f=>f.min_length<=f.max_length)).max(15),

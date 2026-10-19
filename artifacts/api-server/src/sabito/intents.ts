@@ -3,7 +3,7 @@ import { pool } from "./database";
 import { requestBackend, type BackendOperation, type BackendResult } from "./backend-bridge";
 import type { AccessClaims } from "./security";
 import { normalizeQuestion, recordUnanswered } from "./unanswered";
-import { searchState,detectIntent } from "./question-search";
+import { searchState,detectIntent,retrieveReply } from "./question-search";
 import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
 export { isVerifiedMember } from "./templates";
@@ -71,18 +71,47 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       ? JSON.parse(String(current.collected_json)) : {};
     if(current?.status==="collecting" && (!detected || detected===current.intent)) originalQuestion=String(current.original_question);
     const definition=intentRegistry[intent];
+    const confirmationQuestion=definition.confirmation_question ??
+      `Souhaitez-vous lancer la vérification « ${definition.name} » ? Répondez par oui ou non.`;
+    // Reserved marker cannot collide with configurable field names (which must
+    // start with a letter). Persist in the existing collecting state, so a
+    // restart does not lose the confirmation or require an ENUM migration.
+    let justConfirmed=false;
+    if(fields.__awaiting_confirmation==="true") {
+      if(/^(non|non merci|pas encore|pas du tout)$/.test(normalized)) {
+        await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1 AND project_id=$2",
+          [conversationId,claims.sub]);
+        await connection.query("COMMIT");return settings.cancelled_message;
+      }
+      const yes=/^(oui|ouais|yes|bien sur|tout a fait|d accord|oui merci|oui s il vous plait|oui c est le cas|oui j ai (?:effectue|fait) (?:un|le|mon) (?:retrait|depot))$/.test(normalized);
+      if(!yes) {
+        await connection.query("COMMIT");
+        return `Merci de répondre par oui ou non. ${confirmationQuestion}`;
+      }
+      delete fields.__awaiting_confirmation;
+      justConfirmed=true;
+    } else if(!current || current.status!=="collecting" || current.intent!==intent) {
+      const reply=await retrieveReply(claims.sub,text);
+      const initial=reply.reliable?reply.answer:(definition.initial_response?.trim()||settings.no_answer_message);
+      await connection.query(`INSERT INTO sabito_core.intent_sessions (conversation_id,project_id,intent,collected_json,status,original_question)
+        VALUES ($1,$2,$3,$4,'collecting',$5) ON DUPLICATE KEY UPDATE intent=VALUES(intent),collected_json=VALUES(collected_json),
+        original_question=VALUES(original_question),status='collecting',updated_at=CURRENT_TIMESTAMP(6)`,
+        [conversationId,claims.sub,intent,JSON.stringify({__awaiting_confirmation:"true"}),text]);
+      await connection.query("COMMIT");
+      return `${initial}\n\n${confirmationQuestion}`;
+    }
     for(const name of Object.keys(fields)) {
       const field=definition.required.find(f=>f.name===name);
       if(!field||!field.valid(fields[name]))delete fields[name];
     }
-    if (!definition.required.length && !isVerifiedMember(claims)) {
+    if (!isVerifiedMember(claims)) {
       const guide=renderTemplate(definition.guest_message,{})??settings.no_answer_message;
       await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1 AND project_id=$2",
         [conversationId,claims.sub]);
       await connection.query("COMMIT");return guide;
     }
     const missing=definition.required.find(field=>!fields[field.name]);
-    if (missing && !detected) {
+    if (missing && !detected && !justConfirmed) {
       const value=text.trim();
       if (!missing.valid(value)) {await connection.query("COMMIT");return `${settings.invalid_field_message} ${missing.prompt} ${settings.privacy_message}`;}
       fields[missing.name]=value;

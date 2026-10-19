@@ -54,6 +54,10 @@ export const getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax
 
 export const getAssistantConfigurationResponseSettingsIntentsItemTriggersMax = 30;
 
+export const getAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax = 4000;
+
+export const getAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax = 4000;
+
 export const getAssistantConfigurationResponseSettingsIntentsItemFieldsItemNameRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
 export const getAssistantConfigurationResponseSettingsIntentsItemFieldsItemPromptMax = 4000;
 
@@ -98,6 +102,8 @@ export const GetAssistantConfigurationResponse = zod.object({
   "name": zod.string().min(getAssistantConfigurationResponseSettingsIntentsItemNameMin).max(getAssistantConfigurationResponseSettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
   "triggers": zod.array(zod.string().min(getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin).max(getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax)).min(1).max(getAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
+  "initial_response": zod.string().max(getAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
+  "confirmation_question": zod.string().min(1).max(getAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
   "name": zod.string().regex(getAssistantConfigurationResponseSettingsIntentsItemFieldsItemNameRegExp),
   "prompt": zod.string().min(1).max(getAssistantConfigurationResponseSettingsIntentsItemFieldsItemPromptMax),
@@ -165,6 +171,10 @@ export const updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMax 
 
 export const updateAssistantConfigurationBodySettingsIntentsItemTriggersMax = 30;
 
+export const updateAssistantConfigurationBodySettingsIntentsItemInitialResponseMax = 4000;
+
+export const updateAssistantConfigurationBodySettingsIntentsItemConfirmationQuestionMax = 4000;
+
 export const updateAssistantConfigurationBodySettingsIntentsItemFieldsItemNameRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
 export const updateAssistantConfigurationBodySettingsIntentsItemFieldsItemPromptMax = 4000;
 
@@ -211,6 +221,8 @@ export const UpdateAssistantConfigurationBody = zod.object({
   "name": zod.string().min(updateAssistantConfigurationBodySettingsIntentsItemNameMin).max(updateAssistantConfigurationBodySettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
   "triggers": zod.array(zod.string().min(updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMin).max(updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMax)).min(1).max(updateAssistantConfigurationBodySettingsIntentsItemTriggersMax),
+  "initial_response": zod.string().max(updateAssistantConfigurationBodySettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
+  "confirmation_question": zod.string().min(1).max(updateAssistantConfigurationBodySettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
   "name": zod.string().regex(updateAssistantConfigurationBodySettingsIntentsItemFieldsItemNameRegExp),
   "prompt": zod.string().min(1).max(updateAssistantConfigurationBodySettingsIntentsItemFieldsItemPromptMax),
@@ -273,6 +285,10 @@ export const updateAssistantConfigurationResponseSettingsIntentsItemTriggersItem
 
 export const updateAssistantConfigurationResponseSettingsIntentsItemTriggersMax = 30;
 
+export const updateAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax = 4000;
+
+export const updateAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax = 4000;
+
 export const updateAssistantConfigurationResponseSettingsIntentsItemFieldsItemNameRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
 export const updateAssistantConfigurationResponseSettingsIntentsItemFieldsItemPromptMax = 4000;
 
@@ -317,6 +333,8 @@ export const UpdateAssistantConfigurationResponse = zod.object({
   "name": zod.string().min(updateAssistantConfigurationResponseSettingsIntentsItemNameMin).max(updateAssistantConfigurationResponseSettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
   "triggers": zod.array(zod.string().min(updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin).max(updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax)).min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
+  "initial_response": zod.string().max(updateAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
+  "confirmation_question": zod.string().min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
   "name": zod.string().regex(updateAssistantConfigurationResponseSettingsIntentsItemFieldsItemNameRegExp),
   "prompt": zod.string().min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemFieldsItemPromptMax),
