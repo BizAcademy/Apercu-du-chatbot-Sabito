@@ -11,7 +11,6 @@ export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "
     <div className="mt-2.5" data-testid={`extras-${m.id}`}>
       {list.length > 0 && (
         <>
-          {m.suggestions_label && <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.6px] text-[#8b8f9f]" data-testid={`text-suggestions-label-${m.id}`}>{m.suggestions_label}</p>}
           <div className="flex flex-col items-start gap-1.5">
             {list.map((s, i) => (
               <button key={`${s.document_id}-${i}`} type="button" disabled={disabled} onClick={() => onPick(s.question, s.follow_up_id)}
@@ -19,6 +18,9 @@ export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "
                 style={{ borderColor: border, color: accent }} data-testid={`button-suggestion-${m.id}-${i}`}>{s.question}</button>
             ))}
           </div>
+          <p className="mt-1.5 text-[11px] text-[#727687]">
+            {list.length === 1 ? "Cliquez sur la question ou répondez par oui ou non." : "Choisissez une question, ou répondez non pour terminer."}
+          </p>
         </>
       )}
       {closing && <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-[#5d6072]" data-testid={`text-closing-${m.id}`}>{m.closing_message}</p>}

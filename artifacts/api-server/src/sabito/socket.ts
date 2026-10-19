@@ -14,6 +14,7 @@ import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { readAssistantSettings } from "./assistant-settings";
+import { suggestedReply } from "./suggestion-replies";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -123,7 +124,9 @@ export function attachSocketServer(httpServer: HttpServer) {
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
         const followUp = parsed.data.follow_up_id
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
-        const intentAnswer = parsed.data.follow_up_id ? null : await handleIntent(claims,conversationId,parsed.data.content);
+        const proposalAnswer = parsed.data.follow_up_id ? null :
+          await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
+        const intentAnswer = parsed.data.follow_up_id || proposalAnswer ? null : await handleIntent(claims,conversationId,parsed.data.content);
         const reply = parsed.data.follow_up_id
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             ...await readAssistantSettings(claims.sub).then(({settings})=>({
@@ -133,7 +136,10 @@ export function attachSocketServer(httpServer: HttpServer) {
           reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
           reply.reliable=true;
           reply.suggestions=[];
-        } else if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;reply.suggestions=[];}
+        } else if(proposalAnswer) Object.assign(reply,proposalAnswer);
+        else if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;reply.suggestions=[];}
+        // Suggestions are questions/buttons, without an introductory title (including old settings).
+        reply.suggestions_label="";
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = reply.answer;

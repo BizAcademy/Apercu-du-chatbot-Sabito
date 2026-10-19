@@ -512,6 +512,58 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
       assert.equal(await selectedFollowUp(first.project.id,String(selection.follow_up_id),selection.question),null);
     });
+    await t.test("Proposed questions accept yes/no, persist across reconnects and never guess among multiple proposals",async()=>{
+      const url=`/v1/admin/projects/${first.project.id}/knowledge`;
+      const follow={question:"Comment continuer après mon inscription unique ?",answer:"Ouvrez votre espace de formation."};
+      const body={title:"Guide de suivi conversationnel unique",content:"Votre inscription est bien expliquée ici.",
+        follow_up_questions:[follow]};
+      const created=await request(app).post(url).set("X-Admin-Key",adminKey).send(body).expect(201);
+      const id=created.body.data.documentId;
+      const member="suggestion-test-member";
+      const proposalToken=signAccessToken({sub:first.project.id,clientId:first.credentials.clientId,
+        externalUserId:member,scope:["chat:connect","member:verified"]});
+      let client=await openSocket(proposalToken);
+      let conversationId:string|undefined;
+      type Answer={content:string;conversationId:string;suggestions:{question:string}[];suggestions_label:string};
+      const send=async(content:string)=>{
+        const complete=socketOnce<Answer>(client,"message:complete");
+        const ack=await client.emitWithAck("message:send",{conversationId,idempotencyKey:randomUUID(),content});
+        assert.equal(ack.ok,true);
+        const answer=(await complete)[0];conversationId=answer.conversationId;return answer;
+      };
+      const firstReply=await send(body.title);
+      assert.equal(firstReply.suggestions.length,1);
+      assert.equal(firstReply.suggestions_label,"");
+      client.disconnect();
+      client=await openSocket(proposalToken);
+      assert.equal((await send("Oui !")).content,follow.answer);
+      assert.notEqual((await send("oui")).content,follow.answer);
+      await send(body.title);
+      const refusal=await send("Non merci.");
+      assert.equal(refusal.content,"D’accord, heureux de vous avoir aidé.");
+      assert.deepEqual(refusal.suggestions,[]);
+      assert.notEqual((await send("oui")).content,follow.answer);
+      await send(body.title);
+      assert.equal((await send(follow.question)).content,follow.answer);
+      const secondFollow={question:"Comment joindre le support de cette inscription ?",answer:"Écrivez au service client."};
+      await request(app).put(`${url}/${id}`).set("X-Admin-Key",adminKey)
+        .send({...body,follow_up_questions:[follow,secondFollow]}).expect(200);
+      await send(body.title);
+      const ambiguous=await send("oui");
+      assert.match(ambiguous.content,/Quelle question/);
+      assert.equal(ambiguous.suggestions.length,2);
+      assert.equal((await send(secondFollow.question)).content,secondFollow.answer);
+      await send(body.title);
+      await request(app).put(`${url}/${id}`).set("X-Admin-Key",adminKey)
+        .send({...body,follow_up_questions:[]}).expect(200);
+      // A saved proposal must never return a removed/edited approved answer.
+      assert.match((await send(follow.question)).content,/modifiée ou supprimée/);
+      const {suggestedReply}=await import("./suggestion-replies");
+      assert.equal(await suggestedReply(second.project.id,member,conversationId!,"oui"),null);
+      assert.equal(await suggestedReply(first.project.id,"different-member",conversationId!,"oui"),null);
+      client.disconnect();
+      await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
+    });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);
