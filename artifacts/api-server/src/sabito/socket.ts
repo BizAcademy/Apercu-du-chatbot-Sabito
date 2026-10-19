@@ -138,8 +138,8 @@ export function attachSocketServer(httpServer: HttpServer) {
           reply.suggestions=[];
         } else if(proposalAnswer) Object.assign(reply,proposalAnswer);
         else if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;reply.suggestions=[];}
-        // Suggestions are questions/buttons, without an introductory title (including old settings).
-        reply.suggestions_label="";
+        // Only an unrecognized question with a relevant search proposal gets a clarification title.
+        reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = reply.answer;

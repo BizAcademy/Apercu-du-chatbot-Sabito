@@ -1,5 +1,5 @@
 import { pool } from "./database";
-import { selectedFollowUp } from "./knowledge-follow-ups";
+import { isGreetingSuggestion,selectedFollowUp } from "./knowledge-follow-ups";
 import { rankedQuestions, retrieveReply } from "./question-search";
 
 type Suggestion = Awaited<ReturnType<typeof retrieveReply>>["suggestions"][number];
@@ -19,7 +19,8 @@ export async function suggestedReply(projectId:string,externalUserId:string,conv
       AND m.role='assistant' AND m.status='completed'
     ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,[conversationId,projectId,externalUserId]);
   const raw=rows[0]?.suggestions_json;
-  const suggestions:Suggestion[]=typeof raw==="string"?JSON.parse(raw):raw??[];
+  const suggestions:Suggestion[]=(typeof raw==="string"?JSON.parse(raw):raw??[])
+    .filter((s:Suggestion)=>!isGreetingSuggestion(s.question));
   if (!suggestions.length) return null;
   const normalized=normalize(text);
   const no=/^(non|non merci|non pas maintenant|pas maintenant|pas encore)$/.test(normalized);

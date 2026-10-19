@@ -2,12 +2,17 @@ import { createHash } from "node:crypto";
 import { pool } from "./database";
 
 export type FollowUp = {question:string;answer:string};
+export function isGreetingSuggestion(question:string) {
+  const words=question.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
+  return words.length>0 && words.every(word=>["bonjour","bonsoir","salut","coucou","hello","hi","hey","bjr","slt"].includes(word));
+}
 export function followUpId(documentId:string,item:FollowUp) {
   // Content-bound identifier: an old button must not silently return an edited answer.
   return `${documentId}:${createHash("sha256").update(JSON.stringify(item)).digest("hex").slice(0,24)}`;
 }
 export function followUpSuggestions(documentId:string,items:FollowUp[]) {
-  return items.map(item=>({document_id:documentId,question:item.question,follow_up_id:followUpId(documentId,item)}));
+  return items.filter(item=>!isGreetingSuggestion(item.question))
+    .map(item=>({document_id:documentId,question:item.question,follow_up_id:followUpId(documentId,item)}));
 }
 export async function selectedFollowUp(projectId:string,id:string,question:string) {
   const documentId=id.split(":")[0];

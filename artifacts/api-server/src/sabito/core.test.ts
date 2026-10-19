@@ -564,6 +564,61 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       client.disconnect();
       await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
     });
+    await t.test("Only uncertain relevant matches show a clarification title; greetings never become proposals",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`clarification-${randomUUID()}`,name:"Clarification test",assistant_name:"Sabito",
+          system_prompt:"Répondre uniquement avec des réponses approuvées par cette plateforme."}).expect(201);
+      const fixture=created.body.data,id=fixture.project.id;projectIds.push(id);
+      const configUrl=`/v1/admin/projects/${id}/assistant-settings`;
+      const before=await request(app).get(configUrl).set("X-Admin-Key",adminKey).expect(200);
+      await request(app).put(configUrl).set("X-Admin-Key",adminKey)
+        .send({settings:{...before.body.settings,confidence_threshold:0.99},expected_revision:before.body.revision}).expect(200);
+      const knowledgeUrl=`/v1/admin/projects/${id}/knowledge`;
+      const title="Quel est le délai de remboursement ?";
+      const follow={question:"Où consulter mon remboursement ?",answer:"Dans votre espace personnel."};
+      await request(app).post(knowledgeUrl).set("X-Admin-Key",adminKey).send({
+        title,content:"Le délai figure dans les conditions de votre remboursement.",
+        follow_up_questions:[{question:"Bonjour",answer:"Bienvenue."},{question:"salut !",answer:"Salut."},follow],
+      }).expect(201);
+      await request(app).post(knowledgeUrl).set("X-Admin-Key",adminKey).send({
+        title:"Bonjour , Bonsoir , salut",content:"Bienvenue sur notre plateforme.",
+        variantes_de_question:["Bonjour","salut"],
+      }).expect(201);
+      const unknown="Quel est le délai pour recevoir mon remboursement ?";
+      const uncertain=await retrieveReply(id,unknown);
+      assert.equal(uncertain.reliable,false);
+      assert.equal(uncertain.suggestions_label,"Voulez-vous dire :");
+      assert.equal(uncertain.suggestions.length,1);
+      assert.equal(uncertain.suggestions[0].question,title);
+      const known=await retrieveReply(id,title);
+      assert.equal(known.reliable,true);
+      assert.equal(known.suggestions_label,"");
+      assert.deepEqual(known.suggestions.map(s=>s.question),[follow.question]);
+      const unrelated=await retrieveReply(id,"xylophone intergalactique zyxwv");
+      assert.equal(unrelated.reliable,false);
+      assert.deepEqual(unrelated.suggestions,[]);
+      assert.equal(unrelated.suggestions_label,"");
+      assert.deepEqual((await retrieveReply(id,"salut salut")).suggestions,[]);
+      // Greetings remain answerable; only their use as proposals is suppressed.
+      assert.equal((await retrieveReply(id,"Bonjour")).answer,"Bienvenue sur notre plateforme.");
+      const bridgeToken=signAccessToken({sub:id,clientId:fixture.credentials.clientId,
+        externalUserId:"clarification-member",scope:["chat:connect","member:verified"]});
+      const client=await openSocket(bridgeToken);
+      let conversationId:string|undefined;
+      const send=async(content:string)=>{
+        const complete=socketOnce<{content:string;conversationId:string;suggestions_label:string;suggestions:{question:string}[]}>(client,"message:complete");
+        const ack=await client.emitWithAck("message:send",{conversationId,idempotencyKey:randomUUID(),content});
+        assert.equal(ack.ok,true);
+        const reply=(await complete)[0];conversationId=reply.conversationId;return reply;
+      };
+      assert.equal((await send(unknown)).suggestions_label,"Voulez-vous dire :");
+      const confirmed=await send("oui");
+      assert.equal(confirmed.content,known.answer);
+      assert.equal(confirmed.suggestions_label,"");
+      assert.deepEqual(confirmed.suggestions.map(s=>s.question),[follow.question]);
+      assert.equal((await send("non")).content,"D’accord, heureux de vous avoir aidé.");
+      client.disconnect();
+    });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);

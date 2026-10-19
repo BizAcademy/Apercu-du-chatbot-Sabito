@@ -1,6 +1,6 @@
 // Deterministic retrieval only. No model, inference service or generated answer.
 import { pool } from "./database";
-import { followUpSuggestions,type FollowUp } from "./knowledge-follow-ups";
+import { followUpSuggestions,isGreetingSuggestion,type FollowUp } from "./knowledge-follow-ups";
 import { readAssistantSettings,onAssistantChange,type AssistantSettings } from "./assistant-settings";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
@@ -136,8 +136,13 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
 export async function retrieveReply(projectId:string,question:string) {
   const {settings,matches}=await rankedQuestions(projectId,question);
   const match=matches[0],reliable=!!match?.directAnswer;
+  const tokenize=tokenizer(settings),queryTokens=tokenize(question);
+  const suggestions=reliable ? followUpSuggestions(match.documentId,match.followUps) :
+    matches.filter(m=>!isGreetingSuggestion(m.question) && !isGreetingSuggestion(m.title)
+      && m.similarity>=0.35
+      && queryTokens.some(q=>tokenize(m.question).some(candidate=>tokenSimilarity(q,candidate)>=0.7)))
+      .slice(0,1).map(m=>({document_id:m.documentId,question:m.question}));
   return {answer:reliable?match.content:settings.no_answer_message,reliable,
-    suggestions:reliable ? followUpSuggestions(match.documentId,match.followUps) :
-      matches.slice(0,3).map(m=>({document_id:m.documentId,question:m.question})),closing_message:settings.closing_message,
-    suggestions_label:settings.suggestions_label};
+    suggestions,closing_message:settings.closing_message,
+    suggestions_label:!reliable && suggestions.length ? "Voulez-vous dire :" : ""};
 }
