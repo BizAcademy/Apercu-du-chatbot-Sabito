@@ -1,4 +1,5 @@
 import type { ChatMsg } from "./types";
+import { MessageText } from "./MessageText";
 
 /** Suggestions (max 3) and authored closing message shown under every completed answer. */
 export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "admin" }: { m: ChatMsg; disabled: boolean; onPick: (question: string, followUpId?: string) => void; accent?: string; tone?: "admin" | "widget" }) {
@@ -29,11 +30,11 @@ export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "
           </p>
         </>
       )}
-      {closing && <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-[#5d6072]" data-testid={`text-closing-${m.id}`}>{m.closing_message}</p>}
+      {closing && <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-[#5d6072]" data-testid={`text-closing-${m.id}`}><MessageText content={closing} /></p>}
     </div>
   );
 }
 
 export function GreetingBubble({ content, className }: { content: string; className: string }) {
-  return <div className={`whitespace-pre-wrap break-words ${className}`} data-testid="text-greeting">{content}</div>;
+  return <div className={`whitespace-pre-wrap break-words ${className}`} data-testid="text-greeting"><MessageText content={content} /></div>;
 }

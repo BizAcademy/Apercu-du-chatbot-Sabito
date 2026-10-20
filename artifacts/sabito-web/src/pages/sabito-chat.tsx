@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSabitoTest } from "@/hooks/use-sabito-test";
+import { MessageText } from "@/components/chat/MessageText";
 import { CorrectionDialog, KnowledgeDialog, type CorrectionDraft } from "@/components/sabito-knowledge";
 import {
   ArrowUpRight,
@@ -279,7 +280,7 @@ export function SabitoChat() {
                             <span className="text-[12px] font-bold text-[#171c37]">Sabito</span>
                             <span className="text-[10px] text-[#a1a7b9]">{message.source === "correction" ? "Référence validée" : "Réponse IA à vérifier"}</span>
                           </div>
-                          <p className="max-w-[690px] whitespace-pre-wrap text-[13px] leading-[1.8] text-[#555e78]">{message.content}</p>
+                          <p className="max-w-[690px] whitespace-pre-wrap text-[13px] leading-[1.8] text-[#555e78]"><MessageText content={message.content} /></p>
                           <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#3641f5]">
                             <button onClick={() => void copyAnswer(message.content)}>{copied ? "Copié" : "Copier la réponse"}</button>
                             <button disabled={saving || busy || !ready} onClick={() => setDraft({ question: messages.slice(0, index).reverse().find(m => m.role === "user")?.content ?? "", answer: message.content, messageIndex: index })}>Corriger la réponse</button>
