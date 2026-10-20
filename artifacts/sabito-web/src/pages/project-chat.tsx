@@ -6,8 +6,8 @@ import { createPlatformTestToken, getPlatformMessages, listSabitoProjects } from
 import { ArrowLeft, Plus, Send, Sparkles } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminDashboard, DocEditor } from "@/pages/admin-dashboard";
-import { AnswerExtras, GreetingBubble } from "@/components/chat/AnswerExtras";
-import { MessageText } from "@/components/chat/MessageText";
+import { GreetingBubble } from "@/components/chat/AnswerExtras";
+import { AssistantAnswer } from "@/components/chat/AssistantAnswer";
 import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
 
 type Msg = ChatMsg;
@@ -125,7 +125,7 @@ function ChatInner() {
         const stale = (cid?: string) => !!cid && !!convRef.current && cid !== convRef.current;
         s.on("message:started", (e: { conversationId: string; messageId: string }) => {
           if (stale(e.conversationId)) return;
-          setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true }]);
+          setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true, animate: true }]);
         });
         s.on("message:delta", (e: { conversationId?: string; messageId: string; delta: string }) => !stale(e.conversationId) && setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)));
         s.on("message:complete", (e: CompleteEvent) => { if (!stale(e.conversationId)) setMessages((m) => applyComplete(m, e)); });
@@ -205,9 +205,8 @@ function ChatInner() {
             <div key={m.id} className="mb-5 flex gap-3">
               <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[11px] bg-gradient-to-br from-[#4e5af8] to-[#3039d8] text-white"><Sparkles size={14} /></div>
               <div className="min-w-0 flex-1">
-                <p className="whitespace-pre-wrap text-[13px] leading-[1.75] text-[#3d4560]"><MessageText content={m.content || (m.pending ? "Sabito prépare sa réponse…" : "")} /></p>
+                <AssistantAnswer m={m} className="whitespace-pre-wrap text-[13px] leading-[1.75] text-[#3d4560]" placeholder="Sabito prépare sa réponse…" disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
                 {m.failed && <p className="text-[11px] text-[#b4441f]">Erreur : {m.failed}</p>}
-                <AnswerExtras m={m} disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
                 {!m.pending && m.content && <button className="mt-2 text-[12px] text-[#3641f5]" onClick={() => correct(i)} data-testid={`button-correct-${m.id}`}>Corriger la réponse</button>}
               </div>
             </div>

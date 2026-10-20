@@ -8,7 +8,6 @@ export const MESSAGE_FIELDS: { key: keyof AssistantSettings; label: string; help
   { key: "greeting_member_no_name", label: "Accueil d'un membre sans nom connu", help: "Utilisé si le profil ne renvoie aucun nom. Aucun nom n'est inventé." },
   { key: "greeting_guest", label: "Accueil d'un visiteur non connecté", help: "Visiteur du widget public, sans identité vérifiée." },
   { key: "no_answer_message", label: "Réponse quand aucune référence ne correspond", help: "Texte fixe affiché tel quel, aucun extrait n'est assemblé automatiquement." },
-  { key: "closing_message", label: "Message de clôture", help: "Affiché sous les suggestions après chaque réponse. Peut rester vide.", optional: true },
   { key: "privacy_message", label: "Message de confidentialité", help: "Affiché avant de demander des informations de compte." },
   { key: "invalid_field_message", label: "Champ invalide", help: "Quand une information saisie ne respecte pas le format attendu." },
   { key: "cancelled_message", label: "Demande annulée", help: "Quand l'utilisateur interrompt une démarche." },

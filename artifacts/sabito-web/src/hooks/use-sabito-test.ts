@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { askSabito, listSabitoKnowledge, saveSabitoKnowledge, deleteSabitoKnowledge, type KnowledgeEntry } from "@workspace/api-client-react";
 
-export type TestMessage = { role: "user" | "assistant"; content: string; source?: string };
+export type TestMessage = { role: "user" | "assistant"; content: string; source?: string; animate?: boolean };
 const options = { headers: { "X-Sabito-Preview": "1" }, credentials: "same-origin" as const };
 const storageKey = "sabito-bca-test-conversation";
 const errorText = (error: unknown) => {
@@ -13,7 +13,7 @@ export function useSabitoTest() {
   const [messages, setMessages] = useState<TestMessage[]>(() => {
     try {
       const data: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      if (Array.isArray(data) && data.every(v => v && ["user", "assistant"].includes(v.role) && typeof v.content === "string")) return data;
+      if (Array.isArray(data) && data.every(v => v && ["user", "assistant"].includes(v.role) && typeof v.content === "string")) return data.map(v => ({...v, animate: false}));
     } catch { /* A corrupt or unavailable browser store must not stop the chat. */ }
     return [];
   });
@@ -46,7 +46,7 @@ export function useSabitoTest() {
     setMessages(turns);
     try {
       const response = await askSabito({ messages: turns.slice(-20).map(({ role, content }) => ({ role, content: content.slice(0, 4000) })) }, options);
-      setMessages([...turns, { role: "assistant", content: response.answer, source: response.source }]);
+      setMessages([...turns, { role: "assistant", content: response.answer, source: response.source, animate: true }]);
       return true;
     } catch (error) { setError(errorText(error)); return false; }
     finally { requestLock.current = false; setBusy(false); }

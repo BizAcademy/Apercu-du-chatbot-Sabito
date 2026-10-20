@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { io, type Socket } from "socket.io-client";
 import { getPlatformMessages } from "@workspace/api-client-react";
 import { RotateCw, Send, X } from "lucide-react";
-import { AnswerExtras, GreetingBubble } from "@/components/chat/AnswerExtras";
-import { MessageText } from "@/components/chat/MessageText";
+import { GreetingBubble } from "@/components/chat/AnswerExtras";
+import { AssistantAnswer } from "@/components/chat/AssistantAnswer";
 import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
 
 type Msg = ChatMsg;
@@ -122,7 +122,7 @@ export function WidgetChat() {
     s.on("conversation:welcome", (e: { conversationId: string; content: string }) => {
       if (live() && e.conversationId && e.conversationId === convRef.current) setGreeting({ conversationId: e.conversationId, content: e.content });
     });
-    s.on("message:started", (e: { conversationId?: string; messageId: string }) => { if (live() && !stale(e.conversationId)) setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true }]); });
+    s.on("message:started", (e: { conversationId?: string; messageId: string }) => { if (live() && !stale(e.conversationId)) setMessages((m) => m.some((x) => x.id === e.messageId) ? m : [...m, { id: e.messageId, role: "assistant", content: "", pending: true, animate: true }]); });
     s.on("message:delta", (e: { conversationId?: string; messageId: string; delta: string }) => { if (live() && !stale(e.conversationId)) setMessages((m) => m.map((x) => x.id === e.messageId ? { ...x, content: x.content + e.delta } : x)); });
     s.on("message:complete", (e: CompleteEvent) => { if (live() && !stale(e.conversationId)) setMessages((m) => applyComplete(m, e)); });
     s.on("message:error", (e: { conversationId?: string; messageId: string; code: string }) => {
@@ -253,9 +253,8 @@ export function WidgetChat() {
           </div>
         ) : (
           <div key={m.id} className="mb-4 max-w-[90%]">
-            <div className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]"><MessageText content={m.content || (m.pending ? "Rédaction de la réponse…" : "")} /></div>
+            <AssistantAnswer m={m} className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]" placeholder="Rédaction de la réponse…" tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
             {m.failed && <p className="mt-1 text-[11px] text-[#a3401c]">Erreur : {m.failed}</p>}
-            <AnswerExtras m={m} tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
           </div>
         ))}
         {phase === "ready" && error && (

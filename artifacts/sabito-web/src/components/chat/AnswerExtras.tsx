@@ -1,15 +1,14 @@
 import type { ChatMsg } from "./types";
 import { MessageText } from "./MessageText";
 
-/** Suggestions (max 3) and authored closing message shown under every completed answer. */
+/** Suggestions (max 3). Legacy automatic closing footers are no longer displayed. */
 export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "admin" }: { m: ChatMsg; disabled: boolean; onPick: (question: string, followUpId?: string) => void; accent?: string; tone?: "admin" | "widget" }) {
   if (m.pending || m.failed) return null;
   const list = (m.suggestions ?? []).filter((s) => {
     const words=s.question.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
     return words.length>0 && !words.every(word=>["bonjour","bonsoir","salut","coucou","hello","hi","hey","bjr","slt"].includes(word));
   }).slice(0, 3);
-  const closing = m.closing_message?.trim();
-  if (!list.length && !closing) return null;
+  if (!list.length) return null;
   const border = tone === "widget" ? "#ddd8ca" : "#dfe2fb";
   return (
     <div className="mt-2.5" data-testid={`extras-${m.id}`}>
@@ -30,7 +29,6 @@ export function AnswerExtras({ m, disabled, onPick, accent = "#3641f5", tone = "
           </p>
         </>
       )}
-      {closing && <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-[#5d6072]" data-testid={`text-closing-${m.id}`}><MessageText content={closing} /></p>}
     </div>
   );
 }

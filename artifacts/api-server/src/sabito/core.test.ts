@@ -302,7 +302,14 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:before.body.revision}).expect(200);
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:before.body.revision}).expect(409);
       const reply=await retrieveReply(second.project.id,"Mystère xylophonique inconnu");
-      assert.equal(reply.answer,settings.no_answer_message);assert.equal(reply.closing_message,settings.closing_message);
+      assert.equal(reply.answer,settings.no_answer_message);assert.equal(reply.closing_message,"");
+      for(const acknowledgement of ["merci","ok","okk","daccord","d’accord","tank","thanks","ok merci beaucoup"]) {
+        const closing=await retrieveReply(second.project.id,acknowledgement);
+        assert.equal(closing.answer,"À la prochaine ! N'hésitez pas à revenir si vous avez un souci.");
+        assert.equal(closing.closing_message,"");assert.deepEqual(closing.suggestions,[]);
+      }
+      assert.notEqual((await retrieveReply(second.project.id,"Merci, comment recevoir mon retrait ?")).answer,
+        "À la prochaine ! N'hésitez pas à revenir si vous avez un souci.");
       assert.ok(reply.suggestions.length<=3);
       assert.ok(scoreQuestion("Je veux adhérer","Je veux souscrire",settings)>.9);
       assert.ok(scoreQuestion("ma transaction","ma transacion",settings)>.7);

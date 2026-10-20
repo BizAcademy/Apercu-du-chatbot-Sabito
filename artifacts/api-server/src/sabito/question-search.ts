@@ -3,6 +3,7 @@ import { pool } from "./database";
 import { followUpSuggestions,isGreetingSuggestion,type FollowUp } from "./knowledge-follow-ups";
 import { readAssistantSettings,onAssistantChange,type AssistantSettings } from "./assistant-settings";
 import { normalizeQuestion as normalized } from "./question-normalization";
+import { conversationClosing, isClosingAcknowledgement } from "./conversation-closing";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -150,6 +151,10 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
   return {settings,matches};
 }
 export async function retrieveReply(projectId:string,question:string) {
+  if(isClosingAcknowledgement(question)) return {
+    answer:conversationClosing,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
+    closing_message:"",suggestions_label:"",
+  };
   const {settings,matches}=await rankedQuestions(projectId,question);
   const match=matches[0],reliable=!!match?.directAnswer;
   const exactConflict=!!match && match.similarity===1 && !reliable;
@@ -163,7 +168,7 @@ export async function retrieveReply(projectId:string,question:string) {
   return {answer:reliable?match.content:exactConflict
     ? "Plusieurs réponses approuvées différentes sont configurées pour cette même question. L’équipe doit corriger ces références en conflit avant que je puisse vous donner une réponse fiable."
     :settings.no_answer_message,reliable,
-    suggestions,closing_message:settings.closing_message,
+    suggestions,closing_message:"",
     suggestions_label:!reliable && suggestions.length ? "Voulez-vous dire :" : ""};
 }
 
@@ -181,8 +186,7 @@ export async function selectedKnowledgeReply(projectId:string,documentId:string,
   const mainMatch=mainQuestions.some(value=>normalized(value)===canonical);
   const followUp=followUps.find(item=>normalized(item.question)===canonical);
   if(!mainMatch && !followUp)return null;
-  const {settings}=await readAssistantSettings(projectId);
   return {answer:mainMatch?String(row.content):followUp!.answer,reliable:true,
     suggestions:mainMatch?followUpSuggestions(documentId,followUps):[],
-    closing_message:settings.closing_message,suggestions_label:""};
+    closing_message:"",suggestions_label:""};
 }

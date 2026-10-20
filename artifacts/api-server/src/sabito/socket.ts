@@ -13,7 +13,6 @@ import { isVerifiedMember } from "./templates";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { selectedFollowUp } from "./knowledge-follow-ups";
-import { readAssistantSettings } from "./assistant-settings";
 import { suggestedReply } from "./suggestion-replies";
 
 const messageSchema = z.object({
@@ -129,8 +128,7 @@ export function attachSocketServer(httpServer: HttpServer) {
         const intentAnswer = parsed.data.follow_up_id || proposalAnswer ? null : await handleIntent(claims,conversationId,parsed.data.content);
         const reply = parsed.data.follow_up_id
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
-            ...await readAssistantSettings(claims.sub).then(({settings})=>({
-              suggestions_label:settings.suggestions_label,closing_message:settings.closing_message}))}
+            suggestions_label:"",closing_message:""}
           : await retrieveReply(claims.sub,parsed.data.content);
         if(parsed.data.follow_up_id) {
           reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";

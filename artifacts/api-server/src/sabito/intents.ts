@@ -6,6 +6,7 @@ import { normalizeQuestion, recordUnanswered } from "./unanswered";
 import { searchState,detectIntent,retrieveReply } from "./question-search";
 import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
+import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -47,6 +48,15 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       (updated_at < CURRENT_TIMESTAMP(6) - INTERVAL 30 SECOND) AS stale FROM sabito_core.intent_sessions
       WHERE conversation_id=$1 AND project_id=$2 FOR UPDATE`,[conversationId,claims.sub]);
     const current=rows[0];
+    if(isClosingAcknowledgement(text)) {
+      // Do not collect "ok" as a transaction identifier or start a backend verification.
+      if(current?.status==="collecting") {
+        await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1 AND project_id=$2",
+          [conversationId,claims.sub]);
+      }
+      await connection.query("COMMIT");
+      return conversationClosing;
+    }
     if (current?.status==="checking") {
       if (Number(current.stale)===1) {
         const id=await ticket(claims.sub,conversationId,claims,current.intent as BackendOperation,"BACKEND_INTERRUPTED",connection);

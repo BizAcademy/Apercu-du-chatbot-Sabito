@@ -1,5 +1,6 @@
 // Answers are authored records, not extracts or generated text.
 import type { KnowledgeMatch } from "./knowledge";
+import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
 const stopWords = new Set([
   "about","after","again","also","been","before","being","could","from",
   "have","into","more","other","should","that","their","there","these",
@@ -18,6 +19,7 @@ export function buildKnowledgeAnswer(question: string, matches: KnowledgeMatch[]
   return knowledgeReply(question, matches).answer;
 }
 export function knowledgeReply(question: string, matches: KnowledgeMatch[]): {answer:string; reliable:boolean} {
+  if(isClosingAcknowledgement(question))return {answer:conversationClosing,reliable:true};
   const direct=matches.filter(match=>match.directAnswer).sort((a,b)=>(b.similarity??0)-(a.similarity??0));
   const ambiguous=direct.length>1 && (direct[0].similarity??0)-(direct[1].similarity??0)<0.12
     && direct[0].content.trim()!==direct[1].content.trim();

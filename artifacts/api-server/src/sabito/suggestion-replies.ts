@@ -2,6 +2,7 @@ import { pool } from "./database";
 import { isGreetingSuggestion,selectedFollowUp } from "./knowledge-follow-ups";
 import { selectedKnowledgeReply, type retrieveReply } from "./question-search";
 import { normalizeQuestion as normalize } from "./question-normalization";
+import { isClosingAcknowledgement } from "./conversation-closing";
 
 type Suggestion = Awaited<ReturnType<typeof retrieveReply>>["suggestions"][number];
 const staleAnswer = "Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
@@ -11,6 +12,7 @@ const staleAnswer = "Cette question proposée a été modifiée ou supprimée. P
  * The next answer has no proposals, so a consumed/refused proposal cannot be reused by "oui".
  */
 export async function suggestedReply(projectId:string,externalUserId:string,conversationId:string,text:string) {
+  if(isClosingAcknowledgement(text)) return null;
   const {rows} = await pool.query(`SELECT p.suggestions_json FROM sabito_core.messages m
     JOIN sabito_core.conversations c ON c.id=m.conversation_id
     LEFT JOIN sabito_core.message_presentations p ON p.message_id=m.id
