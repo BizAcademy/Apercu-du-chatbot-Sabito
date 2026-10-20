@@ -1,11 +1,10 @@
 import { pool } from "./database";
 import { isGreetingSuggestion,selectedFollowUp } from "./knowledge-follow-ups";
-import { rankedQuestions, retrieveReply } from "./question-search";
+import { selectedKnowledgeReply, type retrieveReply } from "./question-search";
+import { normalizeQuestion as normalize } from "./question-normalization";
 
 type Suggestion = Awaited<ReturnType<typeof retrieveReply>>["suggestions"][number];
 const staleAnswer = "Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
-const normalize = (text:string) => text.normalize("NFD").replace(/\p{M}/gu,"")
-  .toLowerCase().replace(/[’']/g," ").replace(/[^\p{L}\p{N}\s]/gu," ").replace(/\s+/g," ").trim();
 
 /** Resolve only proposals from the latest completed answer in this member's conversation.
  * Reading the persisted presentation keeps confirmation working across reconnects/restarts.
@@ -37,12 +36,8 @@ export async function suggestedReply(projectId:string,externalUserId:string,conv
   if ("follow_up_id" in chosen && typeof chosen.follow_up_id==="string") {
     answer=(await selectedFollowUp(projectId,chosen.follow_up_id,chosen.question))?.answer??staleAnswer;
   } else {
-    // Revalidate the document and approved match; never trust a saved answer or foreign ID.
-    const {matches}=await rankedQuestions(projectId,chosen.question);
-    if (matches[0]?.directAnswer && matches[0].documentId===chosen.document_id) {
-      // A search proposal opens the reference, including its own authored follow-up questions.
-      return retrieveReply(projectId,chosen.question);
-    }
+    const selected=await selectedKnowledgeReply(projectId,chosen.document_id,chosen.question);
+    if(selected)return selected;
   }
   return {answer,reliable:true,suggestions:[] as Suggestion[],closing_message:""};
 }

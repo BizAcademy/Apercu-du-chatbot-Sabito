@@ -619,6 +619,76 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal((await send("non")).content,"D’accord, heureux de vous avoir aidé.");
       client.disconnect();
     });
+    await t.test("Exact configured BCA questions, authored follow-ups and confirmed references cannot fall back into a search loop",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`exact-${randomUUID()}`,name:"Exact questions test",assistant_name:"Sabito",
+          system_prompt:"Répondre uniquement à partir des références approuvées de cette plateforme."}).expect(201);
+      const fixture=created.body.data,id=fixture.project.id;projectIds.push(id);
+      const url=`/v1/admin/projects/${id}/knowledge`;
+      const question="Comment gagner de l’argent avec la BCA ?";
+      const answer="Consultez les activités décrites dans votre espace BCA.";
+      const follow={question:"Que faire après mon inscription BCA ?",answer:"Ouvrez le guide de démarrage."};
+      const main=await request(app).post(url).set("X-Admin-Key",adminKey)
+        .send({title:question,content:answer,follow_up_questions:[follow]}).expect(201);
+      const alias=await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Autres moyens documentés",content:"Une autre réponse associée à une variante trop large.",
+        variantes_de_question:[question],
+      }).expect(201);
+      for(const spelling of [question,"COMMENT GAGNER DE L'ARGENT AVEC LA BCA?",
+        " Comment gagner de l’argent avec la BCA\u00a0? ",
+        "Comment gagner de l’ar\u200bgent avec la BCA ?"]) {
+        const reply=await retrieveReply(id,spelling);
+        assert.equal(reply.reliable,true);
+        assert.equal(reply.answer,answer);
+        assert.equal(reply.suggestions_label,"");
+        assert.ok(reply.suggestions.every(s=>s.question!==question));
+      }
+      assert.equal((await retrieveReply(id,follow.question)).answer,follow.answer);
+      const {selectedKnowledgeReply}=await import("./question-search");
+      assert.equal((await selectedKnowledgeReply(id,alias.body.data.documentId,question))?.answer,
+        "Une autre réponse associée à une variante trop large.");
+      assert.equal(await selectedKnowledgeReply(second.project.id,main.body.data.documentId,question),null);
+      assert.equal(await selectedKnowledgeReply(id,main.body.data.documentId,"Question jamais configurée"),null);
+      // Truly contradictory aliases remain explicit conflicts, never an identical clarification proposal.
+      const conflicting="Où consulter les activités rémunérées ?";
+      const other=await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Guide des activités",content:"Consultez le menu Activités.",variantes_de_question:[conflicting],
+      }).expect(201);
+      await request(app).put(`${url}/${alias.body.data.documentId}`).set("X-Admin-Key",adminKey).send({
+        title:"Autres moyens documentés",content:"Consultez le menu Ressources.",variantes_de_question:[question,conflicting],
+      }).expect(200);
+      const conflict=await retrieveReply(id,conflicting);
+      assert.equal(conflict.reliable,false);
+      assert.match(conflict.answer,/références en conflit/);
+      assert.deepEqual(conflict.suggestions,[]);
+      const member="exact-question-member";
+      const proposalToken=signAccessToken({sub:id,clientId:fixture.credentials.clientId,
+        externalUserId:member,scope:["chat:connect","member:verified"]});
+      const client=await openSocket(proposalToken);
+      const conv=await createConversation(id,member);
+      // Reproduce a proposal saved by an older release: choosing it must select its document,
+      // even if a global ranker finds a conflicting reference or another reference first.
+      const {beginAssistantMessage,finishMessage,saveMessagePresentation}=await import("./conversations");
+      const {messageId}=await acceptUserMessage({projectId:id,externalUserId:member,conversationId:conv,
+        content:"Ma question initiale",idempotencyKey:randomUUID()});
+      const assistantId=await beginAssistantMessage(id,conv,messageId);
+      await saveMessagePresentation(assistantId,{suggestions:[{document_id:other.body.data.documentId,question:conflicting}],
+        suggestions_label:"Voulez-vous dire :",closing_message:""});
+      await finishMessage(assistantId,"Veuillez choisir une question.");
+      await finishMessage(messageId);
+      const complete=socketOnce<{content:string;suggestions_label:string}>(client,"message:complete");
+      const ack=await client.emitWithAck("message:send",{conversationId:conv,idempotencyKey:randomUUID(),content:"oui"});
+      assert.equal(ack.ok,true);
+      const selected=(await complete)[0];
+      assert.equal(selected.content,"Consultez le menu Activités.");
+      assert.equal(selected.suggestions_label,"");
+      const completed=socketOnce<{content:string}>(client,"message:complete");
+      assert.equal((await client.emitWithAck("message:send",{conversationId:conv,idempotencyKey:randomUUID(),content:question})).ok,true);
+      assert.equal((await completed)[0].content,answer);
+      client.disconnect();
+      await request(app).delete(`${url}/${main.body.data.documentId}`).set("X-Admin-Key",adminKey).expect(204);
+      assert.equal(await selectedKnowledgeReply(id,main.body.data.documentId,question),null);
+    });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);
