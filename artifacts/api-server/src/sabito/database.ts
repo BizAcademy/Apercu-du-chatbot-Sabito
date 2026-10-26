@@ -9,5 +9,6 @@ export async function initializeSabitoCore() {
   await checkMysqlConnection();
   // Production startup is read-only with respect to migrations.
   // Pending migrations require explicit review and application by an operator.
-  await initializeMysqlSchema({ apply: process.env.NODE_ENV !== "production" });
+  const localDevelopment = process.env.NODE_ENV !== "production";
+  await initializeMysqlSchema({ apply: localDevelopment, allowDestructive: localDevelopment });
 }

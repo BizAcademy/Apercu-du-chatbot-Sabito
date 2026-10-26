@@ -28,8 +28,8 @@ export async function answerUnanswered(projectId: string, id: string, content: s
       await connection.query("ROLLBACK");
       return null;
     }
-    const document = await saveKnowledge(projectId, String(rows[0].question).slice(0, 200), content, undefined, connection,
-      [String(rows[0].question).slice(0,500)]);
+    const document = await saveKnowledge(projectId, String(rows[0].question), content, undefined, connection,
+      [String(rows[0].question)]);
     await connection.query(
       "UPDATE questions_sans_reponse SET statut='traite',document_id=$1 WHERE id=$2 AND plateforme=$3",
       [document!.documentId, id, projectId]);

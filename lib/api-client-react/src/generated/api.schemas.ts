@@ -76,7 +76,6 @@ export interface IntentDefinition {
      * @minItems 1
      * @maxItems 30
      * @items.minLength 2
-     * @items.maxLength 500
      */
   triggers: string[];
   /**
@@ -375,10 +374,7 @@ export interface ProjectCreated {
 }
 
 export interface KnowledgeFollowUp {
-  /**
-     * @minLength 2
-     * @maxLength 500
-     */
+  /** @minLength 2 */
   question: string;
   /**
      * @minLength 1
@@ -388,10 +384,7 @@ export interface KnowledgeFollowUp {
 }
 
 export interface DocumentInput {
-  /**
-     * @minLength 2
-     * @maxLength 255
-     */
+  /** @minLength 2 */
   title: string;
   /**
      * @minLength 20
@@ -403,7 +396,6 @@ export interface DocumentInput {
   /**
      * @maxItems 30
      * @items.minLength 2
-     * @items.maxLength 500
      */
   variantes_de_question?: string[];
 }
@@ -520,10 +512,7 @@ export interface SabitoReply {
 }
 
 export interface KnowledgeInput {
-  /**
-     * @minLength 1
-     * @maxLength 1000
-     */
+  /** @minLength 1 */
   question: string;
   /**
      * @minLength 1

@@ -8,10 +8,7 @@
 import type { KnowledgeFollowUp } from './knowledgeFollowUp';
 
 export interface DocumentInput {
-  /**
-     * @minLength 2
-     * @maxLength 255
-     */
+  /** @minLength 2 */
   title: string;
   /**
      * @minLength 20
@@ -23,7 +20,6 @@ export interface DocumentInput {
   /**
      * @maxItems 30
      * @items.minLength 2
-     * @items.maxLength 500
      */
   variantes_de_question?: string[];
 }

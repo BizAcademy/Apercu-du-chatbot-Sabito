@@ -21,7 +21,7 @@ export function validateIntent(it: IntentDefinition, all: IntentDefinition[]): s
   if (all.filter((x) => x.id === it.id).length > 1) e.push(`Identifiant « ${it.id} » déjà utilisé.`);
   if (it.name.trim().length < 2 || it.name.length > 100) e.push("Nom : 2 à 100 caractères.");
   if (it.triggers.length < 1 || it.triggers.length > 30) e.push("Déclencheurs : 1 à 30 questions.");
-  if (it.triggers.some((t) => t.trim().length < 2 || t.length > 500)) e.push("Chaque déclencheur : 2 à 500 caractères.");
+  if (it.triggers.some((t) => t.trim().length < 2)) e.push("Chaque déclencheur : 2 caractères minimum.");
   if ((it.initial_response?.length??0)>4000) e.push("Réponse initiale : 4000 caractères maximum.");
   if (it.confirmation_question!==undefined && (!it.confirmation_question.trim()||it.confirmation_question.length>4000))
     e.push("Question de confirmation : obligatoire, 4000 caractères maximum.");

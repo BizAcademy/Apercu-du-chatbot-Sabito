@@ -7,10 +7,7 @@
  */
 
 export interface KnowledgeInput {
-  /**
-     * @minLength 1
-     * @maxLength 1000
-     */
+  /** @minLength 1 */
   question: string;
   /**
      * @minLength 1

@@ -37,7 +37,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
   process.env.JWT_SECRET = randomBytes(32).toString("hex");
   process.env.CLIENT_SECRET_PEPPER = randomBytes(32).toString("hex");
   const app = express();
-  app.use(express.json());
+  app.use(express.json({limit:"2mb"}));
   app.use("/v1/widget", widgetPublicRoutes);
   app.use((req,_res,next) => {req.log=logger;next();});
   app.use(coreRoutes);
@@ -695,6 +695,44 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       client.disconnect();
       await request(app).delete(`${url}/${main.body.data.documentId}`).set("X-Admin-Key",adminKey).expect(204);
       assert.equal(await selectedKnowledgeReply(id,main.body.data.documentId,question),null);
+    });
+    await t.test("Long configured questions survive create, edit, exact retrieval and follow-up clicks without truncation",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`long-${randomUUID()}`,name:"Long questions",assistant_name:"Sabito",
+          system_prompt:"Répondre uniquement à partir des références approuvées de cette plateforme."}).expect(201);
+      const fixture=created.body.data,id=fixture.project.id;projectIds.push(id);
+      const url=`/v1/admin/projects/${id}/knowledge`;
+      const title=`Question principale : ${"détail de la question complète ".repeat(950)}fin principale ?`;
+      const variant=`Autre formulation : ${"précision utile pour cette question ".repeat(700)}fin variante ?`;
+      const follow={question:`Question proposée : ${"information complémentaire approuvée ".repeat(650)}fin proposée ?`,
+        answer:"Voici la réponse approuvée à la très longue question proposée."};
+      const body={title,content:"Voici la réponse approuvée à la très longue question principale.",
+        variantes_de_question:[variant],follow_up_questions:[follow]};
+      const saved=await request(app).post(url).set("X-Admin-Key",adminKey).send(body).expect(201);
+      const documentId=saved.body.data.documentId;
+      const list=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(list.body.data[0].title,title);
+      assert.deepEqual(list.body.data[0].variantes_de_question,[variant]);
+      assert.deepEqual(list.body.data[0].follow_up_questions,[follow]);
+      assert.equal((await retrieveReply(id,title)).answer,body.content);
+      assert.equal((await retrieveReply(id,variant)).answer,body.content);
+      assert.equal((await retrieveReply(id,follow.question)).answer,follow.answer);
+      const edited={...body,title:`${title}\nComplément final conservé après modification.`};
+      await request(app).put(`${url}/${documentId}`).set("X-Admin-Key",adminKey).send(edited).expect(200);
+      assert.equal((await request(app).get(url).set("X-Admin-Key",adminKey)).body.data[0].title,edited.title);
+      const member="long-question-member";
+      const memberToken=signAccessToken({sub:id,clientId:fixture.credentials.clientId,
+        externalUserId:member,scope:["chat:connect","member:verified"]});
+      const client=await openSocket(memberToken);
+      const completed=socketOnce<{content:string}>(client,"message:complete");
+      const {followUpId}=await import("./knowledge-follow-ups");
+      const ack=await client.emitWithAck("message:send",{idempotencyKey:randomUUID(),
+        content:follow.question,follow_up_id:followUpId(documentId,follow)});
+      assert.equal(ack.ok,true);
+      assert.equal((await completed)[0].content,follow.answer);
+      const foreign=await retrieveReply(second.project.id,title);
+      assert.notEqual(foreign.answer,body.content);
+      client.disconnect();
     });
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");

@@ -18,7 +18,7 @@ import { suggestedReply } from "./suggestion-replies";
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
   idempotencyKey:z.string().min(8).max(100).regex(/^[A-Za-z0-9._:-]+$/),
-  content:z.string().trim().min(1).max(20000),
+  content:z.string().trim().min(1),
   follow_up_id:z.string().regex(/^[0-9a-f-]{36}:[0-9a-f]{24}$/).optional(),
 });
 const startSchema = z.object({metadata:z.record(z.string(),z.unknown()).optional()});
@@ -49,7 +49,7 @@ export function attachSocketServer(httpServer: HttpServer) {
     path:"/socket.io",
     cors:{origin(origin,callback) { callback(null,permittedOrigin(origin)); },methods:["GET","POST"]},
     allowRequest(request,callback) { callback(null,permittedOrigin(request.headers.origin)); },
-    maxHttpBufferSize:64*1024,pingInterval:25000,pingTimeout:20000,
+    maxHttpBufferSize:2*1024*1024,pingInterval:25000,pingTimeout:20000,
   });
   currentIo = io;
   io.use(async (socket,next) => {

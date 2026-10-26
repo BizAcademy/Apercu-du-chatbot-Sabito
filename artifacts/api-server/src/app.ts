@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
@@ -36,7 +36,14 @@ app.set("trust proxy", 1);
 app.use("/v1/widget", express.json(), widgetPublicRoutes);
 app.use("/api/v1/widget", express.json(), widgetPublicRoutes);
 app.use(cors({origin(origin, callback) { callback(null, permittedOrigin(origin)); }}));
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
+app.use(((error, _req, res, next) => {
+  if (error?.type === "entity.too.large") {
+    res.status(413).json({ success: false, message: "La requête dépasse la limite technique de 2 Mo. Aucune question n’a été tronquée ou enregistrée partiellement." });
+    return;
+  }
+  next(error);
+}) satisfies ErrorRequestHandler);
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", coreRoutes);

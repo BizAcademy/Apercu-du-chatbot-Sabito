@@ -7,10 +7,7 @@
  */
 
 export interface KnowledgeFollowUp {
-  /**
-     * @minLength 2
-     * @maxLength 500
-     */
+  /** @minLength 2 */
   question: string;
   /**
      * @minLength 1

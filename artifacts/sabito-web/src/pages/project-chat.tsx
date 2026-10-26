@@ -169,8 +169,8 @@ function ChatInner() {
   };
   const correct = (i: number) => {
     const q = messages.slice(0, i).reverse().find((m) => m.role === "user")?.content ?? "";
-    const question = q.trim().slice(0, 500);
-    setCorrection({ title: q.slice(0, 255), content: messages[i].content, variants: question.length >= 2 ? [question] : [] });
+    const question = q.trim();
+    setCorrection({ title: question, content: messages[i].content, variants: question.length >= 2 ? [question] : [] });
   };
 
   return (

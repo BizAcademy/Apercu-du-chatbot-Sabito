@@ -7,7 +7,7 @@ export const identifier=z.string().regex(/^[a-z][a-z0-9_]{1,63}$/).refine(s=>!["
 const text=z.string().trim().min(1).max(4000);
 export const intentDefinition=z.object({
   id:identifier,name:z.string().trim().min(2).max(100),enabled:z.boolean(),
-  triggers:z.array(z.string().trim().min(2).max(500)).min(1).max(30),
+  triggers:z.array(z.string().trim().min(2)).min(1).max(30),
   initial_response:z.string().trim().max(4000).optional(),
   confirmation_question:text.optional(),
   fields:z.array(z.object({name:identifier,prompt:text,type:z.enum(["text","identifier","country"]),

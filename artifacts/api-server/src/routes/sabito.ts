@@ -59,7 +59,7 @@ router.get("/sabito/knowledge", async (_req, res): Promise<void> => {
 router.post("/sabito/knowledge", async (req, res): Promise<void> => {
   const parsed = SaveSabitoKnowledgeBody.safeParse(req.body);
   if (!parsed.success || !parsed.data.question.trim() || !parsed.data.answer.trim()) {
-    res.status(400).json({ error: "La question et la réponse ne doivent pas être vides (1 000 / 4 000 caractères maximum)." });
+    res.status(400).json({ error: "La question et la réponse ne doivent pas être vides. La réponse est limitée à 4 000 caractères." });
     return;
   }
   const question = parsed.data.question.trim();

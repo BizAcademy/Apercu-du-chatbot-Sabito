@@ -50,7 +50,6 @@ export const getAssistantConfigurationResponseSettingsIntentsItemNameMin = 2;
 export const getAssistantConfigurationResponseSettingsIntentsItemNameMax = 100;
 
 export const getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin = 2;
-export const getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax = 500;
 
 export const getAssistantConfigurationResponseSettingsIntentsItemTriggersMax = 30;
 
@@ -101,7 +100,7 @@ export const GetAssistantConfigurationResponse = zod.object({
   "id": zod.string().regex(getAssistantConfigurationResponseSettingsIntentsItemIdRegExp),
   "name": zod.string().min(getAssistantConfigurationResponseSettingsIntentsItemNameMin).max(getAssistantConfigurationResponseSettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
-  "triggers": zod.array(zod.string().min(getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin).max(getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax)).min(1).max(getAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
+  "triggers": zod.array(zod.string().min(getAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin)).min(1).max(getAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
   "initial_response": zod.string().max(getAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
   "confirmation_question": zod.string().min(1).max(getAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
@@ -167,7 +166,6 @@ export const updateAssistantConfigurationBodySettingsIntentsItemNameMin = 2;
 export const updateAssistantConfigurationBodySettingsIntentsItemNameMax = 100;
 
 export const updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMin = 2;
-export const updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMax = 500;
 
 export const updateAssistantConfigurationBodySettingsIntentsItemTriggersMax = 30;
 
@@ -220,7 +218,7 @@ export const UpdateAssistantConfigurationBody = zod.object({
   "id": zod.string().regex(updateAssistantConfigurationBodySettingsIntentsItemIdRegExp),
   "name": zod.string().min(updateAssistantConfigurationBodySettingsIntentsItemNameMin).max(updateAssistantConfigurationBodySettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
-  "triggers": zod.array(zod.string().min(updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMin).max(updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMax)).min(1).max(updateAssistantConfigurationBodySettingsIntentsItemTriggersMax),
+  "triggers": zod.array(zod.string().min(updateAssistantConfigurationBodySettingsIntentsItemTriggersItemMin)).min(1).max(updateAssistantConfigurationBodySettingsIntentsItemTriggersMax),
   "initial_response": zod.string().max(updateAssistantConfigurationBodySettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
   "confirmation_question": zod.string().min(1).max(updateAssistantConfigurationBodySettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
@@ -281,7 +279,6 @@ export const updateAssistantConfigurationResponseSettingsIntentsItemNameMin = 2;
 export const updateAssistantConfigurationResponseSettingsIntentsItemNameMax = 100;
 
 export const updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin = 2;
-export const updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax = 500;
 
 export const updateAssistantConfigurationResponseSettingsIntentsItemTriggersMax = 30;
 
@@ -332,7 +329,7 @@ export const UpdateAssistantConfigurationResponse = zod.object({
   "id": zod.string().regex(updateAssistantConfigurationResponseSettingsIntentsItemIdRegExp),
   "name": zod.string().min(updateAssistantConfigurationResponseSettingsIntentsItemNameMin).max(updateAssistantConfigurationResponseSettingsIntentsItemNameMax),
   "enabled": zod.boolean(),
-  "triggers": zod.array(zod.string().min(updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin).max(updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMax)).min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
+  "triggers": zod.array(zod.string().min(updateAssistantConfigurationResponseSettingsIntentsItemTriggersItemMin)).min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemTriggersMax),
   "initial_response": zod.string().max(updateAssistantConfigurationResponseSettingsIntentsItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
   "confirmation_question": zod.string().min(1).max(updateAssistantConfigurationResponseSettingsIntentsItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
   "fields": zod.array(zod.object({
@@ -489,7 +486,6 @@ export const ListPlatformKnowledgeParams = zod.object({
 })
 
 export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMin = 2;
-export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMax = 500;
 
 export const listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemAnswerMax = 20000;
 
@@ -502,7 +498,7 @@ export const ListPlatformKnowledgeResponse = zod.object({
   "title": zod.string(),
   "content": zod.string(),
   "follow_up_questions": zod.array(zod.object({
-  "question": zod.string().min(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMin).max(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMax),
+  "question": zod.string().min(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemQuestionMin),
   "answer": zod.string().min(1).max(listPlatformKnowledgeResponseDataItemFollowUpQuestionsItemAnswerMax)
 })).optional(),
   "variantes_de_question": zod.array(zod.string()).optional()
@@ -515,33 +511,30 @@ export const AddPlatformKnowledgeParams = zod.object({
 })
 
 export const addPlatformKnowledgeBodyTitleMin = 2;
-export const addPlatformKnowledgeBodyTitleMax = 255;
 
 export const addPlatformKnowledgeBodyContentMin = 20;
 export const addPlatformKnowledgeBodyContentMax = 1000000;
 
 export const addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin = 2;
-export const addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax = 500;
 
 export const addPlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax = 20000;
 
 export const addPlatformKnowledgeBodyFollowUpQuestionsMax = 3;
 
 export const addPlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
-export const addPlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
 
 export const addPlatformKnowledgeBodyVariantesDeQuestionMax = 30;
 
 
 
 export const AddPlatformKnowledgeBody = zod.object({
-  "title": zod.string().min(addPlatformKnowledgeBodyTitleMin).max(addPlatformKnowledgeBodyTitleMax),
+  "title": zod.string().min(addPlatformKnowledgeBodyTitleMin),
   "content": zod.string().min(addPlatformKnowledgeBodyContentMin).max(addPlatformKnowledgeBodyContentMax),
   "follow_up_questions": zod.array(zod.object({
-  "question": zod.string().min(addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin).max(addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax),
+  "question": zod.string().min(addPlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin),
   "answer": zod.string().min(1).max(addPlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax)
 })).max(addPlatformKnowledgeBodyFollowUpQuestionsMax).optional(),
-  "variantes_de_question": zod.array(zod.string().min(addPlatformKnowledgeBodyVariantesDeQuestionItemMin).max(addPlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(addPlatformKnowledgeBodyVariantesDeQuestionMax).optional()
+  "variantes_de_question": zod.array(zod.string().min(addPlatformKnowledgeBodyVariantesDeQuestionItemMin)).max(addPlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 
 export const AddPlatformKnowledgeResponse = zod.object({
@@ -559,33 +552,30 @@ export const UpdatePlatformKnowledgeParams = zod.object({
 })
 
 export const updatePlatformKnowledgeBodyTitleMin = 2;
-export const updatePlatformKnowledgeBodyTitleMax = 255;
 
 export const updatePlatformKnowledgeBodyContentMin = 20;
 export const updatePlatformKnowledgeBodyContentMax = 1000000;
 
 export const updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin = 2;
-export const updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax = 500;
 
 export const updatePlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax = 20000;
 
 export const updatePlatformKnowledgeBodyFollowUpQuestionsMax = 3;
 
 export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMin = 2;
-export const updatePlatformKnowledgeBodyVariantesDeQuestionItemMax = 500;
 
 export const updatePlatformKnowledgeBodyVariantesDeQuestionMax = 30;
 
 
 
 export const UpdatePlatformKnowledgeBody = zod.object({
-  "title": zod.string().min(updatePlatformKnowledgeBodyTitleMin).max(updatePlatformKnowledgeBodyTitleMax),
+  "title": zod.string().min(updatePlatformKnowledgeBodyTitleMin),
   "content": zod.string().min(updatePlatformKnowledgeBodyContentMin).max(updatePlatformKnowledgeBodyContentMax),
   "follow_up_questions": zod.array(zod.object({
-  "question": zod.string().min(updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin).max(updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMax),
+  "question": zod.string().min(updatePlatformKnowledgeBodyFollowUpQuestionsItemQuestionMin),
   "answer": zod.string().min(1).max(updatePlatformKnowledgeBodyFollowUpQuestionsItemAnswerMax)
 })).max(updatePlatformKnowledgeBodyFollowUpQuestionsMax).optional(),
-  "variantes_de_question": zod.array(zod.string().min(updatePlatformKnowledgeBodyVariantesDeQuestionItemMin).max(updatePlatformKnowledgeBodyVariantesDeQuestionItemMax)).max(updatePlatformKnowledgeBodyVariantesDeQuestionMax).optional()
+  "variantes_de_question": zod.array(zod.string().min(updatePlatformKnowledgeBodyVariantesDeQuestionItemMin)).max(updatePlatformKnowledgeBodyVariantesDeQuestionMax).optional()
 })
 
 export const UpdatePlatformKnowledgeResponse = zod.object({
@@ -696,14 +686,13 @@ export const ListSabitoKnowledgeResponseItem = zod.object({
 export const ListSabitoKnowledgeResponse = zod.array(ListSabitoKnowledgeResponseItem)
 
 
-export const saveSabitoKnowledgeBodyQuestionMax = 1000;
 
 export const saveSabitoKnowledgeBodyAnswerMax = 4000;
 
 
 
 export const SaveSabitoKnowledgeBody = zod.object({
-  "question": zod.string().min(1).max(saveSabitoKnowledgeBodyQuestionMax),
+  "question": zod.string().min(1),
   "answer": zod.string().min(1).max(saveSabitoKnowledgeBodyAnswerMax)
 })
 

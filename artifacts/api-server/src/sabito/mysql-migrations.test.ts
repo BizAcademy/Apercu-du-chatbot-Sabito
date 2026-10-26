@@ -38,10 +38,11 @@ test("migrations: production stays read-only; tracked files apply only once", as
     assert.equal(tableExists, false, "Production startup must not create the history table.");
     await assert.rejects(initializeMysqlSchema({ apply: true }), /explicit review/);
     assert.equal(applications, 0);
-    await initializeMysqlSchema({ apply: true, reviewed: true });
+    await assert.rejects(initializeMysqlSchema({ apply: true, reviewed: true }), /explicit destructive-change approval/);
+    await initializeMysqlSchema({ apply: true, reviewed: true, allowDestructive: true });
     assert.deepEqual(applied, expectedMigrations, "Every tracked migration must be applied in order.");
     assert.equal(applications, expectedMigrations.length);
-    await initializeMysqlSchema({ apply: true, reviewed: true });
+    await initializeMysqlSchema({ apply: true, reviewed: true, allowDestructive: true });
     assert.deepEqual(applied, expectedMigrations, "Already applied migrations must not be tracked twice.");
     assert.equal(applications, expectedMigrations.length, "Already applied migrations must not run again.");
     assert.equal((await mysqlMigrationStatus()).pending.length, 0);

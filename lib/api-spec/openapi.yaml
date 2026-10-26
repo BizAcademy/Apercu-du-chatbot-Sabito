@@ -475,7 +475,7 @@ components:
           type: array
           minItems: 1
           maxItems: 30
-          items: {type: string, minLength: 2, maxLength: 500}
+          items: {type: string, minLength: 2}
         initial_response:
           type: string
           maxLength: 4000
@@ -669,13 +669,13 @@ components:
       type: object
       required: [question, answer]
       properties:
-        question: {type: string, minLength: 2, maxLength: 500}
+        question: {type: string, minLength: 2}
         answer: {type: string, minLength: 1, maxLength: 20000}
     DocumentInput:
       type: object
       required: [title, content]
       properties:
-        title: {type: string, minLength: 2, maxLength: 255}
+        title: {type: string, minLength: 2}
         content: {type: string, minLength: 20, maxLength: 1000000}
         follow_up_questions:
           type: array
@@ -684,7 +684,7 @@ components:
         variantes_de_question:
           type: array
           maxItems: 30
-          items: {type: string, minLength: 2, maxLength: 500}
+          items: {type: string, minLength: 2}
     PlatformDocument:
       type: object
       required: [id, title, content]
@@ -796,7 +796,6 @@ components:
         question:
           type: string
           minLength: 1
-          maxLength: 1000
         answer:
           type: string
           minLength: 1

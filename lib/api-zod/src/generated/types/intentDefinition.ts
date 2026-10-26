@@ -21,7 +21,6 @@ export interface IntentDefinition {
      * @minItems 1
      * @maxItems 30
      * @items.minLength 2
-     * @items.maxLength 500
      */
   triggers: string[];
   /**

@@ -206,11 +206,11 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
   const [content, setContent] = useState(doc?.content ?? initial?.content ?? "");
   const [variantsText, setVariantsText] = useState((doc?.variantes_de_question ?? initial?.variants ?? []).join("\n"));
   const variants = variantsText.split("\n").map((v) => v.trim()).filter((v) => v.length > 0);
-  const badVariant = variants.find((v) => v.length < 2 || v.length > 500);
+  const badVariant = variants.find((v) => v.length < 2);
   const tooMany = variants.length > 30;
   const contentTooLongForVariants = variants.length > 0 && content.length > 20000;
   const [followUps, setFollowUps] = useState<{ question: string; answer: string }[]>(() => (doc?.follow_up_questions ?? []).slice(0, 3).map((f) => ({ question: f.question, answer: f.answer })));
-  const fuErr = (f: { question: string; answer: string }) => { const q = f.question.trim().length, a = f.answer.trim().length; return q < 2 || q > 500 ? "La question doit faire entre 2 et 500 caractères." : a < 1 || a > 20000 ? "La réponse doit faire entre 1 et 20 000 caractères." : ""; };
+  const fuErr = (f: { question: string; answer: string }) => { const q = f.question.trim().length, a = f.answer.trim().length; return q < 2 ? "La question doit faire au moins 2 caractères." : a < 1 || a > 20000 ? "La réponse doit faire entre 1 et 20 000 caractères." : ""; };
   const badFollowUp = followUps.some((f) => fuErr(f));
   const setFu = (i: number, k: "question" | "answer", v: string) => setFollowUps((l) => l.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
   const moveFu = (i: number, d: number) => setFollowUps((l) => { const n = [...l]; const j = i + d; if (j < 0 || j >= n.length) return l; [n[i], n[j]] = [n[j], n[i]]; return n; });
@@ -221,19 +221,21 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sabito-admin", "knowledge", projectId] }); close(); },
   });
-  const valid = title.trim().length >= 2 && title.length <= 255 && content.trim().length >= 20 && !badVariant && !tooMany && !contentTooLongForVariants && !badFollowUp && followUps.length <= 3;
+  const valid = title.trim().length >= 2 && content.trim().length >= 20 && !badVariant && !tooMany && !contentTooLongForVariants && !badFollowUp && followUps.length <= 3;
   return (
     <div className="fixed inset-0 z-30 grid place-items-center bg-[#11162b]/40 p-4">
       <form onSubmit={(e) => { e.preventDefault(); if (valid && !m.isPending) m.mutate(); }} className="max-h-[92dvh] w-full max-w-[600px] overflow-y-auto rounded-[22px] bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between"><h3 className="text-[16px] font-bold">{doc ? "Modifier la référence" : "Nouvelle référence"}</h3><button type="button" onClick={close} aria-label="Fermer"><X size={17} /></button></div>
-        <input className={input} placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="input-doc-title" />
+        <label className="text-[12px] font-semibold text-[#4a5270]" htmlFor="doc-title">Question principale</label>
+        <textarea id="doc-title" className={`${input} mt-1 min-h-[96px] resize-y`} placeholder="Question principale (2 caractères minimum)" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="input-doc-title" />
+        <p className="mt-1 text-[11px] text-[#8b92a8]">Aucun plafond de caractères par question. Les limites techniques de taille des requêtes restent applicables.</p>
         <div className="mt-3 flex items-center justify-between">
           <label className="text-[12px] font-semibold text-[#4a5270]" htmlFor="doc-variants">Formulations de la question <span className="font-normal text-[#8b92a8]">(optionnel, une par ligne)</span></label>
           {variants.length > 0 && <button type="button" className="text-[11px] font-medium text-[#737b94] hover:text-[#b4441f]" onClick={() => setVariantsText("")} data-testid="button-clear-variants">Tout effacer</button>}
         </div>
         <textarea id="doc-variants" className={`${input} mt-1 min-h-[96px]`} placeholder={"Comment accéder à mes formations ?\nOù voir mes cours ?"} value={variantsText} onChange={(e) => setVariantsText(e.target.value)} data-testid="input-doc-variants" />
         <p className={`mt-1 text-[11px] ${badVariant || tooMany ? "text-[#b4441f]" : "text-[#8b92a8]"}`} data-testid="text-variants-count">
-          {variants.length} / 30 formulations{tooMany ? " · 30 maximum" : ""}{badVariant ? ` · « ${badVariant.slice(0, 40)}${badVariant.length > 40 ? "…" : ""} » doit faire entre 2 et 500 caractères` : ""}
+          {variants.length} / 30 formulations{tooMany ? " · 30 maximum" : ""}{badVariant ? ` · « ${badVariant} » doit faire au moins 2 caractères` : ""}
         </p>
         <p className="mt-0.5 text-[11px] leading-4 text-[#8b92a8]">Les formulations approuvées sont reconnues à l'identique. Sabito rapproche aussi les questions proches par recherche classique : mots-clés, BM25, trigrammes et groupes de synonymes définis dans la configuration. Aucune inférence ni IA : ajoutez les tournures réellement utilisées.</p>
         <textarea className={`${input} mt-3 min-h-[200px]`} placeholder="Contenu validé (20 caractères minimum)" value={content} onChange={(e) => setContent(e.target.value)} data-testid="input-doc-content" />
@@ -249,7 +251,7 @@ export function DocEditor({ projectId, doc, initial, close }: { projectId: strin
           {followUps.map((f, i) => { const err = fuErr(f); return (
             <div key={i} className="rounded-[14px] border border-[#e8eaff] bg-[#f8f9ff] p-3" data-testid={`row-followup-${i}`}>
               <div className="flex items-center gap-2">
-                <input className={input} placeholder="Question proposée" value={f.question} onChange={(e) => setFu(i, "question", e.target.value)} data-testid={`input-followup-question-${i}`} />
+                <textarea className={`${input} min-h-[80px] resize-y`} placeholder="Question proposée" value={f.question} onChange={(e) => setFu(i, "question", e.target.value)} data-testid={`input-followup-question-${i}`} />
                 <button type="button" className="p-1 text-[#737b94] hover:text-[#3641f5] disabled:opacity-30" disabled={i === 0} onClick={() => moveFu(i, -1)} aria-label="Monter" data-testid={`button-followup-up-${i}`}><ArrowUp size={14} /></button>
                 <button type="button" className="p-1 text-[#737b94] hover:text-[#3641f5] disabled:opacity-30" disabled={i === followUps.length - 1} onClick={() => moveFu(i, 1)} aria-label="Descendre" data-testid={`button-followup-down-${i}`}><ArrowDown size={14} /></button>
                 <button type="button" className="p-1 text-[#737b94] hover:text-[#b4441f]" onClick={() => setFollowUps((l) => l.filter((_, j) => j !== i))} aria-label="Retirer" data-testid={`button-followup-remove-${i}`}><Trash2 size={14} /></button>
