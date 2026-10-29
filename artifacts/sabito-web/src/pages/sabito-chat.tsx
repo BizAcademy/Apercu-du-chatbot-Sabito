@@ -266,7 +266,7 @@ export function SabitoChat() {
                   {messages.map((message, index) =>
                     message.role === "user" ? (
                       <div key={`${index}-${message.content}`} className="mb-6 flex justify-end">
-                        <div className="max-w-[76%] rounded-[18px] rounded-br-[5px] bg-[#3641f5] px-5 py-3.5 text-[13px] leading-[1.65] text-white shadow-[0_7px_16px_rgba(54,65,245,.14)]">
+                        <div className="max-w-[76%] rounded-[18px] rounded-br-[5px] bg-[#2563eb] px-5 py-3.5 text-[13px] leading-[1.65] text-white">
                           {message.content}
                         </div>
                       </div>
@@ -280,7 +280,7 @@ export function SabitoChat() {
                             <span className="text-[12px] font-bold text-[#171c37]">Sabito</span>
                             <span className="text-[10px] text-[#a1a7b9]">{message.source === "correction" ? "Référence validée" : "Réponse IA à vérifier"}</span>
                           </div>
-                          <p className="max-w-[690px] whitespace-pre-wrap text-[13px] leading-[1.8] text-[#555e78]"><AnimatedMessageText content={message.content} animate={message.animate} /></p>
+                          <p className="w-fit max-w-[690px] whitespace-pre-wrap rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-3 text-[13px] leading-[1.8] text-[#14532d]"><AnimatedMessageText content={message.content} animate={message.animate} /></p>
                           <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#3641f5]">
                             <button onClick={() => void copyAnswer(message.content)}>{copied ? "Copié" : "Copier la réponse"}</button>
                             <button disabled={saving || busy || !ready} onClick={() => setDraft({ question: messages.slice(0, index).reverse().find(m => m.role === "user")?.content ?? "", answer: message.content, messageIndex: index })}>Corriger la réponse</button>
@@ -292,7 +292,7 @@ export function SabitoChat() {
 
                 </>
               )}
-              {busy && <p role="status" className="py-3 text-sm text-[#3641f5]">Sabito prépare sa réponse…</p>}
+              {busy && <p role="status" className="w-fit rounded-[18px] bg-[#f0f0f0] px-4 py-3 text-sm text-[#454545]">Typing...</p>}
               {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {error}
                 <button className="ml-3 underline" disabled={busy} onClick={() => ready && messages.at(-1)?.role === "user" ? void send(messages.at(-1)!.content, true) : void refresh()}>Réessayer</button>

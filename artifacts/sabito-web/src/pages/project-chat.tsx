@@ -5,6 +5,7 @@ import { io, type Socket } from "socket.io-client";
 import { createPlatformTestToken, getPlatformMessages, listSabitoProjects } from "@workspace/api-client-react";
 import { ArrowLeft, Plus, Send } from "lucide-react";
 import { SabitoAvatar } from "@/components/SabitoAvatar";
+import { platformTitle } from "@/components/chat/platform-title";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminDashboard, DocEditor } from "@/pages/admin-dashboard";
 import { GreetingBubble } from "@/components/chat/AnswerExtras";
@@ -182,7 +183,7 @@ function ChatInner() {
             <Link href="/admin" className="grid h-9 w-9 place-items-center rounded-xl text-[#646b84] hover:bg-[#f2f3ff]" aria-label="Retour" data-testid="link-back"><ArrowLeft size={18} /></Link>
             <SabitoAvatar size={40} />
             <div>
-              <h1 className="text-[15px] font-bold">{project?.assistantName ?? "Sabito"} <span className="font-normal text-[#76809a]">· {project?.name ?? projectId}</span></h1>
+              <h1 className="text-[15px] font-bold">{platformTitle(project?.name)}</h1>
               <div className="flex items-center gap-1.5 text-[11px] text-[#76809a]" data-testid="status-realtime"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-[#12b76a]" : "bg-[#d0a12b]"}`} />{connected ? "Temps réel connecté" : "Temps réel déconnecté"} · Chat de test</div>
             </div>
           </div>
@@ -192,13 +193,13 @@ function ChatInner() {
           {greeting && greeting.conversationId === conversationId && (
             <div className="mb-5 flex gap-3">
               <SabitoAvatar size={32} />
-              <GreetingBubble content={greeting.content} className="min-w-0 flex-1 text-[13px] leading-[1.75] text-[#3d4560]" />
+              <GreetingBubble content={greeting.content} className="min-w-0 rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-3 text-[13px] leading-[1.75] text-[#14532d]" />
             </div>
           )}
           {messages.length === 0 && !greeting && <div className="mx-auto max-w-lg rounded-[20px] border border-[#e8eaff] p-6 text-[13px] leading-6 text-[#6c748d]">Pose une question. Sabito répond uniquement à partir des références validées de cette plateforme. Corrige une réponse pour l'ajouter à la base de connaissances.</div>}
           {messages.map((m, i) => m.role === "user" ? (
             <div key={m.id} className="mb-5 flex flex-col items-end">
-              <div className={`max-w-[78%] whitespace-pre-wrap rounded-[18px] rounded-br-[5px] px-4 py-3 text-[13px] text-white ${m.failed ? "bg-[#b4441f]" : "bg-[#3641f5]"} ${m.pending ? "opacity-70" : ""}`}>{m.content}</div>
+              <div className="max-w-[78%] whitespace-pre-wrap rounded-[18px] rounded-br-[5px] bg-[#2563eb] px-4 py-3 text-[13px] text-white">{m.content}</div>
               {m.pending && <span className="mt-1 text-[10px] text-[#8b92a8]">Envoi…</span>}
               {m.failed && <span className="mt-1 text-[10px] text-[#b4441f]">Non envoyé : {m.failed}</span>}
             </div>
@@ -206,7 +207,7 @@ function ChatInner() {
             <div key={m.id} className="mb-5 flex gap-3">
               <SabitoAvatar size={32} />
               <div className="min-w-0 flex-1">
-                <AssistantAnswer m={m} className="whitespace-pre-wrap text-[13px] leading-[1.75] text-[#3d4560]" placeholder="Sabito prépare sa réponse…" disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
+                <AssistantAnswer m={m} className="w-fit whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-3 text-[13px] leading-[1.75] text-[#14532d]" placeholder="Typing..." disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
                 {m.failed && <p className="text-[11px] text-[#b4441f]">Erreur : {m.failed}</p>}
                 {!m.pending && m.content && <button className="mt-2 text-[12px] text-[#3641f5]" onClick={() => correct(i)} data-testid={`button-correct-${m.id}`}>Corriger la réponse</button>}
               </div>

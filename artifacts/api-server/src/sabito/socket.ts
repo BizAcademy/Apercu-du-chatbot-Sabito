@@ -57,7 +57,9 @@ export function attachSocketServer(httpServer: HttpServer) {
       const token = socket.handshake.auth.token;
       if (typeof token !== "string") throw new Error("UNAUTHORIZED");
       const claims = verifyAccessToken(token);
-      if (!await activeCredential(claims.sub,claims.clientId)) throw new Error("UNAUTHORIZED");
+      const credential = await activeCredential(claims.sub,claims.clientId);
+      if (!credential) throw new Error("UNAUTHORIZED");
+      socket.data.projectName = credential.project_name;
       if (claims.scope.includes("widget:guest") && (!claims.widgetOrigin ||
         !(await widgetOrigins(claims.sub)).includes(claims.widgetOrigin))) throw new Error("UNAUTHORIZED");
       socket.data.claims = claims;
@@ -69,7 +71,7 @@ export function attachSocketServer(httpServer: HttpServer) {
   io.on("connection",socket => {
     const claims = socket.data.claims;
     void socket.join(`project:${claims.sub}`);
-    socket.emit("session:ready",{projectId:claims.sub,externalUserId:claims.externalUserId});
+    socket.emit("session:ready",{projectId:claims.sub,projectName:socket.data.projectName,externalUserId:claims.externalUserId});
     const expiryCheck = setInterval(async () => {
       try {
         verifyAccessToken(socket.data.token);

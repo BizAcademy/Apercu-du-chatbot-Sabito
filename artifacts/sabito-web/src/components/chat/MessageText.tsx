@@ -1,8 +1,19 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { messageLinks } from "./message-links";
 import { useTypewriter } from "./use-typewriter";
 
 export function AnimatedMessageText({ content, animate }: { content: string; animate?: boolean }) {
+  const [waiting, setWaiting] = useState(Boolean(animate));
+  useEffect(() => {
+    if (!animate) { setWaiting(false); return; }
+    const timer = window.setTimeout(() => setWaiting(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [animate]);
+  if (waiting) return <span role="status">Typing...</span>;
+  return <RevealedMessageText content={content} animate={animate} />;
+}
+
+function RevealedMessageText({ content, animate }: { content: string; animate?: boolean }) {
   const { text, typing } = useTypewriter(content, animate);
   return <span aria-busy={typing}><MessageText content={text} linkify={!typing} /></span>;
 }

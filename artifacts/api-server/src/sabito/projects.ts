@@ -52,7 +52,7 @@ export async function rotateProjectCredential(projectId: string) {
   } finally { connection.release(); }
 }
 export async function activeCredential(projectId: string, clientId?: string) {
-  const { rows } = await pool.query(`SELECT c.* FROM sabito_core.project_credentials c
+  const { rows } = await pool.query(`SELECT c.*, p.name AS project_name FROM sabito_core.project_credentials c
     INNER JOIN sabito_core.projects p ON p.id=c.project_id
     WHERE c.project_id=$1 AND p.status='active' AND c.status='active'
       AND (c.expires_at IS NULL OR c.expires_at>now()) ${clientId ? "AND c.client_id=$2" : ""}

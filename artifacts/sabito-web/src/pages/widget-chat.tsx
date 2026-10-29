@@ -3,6 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import { getPlatformMessages } from "@workspace/api-client-react";
 import { RotateCw, Send, X } from "lucide-react";
 import { SabitoAvatar } from "@/components/SabitoAvatar";
+import { platformTitle } from "@/components/chat/platform-title";
 import { GreetingBubble } from "@/components/chat/AnswerExtras";
 import { AssistantAnswer } from "@/components/chat/AssistantAnswer";
 import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
@@ -38,6 +39,7 @@ function parseParams() {
 
 export function WidgetChat() {
   const cfg = useMemo(parseParams, []);
+  const [platformName, setPlatformName] = useState("");
   const embedded = window.parent !== window;
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState("");
@@ -101,9 +103,10 @@ export function WidgetChat() {
     s.on("disconnect", (reason) => { if (!live()) return; setConnected(false); if (reason === "io server disconnect") renewSoon(); });
     s.on("connect_error", () => { if (!live()) return; setConnected(false); setError("Connexion au serveur impossible, nouvelle tentative…"); renewSoon(); });
     const stale = (cid?: string) => !!cid && !!convRef.current && cid !== convRef.current;
-    s.on("session:ready", async () => {
+    s.on("session:ready", async (session: { projectName?: string }) => {
       const cid = convRef.current, t = tokenRef.current;
       if (!live() || !t) return;
+      setPlatformName(session?.projectName || cfg.product || "");
       if (!cid) {
         s.timeout(15_000).emit("conversation:start", {}, (err: Error | null, ack?: StartAck) => {
           if (!live() || convRef.current) return;
@@ -213,7 +216,7 @@ export function WidgetChat() {
         <div className="flex min-w-0 items-center gap-2.5">
           <SabitoAvatar size={36} />
           <div className="min-w-0">
-          <h1 className="truncate text-[15px] font-semibold tracking-tight">{cfg.title}</h1>
+          <h1 className="truncate text-[15px] font-semibold tracking-tight">{platformTitle(platformName || cfg.product)}</h1>
           <p className="flex items-center gap-1.5 text-[11px] opacity-85" aria-live="polite">
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-[#7ee2a8]" : "bg-[#f2b84b]"}`} />
             {phase === "logged_out" ? "Déconnecté" : connected ? "En ligne" : phase === "loading" ? "Connexion…" : "Hors ligne"}
@@ -244,7 +247,7 @@ export function WidgetChat() {
         )}
         {phase === "ready" && greeting && greeting.conversationId === convRef.current && (
           <div className="mb-4 max-w-[90%]">
-            <GreetingBubble content={greeting.content} className="rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]" />
+            <GreetingBubble content={greeting.content} className="rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-2.5 text-[13px] leading-[1.7] text-[#14532d]" />
           </div>
         )}
         {phase === "ready" && messages.length === 0 && !greeting && (
@@ -252,12 +255,12 @@ export function WidgetChat() {
         )}
         {phase === "ready" && messages.map((m) => m.role === "user" ? (
           <div key={m.id} className="mb-4 flex flex-col items-end">
-            <div className={`max-w-[85%] whitespace-pre-wrap break-words rounded-[18px] rounded-br-[5px] px-4 py-2.5 text-[13px] text-[#fbfaf6] ${m.pending ? "opacity-70" : ""}`} style={{ background: m.failed ? "#a3401c" : accent }}>{m.content}</div>
+            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[18px] rounded-br-[5px] bg-[#2563eb] px-4 py-2.5 text-[13px] text-white">{m.content}</div>
             {m.failed && <span className="mt-1 text-[10px] text-[#a3401c]">Non envoyé : {m.failed}</span>}
           </div>
         ) : (
           <div key={m.id} className="mb-4 max-w-[90%]">
-            <AssistantAnswer m={m} className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] border border-[#e4dfd1] bg-[#fbfaf6] px-4 py-2.5 text-[13px] leading-[1.7] text-[#2c2f40]" placeholder="Rédaction de la réponse…" tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
+            <AssistantAnswer m={m} className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-2.5 text-[13px] leading-[1.7] text-[#14532d]" placeholder="Typing..." tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
             {m.failed && <p className="mt-1 text-[11px] text-[#a3401c]">Erreur : {m.failed}</p>}
           </div>
         ))}
