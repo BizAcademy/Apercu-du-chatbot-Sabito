@@ -583,6 +583,41 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       client.disconnect();
       await request(app).delete(`${url}/${id}`).set("X-Admin-Key",adminKey).expect(204);
     });
+    await t.test("Typos and abbreviations retrieve literal platform references without crossing meaning or tenant boundaries",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`spelling-${randomUUID()}`,name:"Spelling test",assistant_name:"Sabito",
+          system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const id=created.body.data.project.id;projectIds.push(id);
+      const url=`/v1/admin/projects/${id}/knowledge`;
+      const answer="Consultez les activités rémunérées dans votre espace BCA.";
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Comment gagner de l’argent avec la BCA ?",content:answer,
+        follow_up_questions:[{question:"Comment modifier mon mot de passe ?",answer:"Ouvrez les paramètres de sécurité."}],
+      }).expect(201);
+      for(const question of ["Cmt gagner de l'argent avc la BCA ?","Commen gagnr de l'argnt avec la BCA ?",
+        "Comment ganger de l'argent avec la BCA ?","cmt gagnr de largent avc bca"]) {
+        const reply=await retrieveReply(id,question);
+        assert.equal(reply.reliable,true,question);
+        assert.equal(reply.answer,answer,question);
+        assert.equal(reply.suggestions_label,"");
+      }
+      assert.equal((await retrieveReply(id,"cmt modifer mon mdp ?")).answer,"Ouvrez les paramètres de sécurité.");
+      assert.notEqual((await retrieveReply(second.project.id,"cmt gagnr de largent avc bca")).answer,answer);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Comment consulter mon solde ?",content:"Consultez le menu Solde.",
+      }).expect(201);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Comment consulter mon solide ?",content:"Réponse distincte, ne pas confondre avec le solde.",
+      }).expect(201);
+      assert.equal((await retrieveReply(id,"cmt consulter mon solie")).reliable,false);
+      await request(app).post(url).set("X-Admin-Key",adminKey).send({
+        title:"Mon dépôt est reçu",content:"Référence positive uniquement.",
+      }).expect(201);
+      const negative=await retrieveReply(id,"mon depot pas recu");
+      assert.equal(negative.reliable,false);
+      assert.notEqual(negative.answer,"Référence positive uniquement.");
+      assert.equal((await retrieveReply(id,"mon deopt est recu")).answer,"Référence positive uniquement.");
+    });
     await t.test("Only uncertain relevant matches show a clarification title; greetings never become proposals",async()=>{
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
         .send({slug:`clarification-${randomUUID()}`,name:"Clarification test",assistant_name:"Sabito",

@@ -5,6 +5,7 @@ import { readAssistantSettings,onAssistantChange,type AssistantSettings } from "
 import { normalizeQuestion as normalized } from "./question-normalization";
 import { conversationClosing, isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
+import { expandQuestion, tokenSimilarity, spellingSimilarity, protectedMismatch } from "./question-spelling";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -12,6 +13,17 @@ export function normalizeTokens(text:string) {
 }
 function grams(s:string) {const value=` ${s} `;return new Set(Array.from({length:Math.max(0,value.length-2)},(_,i)=>value.slice(i,i+3)));}
 function dice(a:Set<string>,b:Set<string>) {let n=0;for(const g of a) if(b.has(g)) n++;return a.size+b.size ? 2*n/(a.size+b.size):0;}
+function wordSimilarity(settings:AssistantSettings) {
+  const aliases=new Map(settings.synonyms.map((group,i)=>[`syn${i}`,
+    group.flatMap(word=>{const tokens=normalizeTokens(word);return tokens.length===1?tokens:[];})]));
+  return (a:string,b:string):number=>{
+    if(a===b)return 1;
+    // Preserve explicit synonym groups, but allow a typo in one of their authored words.
+    if(aliases.has(a)&&aliases.has(b))return 0;
+    const left=aliases.get(a)??[a],right=aliases.get(b)??[b];
+    return Math.max(0,...left.flatMap(x=>right.map(y=>tokenSimilarity(x,y))));
+  };
+}
 function tokenizer(settings:AssistantSettings) {
   const phrases=settings.synonyms.flatMap((group,i)=>group.map(word=>({word:normalized(word),replacement:`syn${i}`})))
     .sort((a,b)=>b.word.length-a.word.length);
@@ -20,7 +32,7 @@ function tokenizer(settings:AssistantSettings) {
     const tokens=normalizeTokens(phrase.word);if(tokens.length===1)singles.set(tokens[0],phrase.replacement);
   }
   return (text:string)=>{
-    let value=` ${normalized(text)} `;
+    let value=` ${expandQuestion(text)} `;
     for(const phrase of phrases) if(phrase.word.includes(" "))
       value=value.replaceAll(` ${phrase.word} `,` ${phrase.replacement} `);
     return normalizeTokens(value).map(t=>singles.get(t)??t);
@@ -45,19 +57,6 @@ export function detectIntent(text:string,settings:AssistantSettings):string|unde
   if(exact.length)return !exact[1]||exact[0].contained>exact[1].contained ? exact[0].id : undefined;
   const fuzzy=candidates.filter(i=>i.score>=settings.confidence_threshold).sort((a,b)=>b.score-a.score);
   return fuzzy[0]&&(!fuzzy[1]||fuzzy[0].score-fuzzy[1].score>=0.06)?fuzzy[0].id:undefined;
-}
-const edits=new Map<string,number>();
-function tokenSimilarity(a:string,b:string):number {
-  if(a===b)return 1;
-  if(a.startsWith("syn")||b.startsWith("syn")||/\d/.test(a+b)||Math.min(a.length,b.length)<4||Math.abs(a.length-b.length)>2)return 0;
-  const key=`${a}:${b}`;if(edits.has(key))return edits.get(key)!;
-  let previous=Array.from({length:b.length+1},(_,i)=>i);
-  for(let i=1;i<=a.length;i++) {
-    const next=[i];for(let j=1;j<=b.length;j++)next.push(Math.min(next[j-1]+1,previous[j]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1)));
-    previous=next;
-  }
-  const value=previous[b.length]<=2 ? Math.max(0,1-previous[b.length]/Math.max(a.length,b.length)):0;
-  if(edits.size>20000)edits.clear();edits.set(key,value);return value;
 }
 type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>;followUps:FollowUp[];exactPriority:number};
 type State={settings:AssistantSettings;revision:number;entries:Entry[];df:Map<string,number>;average:number;checked:number};
@@ -109,8 +108,10 @@ export function scoreQuestion(query:string,question:string,settings:AssistantSet
   if(normalized(query)===normalized(question) && normalized(query).length>1) return 1;
   const tokenize=tokenizer(settings),a=tokenize(query),b=tokenize(question);
   if(!a.length||!b.length) return 0;
-  const overlap=a.reduce((sum,t)=>sum+Math.max(0,...b.map(other=>tokenSimilarity(t,other))),0)/Math.max(a.length,b.length);
-  return Math.min(0.99,0.65*overlap+0.35*dice(grams(a.join(" ")),grams(b.join(" "))));
+  if(protectedMismatch(a,b)) return 0;
+  const similar=wordSimilarity(settings);
+  const overlap=a.reduce((sum,t)=>sum+Math.max(0,...b.map(other=>similar(t,other))),0)/Math.max(a.length,b.length);
+  return Math.max(spellingSimilarity(a,b,undefined,similar),Math.min(0.99,0.65*overlap+0.35*dice(grams(a.join(" ")),grams(b.join(" ")))));
 }
 export type RankedQuestion={documentId:string;title:string;content:string;question:string;similarity:number;directAnswer:boolean;followUps:FollowUp[];exactPriority:number};
 export async function rankedQuestions(projectId:string,query:string):Promise<{settings:AssistantSettings;matches:RankedQuestion[]}> {
@@ -121,6 +122,8 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
   const idf=(word:string)=>Math.log(1+(n-(state.df.get(word)??0)+0.5)/((state.df.get(word)??0)+0.5));
   const maxBm=unique.reduce((sum,t)=>sum+idf(t)*2.2,0);
   const best=new Map<string,RankedQuestion>();
+  const vocabulary=new Set(state.df.keys());
+  const similar=wordSimilarity(settings);
   for(const e of state.entries) {
     const exact=e.canonical===canonical;
     let bm=0;
@@ -128,9 +131,11 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
       const tf=e.tokens.filter(t=>t===term).length;
       bm+=idf(term)*(tf*2.2)/(tf+1.2*(0.25+0.75*e.tokens.length/Math.max(state.average,1)));
     }
-    const keyword=unique.length?unique.reduce((sum,t)=>sum+Math.max(0,...e.tokens.map(other=>tokenSimilarity(t,other))),0)/Math.max(unique.length,new Set(e.tokens).size):0;
+    const keyword=unique.length?unique.reduce((sum,t)=>sum+Math.max(0,...e.tokens.map(other=>similar(t,other))),0)/Math.max(unique.length,new Set(e.tokens).size):0;
     const fuzzy=dice(qgrams,e.grams);
-    const similarity=exact?1:Math.min(0.99,0.5*keyword+0.25*(maxBm?Math.min(1,2*bm/maxBm):0)+0.25*fuzzy);
+    const similarity=exact?1:protectedMismatch(tokens,e.tokens)?0:Math.max(
+      spellingSimilarity(tokens,e.tokens,vocabulary,similar),
+      Math.min(0.99,0.5*keyword+0.25*(maxBm?Math.min(1,2*bm/maxBm):0)+0.25*fuzzy));
     const item={documentId:e.documentId,title:e.title,content:e.content,question:e.question,similarity,directAnswer:false,followUps:e.followUps,exactPriority:e.exactPriority};
     const previous=best.get(e.documentId);
     if(!previous || previous.similarity<similarity ||
