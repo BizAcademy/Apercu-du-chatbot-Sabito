@@ -78,7 +78,10 @@
     "<div class='err' role='alert'><p class='msg'>Le chat n'a pas pu être chargé.</p><div class='row'>" +
     "<button type='button' class='retry'>Réessayer</button><button type='button' class='close'>Fermer</button></div></div></div>" +
     "<button class='btn' type='button' aria-expanded='false' aria-label='Ouvrir le chat'>" +
-    "<svg width='22' height='22' viewBox='0 0 24 24' fill='#fff' aria-hidden='true'><path d='M3 4.5 11 9 8.6 12z'/><path d='M3 19.5 11 15 8.6 12z'/><path d='M12.5 6 21 12l-8.5 0z'/><path d='M12.5 18 21 12l-8.5 0z'/><path d='M8.6 12l3.9-2.2v4.4z'/></svg><span>Sabito AI</span></button>";
+    "<img class='avatar' alt='' width='34' height='34'><span>Sabito AI</span></button>";
+  var avatar = root.querySelector(".avatar");
+  avatar.src = new URL("/widget/sabito-avatar.webp", sabitoOrigin).href;
+  avatar.style.cssText = "width:34px;height:34px;flex:none;object-fit:contain;border-radius:50%;background:#fff;display:block";
   var panel = root.querySelector(".panel");
   var btn = root.querySelector(".btn");
   var errBox = root.querySelector(".err");

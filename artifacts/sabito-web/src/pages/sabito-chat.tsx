@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSabitoTest } from "@/hooks/use-sabito-test";
 import { AnimatedMessageText } from "@/components/chat/MessageText";
+import { SabitoAvatar } from "@/components/SabitoAvatar";
 import { CorrectionDialog, KnowledgeDialog, type CorrectionDraft } from "@/components/sabito-knowledge";
 import {
   ArrowUpRight,
@@ -21,7 +22,6 @@ import {
   Search,
   Send,
   ShieldCheck,
-  Sparkles,
   Store,
   X,
 } from "lucide-react";
@@ -93,7 +93,7 @@ export function SabitoChat() {
           <div className="pointer-events-none absolute -right-14 -top-10 h-44 w-44 rounded-full border border-white/10" />
           <div className="relative flex items-center gap-3 px-6 pb-7 pt-7">
             <div className="relative grid h-11 w-11 place-items-center rounded-[15px] bg-gradient-to-br from-[#7881ff] to-[#4855f6] shadow-[0_8px_20px_rgba(70,95,255,.32)]">
-              <span className="text-[19px] font-extrabold tracking-[-1.5px]">S</span>
+              <SabitoAvatar size={44} />
               <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-[2.5px] border-[#171d53] bg-[#58d99a]" />
             </div>
             <div>
@@ -202,7 +202,7 @@ export function SabitoChat() {
                 <Menu size={19} />
               </button>
               <div className="relative grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-[#4e5af8] to-[#3039d8] text-white shadow-[0_5px_12px_rgba(54,65,245,.2)]">
-                <Sparkles size={19} />
+                <SabitoAvatar size={40} />
                 <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#12b76a]" />
               </div>
               <div>
@@ -243,7 +243,7 @@ export function SabitoChat() {
               {messages.length === 0 ? (
                 <div className="mb-8 rounded-[22px] border border-[#e8eaff] bg-white p-7 shadow-[0_6px_24px_rgba(48,59,153,.045)]">
                   <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-[15px] bg-[#eef0ff] text-[#4651e8]">
-                    <Sparkles size={20} />
+                    <SabitoAvatar size={44} />
                   </div>
                   <h2 className="text-[23px] font-semibold tracking-[-.65px]">Bonjour, je suis Sabito.</h2>
                   <p className="mt-2 max-w-lg text-[13px] leading-6 text-[#6c748d]">
@@ -273,7 +273,7 @@ export function SabitoChat() {
                     ) : (
                       <div key={`assistant-${index}`} className="mb-6 flex items-start gap-3.5">
                         <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-[#4e5af8] to-[#3039d8] text-white">
-                          <Sparkles size={16} />
+                          <SabitoAvatar size={36} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="mb-2 flex items-center gap-2">

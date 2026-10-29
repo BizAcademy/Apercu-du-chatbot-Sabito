@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { io, type Socket } from "socket.io-client";
 import { getPlatformMessages } from "@workspace/api-client-react";
 import { RotateCw, Send, X } from "lucide-react";
+import { SabitoAvatar } from "@/components/SabitoAvatar";
 import { GreetingBubble } from "@/components/chat/AnswerExtras";
 import { AssistantAnswer } from "@/components/chat/AssistantAnswer";
 import { applyComplete, fromHistory, type ChatMsg, type CompleteEvent, type Greeting, type StartAck } from "@/components/chat/types";
@@ -209,13 +210,16 @@ export function WidgetChat() {
   return (
     <main className="flex h-[100dvh] flex-col bg-[#f6f4ee] font-['Outfit',sans-serif] text-[#1a1d2e]" style={{ ["--acc" as string]: accent }}>
       <header className="flex items-center justify-between gap-3 px-4 py-3 text-[#fbfaf6]" style={{ background: accent }}>
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <SabitoAvatar size={36} />
+          <div className="min-w-0">
           <h1 className="truncate text-[15px] font-semibold tracking-tight">{cfg.title}</h1>
           <p className="flex items-center gap-1.5 text-[11px] opacity-85" aria-live="polite">
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-[#7ee2a8]" : "bg-[#f2b84b]"}`} />
             {phase === "logged_out" ? "Déconnecté" : connected ? "En ligne" : phase === "loading" ? "Connexion…" : "Hors ligne"}
             {cfg.product && <span className="opacity-80">· {cfg.product}</span>}
           </p>
+          </div>
         </div>
         <button type="button" onClick={() => post({ type: "sabito:close" })} aria-label="Fermer le chat" className="grid h-9 w-9 place-items-center rounded-xl hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#f2b84b]" data-testid="button-widget-close"><X size={18} /></button>
       </header>

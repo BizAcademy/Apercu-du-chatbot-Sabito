@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { CoreStatus } from "@workspace/api-client-react";
 import { KeyRound, ShieldAlert } from "lucide-react";
 import { useAdmin } from "@/lib/admin";
+import { SabitoAvatar } from "@/components/SabitoAvatar";
 
 export function AdminLogin({ status, statusError, retry }: { status?: CoreStatus; statusError?: string; retry: () => void }) {
   const { login } = useAdmin();
@@ -14,7 +15,7 @@ export function AdminLogin({ status, statusError, retry }: { status?: CoreStatus
         <div className="relative overflow-hidden bg-[#171d53] px-7 py-7 text-white">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full border border-white/10" />
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-[15px] bg-gradient-to-br from-[#7881ff] to-[#4855f6] text-[19px] font-extrabold">S</div>
+            <SabitoAvatar size={44} />
             <div><div className="text-[19px] font-bold">sabito</div><div className="text-[10px] tracking-[1.5px] text-[#aeb5e8]">CONSOLE D'ADMINISTRATION</div></div>
           </div>
           <p className="mt-5 text-[13px] leading-6 text-[#c0c6eb]">Gère les plateformes, leurs identifiants et les références validées que Sabito utilise pour répondre.</p>

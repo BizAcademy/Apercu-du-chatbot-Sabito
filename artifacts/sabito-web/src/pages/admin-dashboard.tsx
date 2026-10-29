@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { SabitoAvatar } from "@/components/SabitoAvatar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -42,7 +43,7 @@ function Console() {
       <header className="bg-[#171d53] text-white">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-[#7881ff] to-[#4855f6] font-extrabold">S</div>
+            <SabitoAvatar size={40} />
             <div><div className="text-[17px] font-bold">sabito</div><div className="text-[10px] tracking-[1.5px] text-[#aeb5e8]">CONSOLE D'ADMINISTRATION</div></div>
           </div>
           <div className="flex items-center gap-3">
