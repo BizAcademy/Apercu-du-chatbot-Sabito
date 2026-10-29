@@ -1,4 +1,4 @@
 export function platformTitle(name = "") {
-  const platform = name.trim();
-  return /^sabito/i.test(platform) ? platform : `Sabito${platform}`;
+  const platform = name.trim().replace(/^sabito\s*/i, "");
+  return platform ? `Sabito ${platform}` : "Sabito";
 }
