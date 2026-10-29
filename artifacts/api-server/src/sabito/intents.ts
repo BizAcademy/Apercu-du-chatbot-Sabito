@@ -7,6 +7,7 @@ import { searchState,detectIntent,retrieveReply } from "./question-search";
 import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
 import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
+import { greetingReply } from "./greeting-reply";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -23,6 +24,9 @@ async function ticket(projectId:string,conversationId:string,claims:AccessClaims
   return String(result.rows[0].id);
 }
 export async function handleIntent(claims:AccessClaims, conversationId:string, text:string):Promise<string|null> {
+  // A social greeting is never a transaction number, confirmation or backend trigger.
+  // Leave any in-progress verification intact.
+  if(greetingReply(text)) return null;
   const normalized=normalizeQuestion(text);
   const {settings}=await searchState(claims.sub);
   const intentRegistry=Object.fromEntries(settings.intents.filter(d=>d.enabled).map(d=>[d.id,{

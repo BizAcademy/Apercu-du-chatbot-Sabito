@@ -303,6 +303,14 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).put(url).set("X-Admin-Key",adminKey).send({settings,expected_revision:before.body.revision}).expect(409);
       const reply=await retrieveReply(second.project.id,"Mystère xylophonique inconnu");
       assert.equal(reply.answer,settings.no_answer_message);assert.equal(reply.closing_message,"");
+      for(const text of ["bonjour","bonsoir","salut","bonjour comment tu vas","bonsoir comment tu vas"]) {
+        const greeting=await retrieveReply(second.project.id,text);
+        assert.ok(greeting.answer.endsWith("Que puis-je faire pour vous ?"));
+        assert.equal(greeting.reliable,true);
+        assert.deepEqual(greeting.suggestions,[]);
+        assert.equal(greeting.suggestions_label,"");
+        assert.equal(greeting.closing_message,"");
+      }
       for(const acknowledgement of ["merci","ok","okk","daccord","d’accord","tank","thanks","ok merci beaucoup"]) {
         const closing=await retrieveReply(second.project.id,acknowledgement);
         assert.equal(closing.answer,"À la prochaine ! N'hésitez pas à revenir si vous avez un souci.");
@@ -333,6 +341,10 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const conv=await createConversation(id,claims.externalUserId);
       assert.match((await handleIntent(claims,conv,"Bonjour, depuis hier je souhaite suivre la facture et connaître sa situation exacte, merci."))!,/oui ou non/);
       assert.match((await handleIntent(claims,conv,"oui"))!,/numéro de facture/);
+      assert.equal(await handleIntent(claims,conv,"bonjour comment tu vas"),null);
+      const collecting=await pool.query("SELECT status,collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+      assert.equal(collecting.rows[0].status,"collecting");
+      assert.ok(!JSON.stringify(collecting.rows[0].collected_json).includes("bonjour"));
       const answer=handleIntent(claims,conv,"FCT-7");
       async function completeJob(operation:string,data:Record<string,string>,status="ok") {
         for(let attempt=0;attempt<100;attempt++) {
@@ -607,7 +619,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal(unrelated.suggestions_label,"");
       assert.deepEqual((await retrieveReply(id,"salut salut")).suggestions,[]);
       // Greetings remain answerable; only their use as proposals is suppressed.
-      assert.equal((await retrieveReply(id,"Bonjour")).answer,"Bienvenue sur notre plateforme.");
+      assert.equal((await retrieveReply(id,"Bonjour")).answer,"Bonjour ! Que puis-je faire pour vous ?");
       const bridgeToken=signAccessToken({sub:id,clientId:fixture.credentials.clientId,
         externalUserId:"clarification-member",scope:["chat:connect","member:verified"]});
       const client=await openSocket(bridgeToken);

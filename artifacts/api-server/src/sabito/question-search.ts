@@ -4,6 +4,7 @@ import { followUpSuggestions,isGreetingSuggestion,type FollowUp } from "./knowle
 import { readAssistantSettings,onAssistantChange,type AssistantSettings } from "./assistant-settings";
 import { normalizeQuestion as normalized } from "./question-normalization";
 import { conversationClosing, isClosingAcknowledgement } from "./conversation-closing";
+import { greetingReply } from "./greeting-reply";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -151,6 +152,11 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
   return {settings,matches};
 }
 export async function retrieveReply(projectId:string,question:string) {
+  const greeting = greetingReply(question);
+  if(greeting) return {
+    answer:greeting,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
+    closing_message:"",suggestions_label:"",
+  };
   if(isClosingAcknowledgement(question)) return {
     answer:conversationClosing,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
     closing_message:"",suggestions_label:"",
