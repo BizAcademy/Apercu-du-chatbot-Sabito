@@ -207,7 +207,7 @@ function ChatInner() {
             <div key={m.id} className="mb-5 flex gap-3">
               <SabitoAvatar size={32} />
               <div className="min-w-0 flex-1">
-                <AssistantAnswer m={m} className="w-fit whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-3 text-[13px] leading-[1.75] text-[#14532d]" placeholder="Typing..." disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
+                <AssistantAnswer m={m} className="w-fit whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-3 text-[13px] leading-[1.75] text-[#14532d]" placeholder="je réfléchis..." disabled={!connected || sending} onPick={(q, fid) => send(undefined, q, fid)} />
                 {m.failed && <p className="text-[11px] text-[#b4441f]">Erreur : {m.failed}</p>}
                 {!m.pending && m.content && <button className="mt-2 text-[12px] text-[#3641f5]" onClick={() => correct(i)} data-testid={`button-correct-${m.id}`}>Corriger la réponse</button>}
               </div>

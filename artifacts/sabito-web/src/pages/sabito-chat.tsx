@@ -292,7 +292,7 @@ export function SabitoChat() {
 
                 </>
               )}
-              {busy && <p role="status" className="w-fit rounded-[18px] bg-[#f0f0f0] px-4 py-3 text-sm text-[#454545]">Typing...</p>}
+              {busy && <p role="status" className="w-fit rounded-[18px] bg-[#f0f0f0] px-4 py-3 text-sm text-[#454545]">je réfléchis...</p>}
               {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {error}
                 <button className="ml-3 underline" disabled={busy} onClick={() => ready && messages.at(-1)?.role === "user" ? void send(messages.at(-1)!.content, true) : void refresh()}>Réessayer</button>

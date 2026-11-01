@@ -9,7 +9,7 @@ export function AnimatedMessageText({ content, animate }: { content: string; ani
     const timer = window.setTimeout(() => setWaiting(false), 2000);
     return () => window.clearTimeout(timer);
   }, [animate]);
-  if (waiting) return <span role="status">Typing...</span>;
+  if (waiting) return <span role="status">je réfléchis...</span>;
   return <RevealedMessageText content={content} animate={animate} />;
 }
 

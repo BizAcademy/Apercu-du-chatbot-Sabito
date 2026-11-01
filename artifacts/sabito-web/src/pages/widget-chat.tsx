@@ -260,7 +260,7 @@ export function WidgetChat() {
           </div>
         ) : (
           <div key={m.id} className="mb-4 max-w-[90%]">
-            <AssistantAnswer m={m} className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-2.5 text-[13px] leading-[1.7] text-[#14532d]" placeholder="Typing..." tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
+            <AssistantAnswer m={m} className="whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[5px] bg-[#dcfce7] px-4 py-2.5 text-[13px] leading-[1.7] text-[#14532d]" placeholder="je réfléchis..." tone="widget" accent={accent} disabled={!connected || sending || phase !== "ready"} onPick={(q, fid) => send(undefined, q, fid)} />
             {m.failed && <p className="mt-1 text-[11px] text-[#a3401c]">Erreur : {m.failed}</p>}
           </div>
         ))}

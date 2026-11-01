@@ -19,7 +19,7 @@ export function AssistantAnswer(props: AnswerProps) {
     return () => window.clearTimeout(timer);
   }, [m.animate, m.pending, m.failed]);
   if ((waiting || m.pending) && !m.failed) {
-    return <div role="status" className="w-fit rounded-[18px] rounded-bl-[5px] bg-[#f0f0f0] px-4 py-2.5 text-[13px] text-[#454545]">Typing...</div>;
+    return <div role="status" className="w-fit rounded-[18px] rounded-bl-[5px] bg-[#f0f0f0] px-4 py-2.5 text-[13px] text-[#454545]">je réfléchis...</div>;
   }
   return <AnswerBody {...props} />;
 }
