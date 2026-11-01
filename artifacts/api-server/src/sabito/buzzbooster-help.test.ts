@@ -5,6 +5,8 @@ import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,buzzOperations
 
 test("Public general questions route to approved complete guides, not personal lookups",()=>{
   const cases:Record<string,string>={
+    "Comment ça fonctionne ?":"overview","C’est quoi cette plateforme ?":"overview",
+    "Quels services proposez-vous ?":"overview","Je suis nouveau, expliquez-moi":"overview",
     "Comment créer un compte ?":"signup","Comment faire un dépôt ?":"mobile-money","cmt faire un depot ?":"mobile-money",
     "Guide Mobile Money":"mobile-money","Guide Wave":"wave","Le lien Wave manque":"wave",
     "Le paiement crypto est indisponible":"crypto","Comment commander des abonnés ?":"order-create",

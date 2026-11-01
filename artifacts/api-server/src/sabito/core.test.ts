@@ -28,6 +28,7 @@ import { ensureBcaKnowledge,isBcaHelpQuestion } from "./bca-knowledge-install";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { semanticSimilarity } from "./semantic";
 import { buzzGuides } from "./buzzbooster-guides";
+import { contextualBuzzReply } from "./public-help-context";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -127,6 +128,51 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         .send({slug:`bca-test-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les connaissances approuvées."}).expect(201);
       projectIds.push(bca.body.data.project.id);
       assert.equal((await readAssistantSettings(bca.body.data.project.id)).settings.intents.some(i=>i.backend_function==="account_activation"&&i.enabled),true);
+    });
+    await t.test("Buzz Booster introductions are public and elliptical questions retain only the current approved topic",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`buzz-intro-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",
+          system_prompt:"Répondre uniquement avec les réponses approuvées."}).expect(201);
+      const id=created.body.data.project.id;projectIds.push(id);
+      await readAssistantSettings(id);
+      const claims={sub:id,clientId:created.body.data.credentials.clientId,externalUserId:`guest:${randomUUID()}`,scope:["chat:connect"]};
+      // This fixture must not become sockets[0], which belongs to the original
+      // platform in the later credential-rotation test.
+      const socket=io(localTestAddress,{auth:{token:signAccessToken(claims)},transports:["polling"],reconnection:false});
+      try {
+      await Promise.race([socketOnce(socket,"session:ready"),socketOnce(socket,"connect_error").then(()=>{throw new Error("Socket authentication failed");})]);
+      const conversationId=await createConversation(id,claims.externalUserId);
+      const send=async(content:string,follow_up_id?:string)=>{
+        const complete=socketOnce<{content:string;suggestions:Array<{question:string;follow_up_id?:string}>}>(socket,"message:complete");
+        socket.emit("message:send",{conversationId,content,idempotencyKey:randomUUID(),...(follow_up_id?{follow_up_id}:{})},()=>{});
+        return (await complete)[0];
+      };
+      const overview=buzzGuides.find(g=>g.key==="overview")!,wave=buzzGuides.find(g=>g.key==="wave")!;
+      for(const question of ["Comment ça fonctionne ?","C’est quoi cette plateforme ?","Quels services proposez-vous ?","Je suis nouveau, expliquez-moi"]) {
+        assert.equal((await retrieveReply(id,question)).answer,overview.content);
+        assert.equal(await handleIntent(claims,conversationId,question),null);
+      }
+      assert.equal((await send("Guide Wave")).content,wave.content);
+      assert.equal((await send("Comment ça fonctionne ?")).content,wave.content);
+      assert.equal(await contextualBuzzReply({...claims,externalUserId:"other-member"},conversationId,"Comment ça fonctionne ?"),null);
+      const intro=await send("C’est quoi Buzz Booster ?");
+      assert.equal(intro.content,overview.content);
+      assert.equal(intro.suggestions.length,2);
+      assert.match(intro.content,/déjà connecté.*inutile de recréer/);
+      assert.doesNotMatch(intro.content,/numéro de commande|référence de transaction/);
+      const more=await send("Plus de détails");
+      assert.match(more.content,/Quel point souhaitez-vous approfondir/);
+      assert.equal(more.suggestions.length,2);
+      const deposit=more.suggestions.find(s=>s.question==="Comment faire un dépôt Mobile Money ?")!;
+      assert.ok(deposit.follow_up_id);
+      assert.equal((await send(deposit.question,deposit.follow_up_id)).content,buzzGuides.find(g=>g.key==="mobile-money")!.content);
+      // A financial response must end public-topic reuse rather than replaying
+      // a previous explanation or disclosing the private result as a guide.
+      await pool.query(`INSERT INTO sabito_core.messages(id,project_id,conversation_id,role,content,status,created_at)
+        VALUES ($1,$2,$3,'assistant','PRIVATE_BACKEND_RESULT','completed',DATE_ADD(NOW(),INTERVAL 1 DAY))`,
+        [randomUUID(),id,conversationId]);
+      assert.equal(await contextualBuzzReply(claims,conversationId,"Comment ça fonctionne ?"),null);
+      } finally {socket.disconnect();}
     });
     await t.test("All Buzz Booster money paths confirm, collect and dispatch exact scoped results without activation or withdrawals", async () => {
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)

@@ -21,7 +21,11 @@ export async function ensureBuzzBoosterKnowledge(projectId:string):Promise<boole
       const ids:string[]=[];
       for(const guide of buzzGuides) {
         if(titles.has(guide.title.toLowerCase()))continue;
-        const saved=await saveKnowledge(projectId,guide.title,guide.content,undefined,connection,guide.variants,[]);
+        const followUps=guide.key==="overview"
+          ? ["service-choice","mobile-money"].map(key=>buzzGuides.find(item=>item.key===key)!)
+            .map(item=>({question:item.title,answer:item.content}))
+          : [];
+        const saved=await saveKnowledge(projectId,guide.title,guide.content,undefined,connection,guide.variants,followUps);
         if(saved)ids.push(saved.documentId);
       }
       await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)

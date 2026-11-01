@@ -5,13 +5,24 @@ export type BuzzGuide={key:string;title:string;variants:string[];content:string;
 const guide=(key:string,title:string,variants:string[],match:RegExp,lines:string[]):BuzzGuide=>
   ({key,title,variants,match,content:lines.join("\n")});
 export const buzzGuides:BuzzGuide[]=[
-  guide("overview","Comment fonctionne Buzz Booster ?",["C'est quoi Buzz Booster ?","Quels réseaux sont disponibles ?"],/fonctionne buzz|presentation de buzz|c est quoi buzz|quels reseaux/,[
-    "Buzz Booster permet de commander des services de visibilité et d’engagement sur les réseaux sociaux.",
-    "1. Créez votre compte et vérifiez votre e-mail selon les instructions affichées.",
-    "2. Rechargez votre portefeuille dans Recharger.",
-    "3. Choisissez un catalogue, une catégorie et un service dans Nouvelle commande.",
-    "4. Vérifiez le lien, la quantité et le prix, puis validez et suivez la commande dans Ordres.",
-    "Les réseaux et services dépendent des catalogues activés. Aucune vente, monétisation, livraison instantanée ou conservation des résultats n’est garantie par ce guide.",
+  guide("overview","Comment fonctionne Buzz Booster ?",[
+    "C'est quoi Buzz Booster ?","Quels réseaux sont disponibles ?","Comment ça fonctionne ?","Comment ça marche ?",
+    "Je veux savoir comment ça fonctionne","C’est quoi cette plateforme ?","Quels services proposez-vous ?",
+    "Je suis nouveau, expliquez-moi","Vous proposez quoi ?","Que peut-on faire ici ?","Je suis nouveau",
+    "Explique-moi la plateforme","Expliquez-moi Buzz Booster","Présentation générale de Buzz Booster",
+  ],/fonctionne buzz|presentation de buzz|c est quoi buzz|quels reseaux|^(?:comment (?:ca|cela) (?:fonctionne|marche)|je veux savoir comment (?:ca|cela) fonctionne|c est quoi cette plateforme|quels services proposez vous|vous proposez quoi|que peut on faire ici|je suis nouveau(?: expliquez moi)?|explique(?:z)? moi (?:la plateforme|buzz booster))[?.! ]*$/,[
+    "Buzz Booster est une plateforme pour commander des services de visibilité et d’engagement sur les réseaux sociaux. Selon les offres du catalogue actuel, cela peut concerner des abonnés ou membres, des vues, des mentions J’aime, des commentaires ou d’autres interactions. Consultez Nouvelle commande pour savoir quels réseaux et services sont réellement proposés.",
+    "Si vous êtes déjà connecté, gardez votre compte et passez directement à Recharger : inutile de recréer un compte.",
+    "1. Si vous n’avez pas encore de compte, inscrivez-vous et vérifiez votre adresse e-mail, puis connectez-vous.",
+    "2. Rechargez votre solde depuis Recharger avec un moyen de paiement disponible.",
+    "3. Ouvrez Nouvelle commande pour consulter les catalogues, catégories et services.",
+    "4. Lisez les conditions, puis renseignez le lien demandé et la quantité.",
+    "5. Vérifiez le prix affiché avant de valider votre commande.",
+    "6. Suivez ensuite son évolution dans Ordres.",
+    "Vous pouvez aussi consulter vos paiements et mouvements de portefeuille, partager votre lien de parrainage, suivre un remboursement réellement enregistré et contacter Support.",
+    "Je peux vous guider pour un premier dépôt, comparer les caractéristiques documentées ou expliquer le suivi d’une commande. Les informations personnelles nécessitent une session membre ; cette présentation, non. Je ne réalise pas de paiement, de commande ou de remboursement à votre place.",
+    "Les prix, conditions, garanties et délais dépendent de l’offre affichée. Ces services ne garantissent ni ventes, ni monétisation, ni résultats organiques.",
+    "Souhaitez-vous découvrir les services ou apprendre à effectuer votre premier dépôt ?",
   ]),
   guide("signup","Comment créer un compte ?",["Comment s'inscrire ?","Créer un compte Buzz Booster","Inscription Buzz Booster"],/comment.*(?:inscri|creer.*compte)|^(?:inscription|creer un compte)/,[
     "1. Ouvrez la page d’inscription de Buzz Booster.",
@@ -163,7 +174,7 @@ export const buzzGuides:BuzzGuide[]=[
 /** Ordered, conservative routing of general guides. Personal cases are not guides. */
 export function buzzGuideFor(text:string):BuzzGuide|undefined {
   const q=expandQuestion(text).normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().replace(/['’_-]/g," ").replace(/\s+/g," ").trim();
-  const prioritized=["identity","no-withdrawal","no-activation","wave","crypto","order-requests","refunds","order-tracking","service-choice","deposit-references","deposit-bonus","affiliation"];
+  const prioritized=["identity","no-withdrawal","no-activation","overview","wave","crypto","order-requests","refunds","order-tracking","service-choice","deposit-references","deposit-bonus","affiliation"];
   const found=[...prioritized.map(key=>buzzGuides.find(guide=>guide.key===key)!),...buzzGuides.filter(guide=>!prioritized.includes(guide.key))]
     .find(guide=>guide.match.test(q));
   if(found&&["affiliation","deposit-bonus"].includes(found.key)&&/\b(mon|ma|mes)\b/.test(q)&&!/^comment\b/.test(q))return undefined;

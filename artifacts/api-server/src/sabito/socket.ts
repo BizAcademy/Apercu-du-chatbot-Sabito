@@ -14,6 +14,7 @@ import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { suggestedReply } from "./suggestion-replies";
+import { contextualBuzzReply } from "./public-help-context";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -127,11 +128,13 @@ export function attachSocketServer(httpServer: HttpServer) {
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
         const proposalAnswer = parsed.data.follow_up_id ? null :
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
-        const intentAnswer = parsed.data.follow_up_id || proposalAnswer ? null : await handleIntent(claims,conversationId,parsed.data.content);
+        const contextReply = parsed.data.follow_up_id || proposalAnswer ? null :
+          await contextualBuzzReply(claims,conversationId,parsed.data.content);
+        const intentAnswer = parsed.data.follow_up_id || proposalAnswer || contextReply ? null : await handleIntent(claims,conversationId,parsed.data.content);
         const reply = parsed.data.follow_up_id
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             suggestions_label:"",closing_message:""}
-          : await retrieveReply(claims.sub,parsed.data.content);
+          : contextReply ?? await retrieveReply(claims.sub,parsed.data.content);
         if(parsed.data.follow_up_id) {
           reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
           reply.reliable=true;
