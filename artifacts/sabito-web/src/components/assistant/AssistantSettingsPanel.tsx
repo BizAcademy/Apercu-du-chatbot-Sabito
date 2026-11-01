@@ -6,12 +6,13 @@ import { errMsg, useAdmin } from "@/lib/admin";
 import { MessagesEditor } from "./MessagesEditor";
 import { SynonymsEditor } from "./SynonymsEditor";
 import { IntentEditor } from "./IntentEditor";
-import { blankIntent, depositIntent, withdrawalIntent, settingsWarnings, validateSettings } from "./validate";
+import { blankIntent, depositIntent, withdrawalIntent, orderIntent, referralRewardIntent, settingsWarnings, validateSettings } from "./validate";
 import { btn, card, ghost, hint, label } from "./styles";
+import { appendIntentTemplates } from "./template-tools";
 
 type Tab = "retrieval" | "messages" | "intents";
 
-export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
+export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { projectId: string; buzzBooster?: boolean }) {
   const { headers } = useAdmin();
   const qc = useQueryClient();
   const key = ["sabito-admin", "assistant-settings", projectId];
@@ -21,6 +22,7 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
   const [conflict, setConflict] = useState(false);
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<Tab>("intents");
+  const [templateId, setTemplateId] = useState("");
   const baseline = useRef("");
 
   useEffect(() => {
@@ -60,6 +62,9 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
   const errors = validateSettings(draft);
   const warnings = settingsWarnings(draft);
   const dirty = JSON.stringify(draft) !== baseline.current;
+  const bca = q.data?.profile === "bca";
+  const templates = q.data?.intent_templates ?? [];
+  const missingTemplates = templates.filter(template => !draft.intents.some(intent => intent.backend_function === template.backend_function));
   const patch = (p: Partial<AssistantSettings>) => setDraft({ ...draft, ...p });
   const tabs: { k: Tab; l: string }[] = [{ k: "intents", l: `Intentions (${draft.intents.length})` }, { k: "messages", l: "Messages" }, { k: "retrieval", l: "Recherche" }];
 
@@ -83,23 +88,49 @@ export function AssistantSettingsPanel({ projectId }: { projectId: string }) {
       {tab === "messages" && <MessagesEditor value={draft} onChange={patch} />}
       {tab === "intents" && (
         <div>
+          {bca && <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3" data-testid="section-bca-financial-templates">
+            <div className={label}>Parcours financiers BCA — consultation uniquement</div>
+            <p className={`${hint} mb-3`}>Dépôts, retraits, transferts, conversions, parrainage, formations, Digital Store, BCA Ads et ajustements. Chaque fonction doit être raccordée au backend BCA. Les gains d’activité restent désactivés tant que leur service réel n’est pas confirmé. Vos règles existantes ne sont pas écrasées.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor={`bca-template-${projectId}`} className="sr-only">Modèle financier BCA à ajouter</label>
+              <select id={`bca-template-${projectId}`} className="max-w-full rounded-lg border border-[#e3e6f8] bg-white p-2 text-[12px]" value={templateId} onChange={event => setTemplateId(event.target.value)} data-testid="select-bca-intent-template">
+                <option value="">Choisir un parcours manquant</option>
+                {missingTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
+              </select>
+              <button type="button" className={ghost} disabled={draft.intents.length>=100 || !missingTemplates.some(template=>template.id===templateId)} onClick={() => {
+                patch({intents:appendIntentTemplates(draft.intents,missingTemplates.filter(template=>template.id===templateId))});setTemplateId("");
+              }} data-testid="button-add-bca-template">Ajouter ce parcours</button>
+              <button type="button" className={ghost} disabled={draft.intents.length+missingTemplates.length>100 || !missingTemplates.length} onClick={() => {
+                patch({intents:appendIntentTemplates(draft.intents,missingTemplates)});setTemplateId("");
+              }} data-testid="button-add-all-bca-templates">Ajouter les parcours BCA manquants ({missingTemplates.length})</button>
+            </div>
+            {draft.intents.length+missingTemplates.length>100 && <p role="alert" className={`${hint} mt-2`}>L’ajout de tous les parcours dépasserait la limite de 100 intentions. Ajoutez les modèles individuellement ou retirez des règles inutilisées.</p>}
+            <p className={`${hint} mt-2`}>Cliquez sur « Enregistrer » pour appliquer vos ajouts. Pour remplacer une règle personnalisée, modifiez-la directement plutôt que créer un doublon.</p>
+          </div>}
+          {buzzBooster && <p className="mb-3 rounded-xl bg-[#f6f7ff] p-3 text-[12px] text-[#48506a]">Buzz Booster : suivi des dépôts, commandes de boost et parrainage. Aucune activation de compte ni opération financière n'est exécutée par Sabito. Les fonctions doivent être raccordées au backend Buzz Booster.</p>}
           <p className={`${hint} mb-3`}>Une intention répond d'abord à la question, puis demande confirmation. Après un « oui », elle collecte les champs nécessaires et appelle une fonction en lecture seule du serveur de la plateforme. Activation, suppression et modifications sont appliquées à l'enregistrement.</p>
           <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3">
             <div className={label}>Synonymes propres à cette plateforme</div>
             <p className={`${hint} mb-2`}>Exemple : dépôt, recharge, versement. Ils sont reconnus dans les déclencheurs, même au milieu d'une phrase. Préférez « dépôt non reçu » à un mot trop général comme « compte ».</p>
             <SynonymsEditor value={draft.synonyms} onChange={(synonyms) => patch({ synonyms })} />
           </div>
-          <button type="button" className={`${ghost} mb-3`} disabled={draft.intents.length >= 100}
+          {!bca && <><button type="button" className={`${ghost} mb-3`} disabled={draft.intents.length >= 100}
             onClick={() => patch({ intents: [...draft.intents, depositIntent(draft.intents)] })}
             data-testid="button-add-deposit-intent">Ajouter le modèle « Dépôt non reçu »</button>
-          <button type="button" className={`${ghost} mb-3 ml-2`} disabled={draft.intents.length >= 100}
+          {!buzzBooster && <button type="button" className={`${ghost} mb-3 ml-2`} disabled={draft.intents.length >= 100}
             onClick={() => patch({ intents: [...draft.intents, withdrawalIntent(draft.intents)] })}
-            data-testid="button-add-withdrawal-intent">Ajouter le modèle « Retrait »</button>
+            data-testid="button-add-withdrawal-intent">Ajouter le modèle « Retrait »</button>}
+          <button type="button" className={`${ghost} mb-3 ml-2`} disabled={draft.intents.length >= 100}
+            onClick={() => patch({ intents: [...draft.intents, orderIntent(draft.intents)] })}
+            data-testid="button-add-order-intent">Ajouter le modèle « Commande de boost »</button>
+          <button type="button" className={`${ghost} mb-3 ml-2`} disabled={draft.intents.length >= 100}
+            onClick={() => patch({ intents: [...draft.intents, referralRewardIntent(draft.intents)] })}
+            data-testid="button-add-referral-reward-intent">Ajouter le modèle « Commission de parrainage »</button></>}
           <p className={`${hint} mb-3`}>Le modèle ajoute une nouvelle règle sans modifier vos règles existantes. Si une ancienne règle utilise les mêmes déclencheurs, désactivez-la pour éviter une ambiguïté. Le numéro doit toujours être recoupé avec l'identité du membre par votre backend.</p>
           {draft.intents.length === 0 && <p className="rounded-xl bg-[#f6f7ff] p-4 text-[12px] text-[#6c748d]">Aucune intention. Les questions de compte recevront le message « aucune réponse ».</p>}
           <div className="space-y-2">
             {draft.intents.map((it, i) => (
-              <IntentEditor key={i} intent={it} all={draft.intents}
+              <IntentEditor key={i} intent={it} all={draft.intents} knownFunctions={templates.length ? templates.map(template=>template.backend_function) : undefined}
                 onChange={(v) => patch({ intents: draft.intents.map((x, j) => (j === i ? v : x)) })}
                 onDelete={() => patch({ intents: draft.intents.filter((_, j) => j !== i) })} />
             ))}

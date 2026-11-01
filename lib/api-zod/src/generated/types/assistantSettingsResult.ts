@@ -6,8 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AssistantSettings } from './assistantSettings';
+import type { AssistantSettingsResultProfile } from './assistantSettingsResultProfile';
+import type { IntentDefinition } from './intentDefinition';
 
 export interface AssistantSettingsResult {
+  profile?: AssistantSettingsResultProfile;
+  intent_templates?: IntentDefinition[];
   settings: AssistantSettings;
   revision: number;
 }

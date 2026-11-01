@@ -17,7 +17,9 @@ import { acceptUserMessage, createConversation } from "./conversations";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { verifyAccessToken,signAccessToken } from "./security";
-import { defaultSettings,readAssistantSettings } from "./assistant-settings";
+import { defaultSettings,readAssistantSettings,settingsSchema } from "./assistant-settings";
+import { adaptBuzzBooster,buzzBoosterIntents,isBuzzBooster } from "./buzzbooster-settings";
+import { bcaIntents } from "./bca-settings";
 import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
 import { searchKnowledge } from "./knowledge";
@@ -60,6 +62,137 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     return socket;
   };
   try {
+    await t.test("Buzz Booster uses SMM defaults, safely upgrades legacy settings and preserves BCA", async () => {
+      assert.equal(isBuzzBooster("buzzbooster","Buzz Booster"),true);
+      assert.equal(isBuzzBooster("another","Sabito Buzz Booster"),true);
+      assert.equal(isBuzzBooster("bca","Biz Connect Academy"),false);
+      assert.equal(isBuzzBooster("fake-buzzbooster-store","Other"),false);
+      const response=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`buzz-test-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les connaissances approuvées."}).expect(201);
+      const id=response.body.data.project.id;
+      projectIds.push(id);
+      const fresh=await readAssistantSettings(id);
+      assert.deepEqual(fresh.settings.intents.map(i=>i.backend_function),
+        ["deposit_status","order_status","referral_code","referral_reward_status"]);
+      const claims={sub:id,clientId:response.body.data.credentials.clientId,externalUserId:`buzz-member-${randomUUID()}`,scope:["chat:connect","member:verified"]};
+      const conversation=await createConversation(id,claims.externalUserId);
+      const proposal=await handleIntent(claims,conversation,"Où est ma commande ?");
+      assert.match(String(proposal),/commande de boost.*oui ou non/s);
+      assert.doesNotMatch(String(proposal),/activation/i);
+      const prompt=await handleIntent(claims,conversation,"oui");
+      assert.match(String(prompt),/numéro de votre commande/);
+      const legacy=settingsSchema.parse(defaultSettings(false));
+      await request(app).put(`/v1/admin/projects/${id}/assistant-settings`).set("X-Admin-Key",adminKey)
+        .send({settings:legacy,expected_revision:fresh.revision}).expect(200);
+      const upgraded=await readAssistantSettings(id);
+      assert.equal(upgraded.settings.intents.some(i=>i.backend_function==="account_activation"),false);
+      assert.equal(upgraded.settings.intents.filter(i=>i.backend_function==="order_status").length,1);
+      const custom=structuredClone(legacy);
+      custom.greeting_member="Bienvenue {nom_utilisateur} dans notre espace personnalisé.";
+      custom.intents[0].name="Ancienne règle personnalisée";
+      custom.intents[1].triggers=["ma recharge spéciale"];
+      custom.intents[1].fields=[];
+      const adapted=adaptBuzzBooster(custom,legacy);
+      assert.equal(adapted.greeting_member,custom.greeting_member);
+      assert.equal(adapted.intents.find(i=>i.backend_function==="account_activation")?.enabled,false);
+      assert.deepEqual(adapted.intents.find(i=>i.backend_function==="deposit_status"),custom.intents[1]);
+      assert.deepEqual(adaptBuzzBooster(adapted,legacy),adapted);
+      assert.deepEqual(adaptBuzzBooster({...adapted,intents:[]},legacy).intents,[]);
+      const collision=structuredClone(legacy);
+      collision.intents.push({...buzzBoosterIntents()[1],backend_function:"custom_order"});
+      const safe=adaptBuzzBooster(collision,legacy);
+      settingsSchema.parse(safe);
+      assert.equal(safe.intents.find(i=>i.backend_function==="custom_order")?.id,"order_status");
+      assert.equal(safe.intents.find(i=>i.backend_function==="order_status")?.id,"order_status_2");
+      const bca=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`bca-test-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les connaissances approuvées."}).expect(201);
+      projectIds.push(bca.body.data.project.id);
+      assert.equal((await readAssistantSettings(bca.body.data.project.id)).settings.intents.some(i=>i.backend_function==="account_activation"&&i.enabled),true);
+    });
+    await t.test("BCA financial catalog confirms, collects and dispatches every enabled read operation with isolated identity", async () => {
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`bca-finance-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const {project,credentials}=created.body.data;
+      const id=project.id,url=`/v1/admin/projects/${id}/assistant-settings`;
+      projectIds.push(id);
+      await request(app).get(url).expect(401);
+      let config=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body;
+      assert.equal(config.profile,"bca");
+      assert.equal(config.intent_templates.length,25);
+      const expected=bcaIntents();
+      assert.deepEqual(config.settings.intents.map((item:{id:string})=>item.id),expected.map(item=>item.id));
+      assert.equal(config.settings.intents.find((item:{id:string})=>item.id==="activity_reward_status").enabled,false);
+      const settings=settingsSchema.parse(config.settings);
+      const operations=expected.filter(item=>item.enabled).map(item=>item.backend_function);
+      const claims={sub:id,clientId:credentials.clientId,externalUserId:"bca-financial-member",scope:["chat:connect","member:verified"]};
+      const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret).send({operations});
+      await poll().expect(200);
+      for(const intent of expected.filter(item=>item.enabled)) {
+        for(const trigger of intent.triggers) assert.equal(detectIntent(trigger,settings),intent.id,trigger);
+        const conv=await createConversation(id,claims.externalUserId);
+        const proposal=await handleIntent(claims,conv,intent.triggers[0]);
+        assert.match(proposal!,/oui ou non/);
+        assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+        let answer:Promise<string|null>;
+        if(intent.fields.length) {
+          assert.match((await handleIntent(claims,conv,"oui"))!,new RegExp(intent.fields[0].prompt.slice(0,10)));
+          assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+          answer=handleIntent(claims,conv,"REF-BCA-123");
+        } else {
+          answer=handleIntent(claims,conv,"oui");
+        }
+        let completed=false;
+        for(let attempt=0;attempt<100;attempt++) {
+          const jobs=(await poll().expect(200)).body.jobs;
+          const job=jobs.find((item:{operation:string})=>item.operation===intent.backend_function);
+          if(job) {
+            assert.equal(job.external_user_id,claims.externalUserId);
+            assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:"REF-BCA-123"}:{});
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+              .send({result:{status:"confirmed",data:{statut:"Statut réel BCA",reference:"REF-BCA-123",montant:1250,devise:"XAF",code:"PARRAIN-BCA"}}}).expect(200);
+            completed=true;break;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        assert.equal(completed,true,intent.backend_function);
+        const rendered=await answer;
+        if(intent.backend_function==="referral_code") assert.equal(rendered,"Votre code de parrainage est : PARRAIN-BCA");
+        else {
+          assert.match(rendered!,/Statut réel BCA/);
+          assert.match(rendered!,/1250/);
+        }
+        assert.doesNotMatch(rendered!,/ticket a été créé/);
+      }
+      const declined=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,declined,"transfert BCA à BCA");
+      await handleIntent(claims,declined,"non");
+      assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+      const guest={...claims,externalUserId:"guest:financial-test",scope:["chat:connect"]};
+      const guestConv=await createConversation(id,guest.externalUserId);
+      await handleIntent(guest,guestConv,"statut de ma conversion");
+      assert.match((await handleIntent(guest,guestConv,"oui"))!,/Connectez-vous/);
+      assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+      // Existing custom messages survive the automatic upgrade of untouched historical rules.
+      const historical=settingsSchema.parse(defaultSettings(true));
+      historical.greeting_member="Bienvenue {nom_utilisateur}, message BCA personnalisé.";
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:historical,expected_revision:config.revision}).expect(200)).body;
+      assert.equal(config.settings.intents.length,25);
+      assert.equal(config.settings.greeting_member,historical.greeting_member);
+      // Authored, disabled and intentionally deleted rules must not be restored or overwritten.
+      const custom=structuredClone(historical);
+      custom.intents[1].triggers=["ma recharge BCA personnalisée"];
+      custom.intents[1].enabled=false;
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
+      assert.deepEqual(config.settings.intents,settingsSchema.parse(custom).intents);
+      assert.equal(config.intent_templates.length,25);
+      custom.intents=[];
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
+      assert.deepEqual(config.settings.intents,[]);
+      assert.deepEqual((await readAssistantSettings(id)).settings.intents,[]);
+    });
     await t.test("Administration is protected and credentials are issued only once",async () => {
       await request(app).get("/v1/admin/projects").expect(401);
       const response = await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)

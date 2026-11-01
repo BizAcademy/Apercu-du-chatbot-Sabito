@@ -171,7 +171,18 @@ export interface AssistantSettings {
   intents: IntentDefinition[];
 }
 
+export type AssistantSettingsResultProfile = typeof AssistantSettingsResultProfile[keyof typeof AssistantSettingsResultProfile];
+
+
+export const AssistantSettingsResultProfile = {
+  bca: 'bca',
+  buzzbooster: 'buzzbooster',
+  generic: 'generic',
+} as const;
+
 export interface AssistantSettingsResult {
+  profile?: AssistantSettingsResultProfile;
+  intent_templates?: IntentDefinition[];
   settings: AssistantSettings;
   revision: number;
 }

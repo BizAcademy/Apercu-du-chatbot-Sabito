@@ -9,6 +9,7 @@
 export * from './answerUnansweredQuestionBody';
 export * from './assistantSettings';
 export * from './assistantSettingsResult';
+export * from './assistantSettingsResultProfile';
 export * from './assistantSettingsUpdate';
 export * from './backendJob';
 export * from './backendJobFields';

@@ -524,6 +524,12 @@ components:
       type: object
       required: [settings, revision]
       properties:
+        profile:
+          type: string
+          enum: [bca, buzzbooster, generic]
+        intent_templates:
+          type: array
+          items: {$ref: "#/components/schemas/IntentDefinition"}
         settings: {$ref: "#/components/schemas/AssistantSettings"}
         revision: {type: integer}
     AssistantSettingsUpdate:

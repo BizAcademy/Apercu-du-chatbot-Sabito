@@ -1,7 +1,7 @@
 import type { AssistantSettings, IntentDefinition } from "@workspace/api-client-react";
 
 export const SNAKE = /^[a-z][a-z0-9_]{1,63}$/;
-export const KNOWN_FUNCTIONS = ["account_activation", "deposit_status", "referral_code"];
+export const KNOWN_FUNCTIONS = ["account_activation", "deposit_status", "withdrawal_status", "order_status", "referral_code", "referral_reward_status"];
 
 export const MESSAGE_FIELDS: { key: keyof AssistantSettings; label: string; help: string; optional?: boolean }[] = [
   { key: "greeting_member", label: "Accueil d'un membre identifié", help: "Variable autorisée : {nom_utilisateur}, fournie par le serveur de la plateforme, jamais par le navigateur." },
@@ -109,4 +109,26 @@ export function withdrawalIntent(existing: IntentDefinition[]): IntentDefinition
     confirmation_question:"Avez-vous effectué un retrait ? Répondez par oui ou non.",
     fields:[{name:"withdrawal_number",prompt:"Veuillez me communiquer le numéro utilisé pour effectuer le retrait.",
       type:"text",min_length:1,max_length:100}]};
+}
+
+export function orderIntent(existing: IntentDefinition[]): IntentDefinition {
+  const base=depositIntent(existing);
+  return {...base,id:existing.some(i=>i.id==="order_status")?blankIntent(existing).id:"order_status",
+    name:"Suivi d'une commande de boost",backend_function:"order_status",
+    triggers:["suivre ma commande","statut de ma commande","commande en attente","commande non reçue","boost non reçu","où est ma commande"],
+    initial_response:"L’avancement dépend du service de boost choisi. Je peux proposer une vérification du statut sans garantir de délai.",
+    confirmation_question:"Avez-vous passé une commande de boost à vérifier ? Répondez par oui ou non.",
+    fields:[{name:"order_id",prompt:"Veuillez communiquer le numéro de votre commande de boost.",
+      type:"identifier",min_length:1,max_length:128}]};
+}
+
+export function referralRewardIntent(existing: IntentDefinition[]): IntentDefinition {
+  const base=depositIntent(existing);
+  return {...base,id:existing.some(i=>i.id==="referral_reward_status")?blankIntent(existing).id:"referral_reward_status",
+    name:"Suivi d'une commission de parrainage",backend_function:"referral_reward_status",
+    triggers:["commission de parrainage non reçue","vérifier ma commission de parrainage","récompense de parrainage en attente"],
+    initial_response:"Les commissions dépendent des conditions de parrainage de la plateforme. Je peux proposer une vérification.",
+    confirmation_question:"Souhaitez-vous vérifier une commission de parrainage ? Répondez par oui ou non.",
+    fields:[{name:"reward_reference",prompt:"Quelle est la référence de la commission de parrainage à vérifier ?",
+      type:"identifier",min_length:1,max_length:128}]};
 }

@@ -153,12 +153,12 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
           </div>
         )}
       </section>
-      <AssistantSettingsPanel projectId={p.id} />
+      <AssistantSettingsPanel key={p.id} projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <SupportTickets projectId={p.id} />
       <UnansweredQuestions projectId={p.id} />
       <Knowledge projectId={p.id} />
       <WidgetIntegration project={p} />
-      <BackendConnection projectId={p.id} />
+      <BackendConnection projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <section className={card}>
         <h2 className="text-[15px] font-bold">Jetons utilisateur pour le chat (intégration serveur)</h2>
         <p className="mt-1 text-[12px] leading-5 text-[#6c748d]">Cette étape n'est pas nécessaire pour le widget visiteur ci-dessus. Elle permet d'ouvrir le chat au nom d'un membre identifié, condition pour que Sabito consulte ses données via le serveur de la plateforme. Le secret client reste sur le serveur de la plateforme, jamais dans le script public. L'adresse ci-dessous est celle du dashboard actuellement ouvert.</p>

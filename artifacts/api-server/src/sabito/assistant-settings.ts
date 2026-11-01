@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "./database";
 import { getProject } from "./projects";
+import { adaptBuzzBooster, buzzBoosterIntents, isBuzzBooster } from "./buzzbooster-settings";
+import { adaptBca, bcaIntents } from "./bca-settings";
 
 export const identifier=z.string().regex(/^[a-z][a-z0-9_]{1,63}$/).refine(s=>!["constructor","prototype"].includes(s));
 const text=z.string().trim().min(1).max(4000);
@@ -76,7 +78,13 @@ export async function readAssistantSettings(projectId:string) {
     LEFT JOIN sabito_core.assistant_settings s ON s.project_id=p.id WHERE p.id=$1`,[projectId]);
   const row=result.rows[0];if(!row) throw new Error("PROJECT_NOT_FOUND");
   const bca=/\bbca\b|sabitobca|biz\s*connect\s*academy/i.test(`${row.slug} ${row.name}`);
-  return {settings:settingsSchema.parse({...defaultSettings(bca),...JSON.parse(String(row.config_json??"{}"))}),revision:Number(row.revision??0)};
+  const legacy=settingsSchema.parse(defaultSettings(bca));
+  const buzz=isBuzzBooster(String(row.slug),String(row.name));
+  const defaults=buzz ? {...legacy,intents:buzzBoosterIntents()} : bca ? {...legacy,intents:bcaIntents()} : legacy;
+  const settings=settingsSchema.parse({...defaults,...JSON.parse(String(row.config_json??"{}"))});
+  return {settings:settingsSchema.parse(buzz ? adaptBuzzBooster(settings,legacy) : bca ? adaptBca(settings,legacy) : settings),
+    revision:Number(row.revision??0),profile:buzz ? "buzzbooster" as const : bca ? "bca" as const : "generic" as const,
+    intent_templates:buzz ? buzzBoosterIntents() : bca ? bcaIntents() : legacy.intents};
 }
 export const assistantAdminRoutes=Router();
 assistantAdminRoutes.get("/v1/admin/projects/:projectId/assistant-settings",async(req,res)=>{

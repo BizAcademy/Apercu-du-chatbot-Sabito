@@ -150,7 +150,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const data={...response.data,statut:response.data?.statut??response.status,
       details_transaction:Object.entries(response.data??{})
         .filter(([,value])=>value!==null).map(([key,value])=>`${key} : ${String(value)}`).join("\n"),
-      code_parrain:response.code??response.data?.code_parrain,
+      code_parrain:response.data?.code_parrain??response.data?.code??response.code,
       nom_utilisateur:claims.externalUserName??response.data?.nom_utilisateur};
     const answer=renderTemplate(definition.responses[outcome],data);
     // A failed transaction is a verified business result, not a connector outage.

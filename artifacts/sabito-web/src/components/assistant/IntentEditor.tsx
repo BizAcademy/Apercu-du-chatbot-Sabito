@@ -9,13 +9,13 @@ const RESP: { k: keyof IntentDefinition["responses"]; l: string }[] = [
   { k: "success", l: "Succès" }, { k: "pending", l: "En attente" }, { k: "not_found", l: "Introuvable" }, { k: "error", l: "Erreur" },
 ];
 
-export function IntentEditor({ intent, all, onChange, onDelete }: { intent: IntentDefinition; all: IntentDefinition[]; onChange: (v: IntentDefinition) => void; onDelete: () => void }) {
+export function IntentEditor({ intent, all, knownFunctions=KNOWN_FUNCTIONS, onChange, onDelete }: { intent: IntentDefinition; all: IntentDefinition[]; knownFunctions?: string[]; onChange: (v: IntentDefinition) => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const errors = validateIntent(intent, all);
   const p = intent.id;
   const set = (patch: Partial<IntentDefinition>) => onChange({ ...intent, ...patch });
-  const custom = intent.backend_function && !KNOWN_FUNCTIONS.includes(intent.backend_function);
+  const custom = intent.backend_function && !knownFunctions.includes(intent.backend_function);
   return (
     <div className="rounded-[16px] border border-[#e8eaff]" data-testid={`card-intent-${p}`}>
       <div className="flex items-center gap-3 px-4 py-3">

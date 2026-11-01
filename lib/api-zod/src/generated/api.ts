@@ -12,6 +12,38 @@ export const GetAssistantConfigurationParams = zod.object({
   "projectId": zod.coerce.string()
 })
 
+export const getAssistantConfigurationResponseIntentTemplatesItemIdRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const getAssistantConfigurationResponseIntentTemplatesItemNameMin = 2;
+export const getAssistantConfigurationResponseIntentTemplatesItemNameMax = 100;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemTriggersItemMin = 2;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemTriggersMax = 30;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemInitialResponseMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemConfirmationQuestionMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemFieldsItemNameRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const getAssistantConfigurationResponseIntentTemplatesItemFieldsItemPromptMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemFieldsItemMinLengthMax = 500;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemFieldsItemMaxLengthMax = 500;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemFieldsMax = 15;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemBackendFunctionRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const getAssistantConfigurationResponseIntentTemplatesItemGuestMessageMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemResponsesSuccessMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemResponsesPendingMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemResponsesNotFoundMax = 4000;
+
+export const getAssistantConfigurationResponseIntentTemplatesItemResponsesErrorMax = 4000;
+
 export const getAssistantConfigurationResponseSettingsConfidenceThresholdMin = 0.35;
 export const getAssistantConfigurationResponseSettingsConfidenceThresholdMax = 1;
 
@@ -82,6 +114,30 @@ export const getAssistantConfigurationResponseSettingsIntentsMax = 100;
 
 
 export const GetAssistantConfigurationResponse = zod.object({
+  "profile": zod.enum(['bca', 'buzzbooster', 'generic']).optional(),
+  "intent_templates": zod.array(zod.object({
+  "id": zod.string().regex(getAssistantConfigurationResponseIntentTemplatesItemIdRegExp),
+  "name": zod.string().min(getAssistantConfigurationResponseIntentTemplatesItemNameMin).max(getAssistantConfigurationResponseIntentTemplatesItemNameMax),
+  "enabled": zod.boolean(),
+  "triggers": zod.array(zod.string().min(getAssistantConfigurationResponseIntentTemplatesItemTriggersItemMin)).min(1).max(getAssistantConfigurationResponseIntentTemplatesItemTriggersMax),
+  "initial_response": zod.string().max(getAssistantConfigurationResponseIntentTemplatesItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
+  "confirmation_question": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
+  "fields": zod.array(zod.object({
+  "name": zod.string().regex(getAssistantConfigurationResponseIntentTemplatesItemFieldsItemNameRegExp),
+  "prompt": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemFieldsItemPromptMax),
+  "type": zod.enum(['text', 'identifier', 'country']),
+  "min_length": zod.number().int().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemFieldsItemMinLengthMax),
+  "max_length": zod.number().int().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemFieldsItemMaxLengthMax)
+})).max(getAssistantConfigurationResponseIntentTemplatesItemFieldsMax),
+  "backend_function": zod.string().regex(getAssistantConfigurationResponseIntentTemplatesItemBackendFunctionRegExp),
+  "guest_message": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemGuestMessageMax),
+  "responses": zod.object({
+  "success": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemResponsesSuccessMax),
+  "pending": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemResponsesPendingMax),
+  "not_found": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemResponsesNotFoundMax),
+  "error": zod.string().min(1).max(getAssistantConfigurationResponseIntentTemplatesItemResponsesErrorMax)
+})
+})).optional(),
   "settings": zod.object({
   "confidence_threshold": zod.number().min(getAssistantConfigurationResponseSettingsConfidenceThresholdMin).max(getAssistantConfigurationResponseSettingsConfidenceThresholdMax),
   "synonyms": zod.array(zod.array(zod.string().min(getAssistantConfigurationResponseSettingsSynonymsItemItemMin).max(getAssistantConfigurationResponseSettingsSynonymsItemItemMax)).min(getAssistantConfigurationResponseSettingsSynonymsItemMin).max(getAssistantConfigurationResponseSettingsSynonymsItemMax)).max(getAssistantConfigurationResponseSettingsSynonymsMax),
@@ -241,6 +297,38 @@ export const UpdateAssistantConfigurationBody = zod.object({
   "expected_revision": zod.number().int().min(updateAssistantConfigurationBodyExpectedRevisionMin)
 })
 
+export const updateAssistantConfigurationResponseIntentTemplatesItemIdRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const updateAssistantConfigurationResponseIntentTemplatesItemNameMin = 2;
+export const updateAssistantConfigurationResponseIntentTemplatesItemNameMax = 100;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemTriggersItemMin = 2;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemTriggersMax = 30;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemInitialResponseMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemConfirmationQuestionMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemNameRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemPromptMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemMinLengthMax = 500;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemMaxLengthMax = 500;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemFieldsMax = 15;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemBackendFunctionRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
+export const updateAssistantConfigurationResponseIntentTemplatesItemGuestMessageMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemResponsesSuccessMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemResponsesPendingMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemResponsesNotFoundMax = 4000;
+
+export const updateAssistantConfigurationResponseIntentTemplatesItemResponsesErrorMax = 4000;
+
 export const updateAssistantConfigurationResponseSettingsConfidenceThresholdMin = 0.35;
 export const updateAssistantConfigurationResponseSettingsConfidenceThresholdMax = 1;
 
@@ -311,6 +399,30 @@ export const updateAssistantConfigurationResponseSettingsIntentsMax = 100;
 
 
 export const UpdateAssistantConfigurationResponse = zod.object({
+  "profile": zod.enum(['bca', 'buzzbooster', 'generic']).optional(),
+  "intent_templates": zod.array(zod.object({
+  "id": zod.string().regex(updateAssistantConfigurationResponseIntentTemplatesItemIdRegExp),
+  "name": zod.string().min(updateAssistantConfigurationResponseIntentTemplatesItemNameMin).max(updateAssistantConfigurationResponseIntentTemplatesItemNameMax),
+  "enabled": zod.boolean(),
+  "triggers": zod.array(zod.string().min(updateAssistantConfigurationResponseIntentTemplatesItemTriggersItemMin)).min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemTriggersMax),
+  "initial_response": zod.string().max(updateAssistantConfigurationResponseIntentTemplatesItemInitialResponseMax).optional().describe('Réponse approuvée de secours si aucune référence ne répond exactement à la question, avant confirmation.'),
+  "confirmation_question": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemConfirmationQuestionMax).optional().describe('Question oui/non posée après la réponse, avant toute collecte ou vérification.'),
+  "fields": zod.array(zod.object({
+  "name": zod.string().regex(updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemNameRegExp),
+  "prompt": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemPromptMax),
+  "type": zod.enum(['text', 'identifier', 'country']),
+  "min_length": zod.number().int().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemMinLengthMax),
+  "max_length": zod.number().int().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemFieldsItemMaxLengthMax)
+})).max(updateAssistantConfigurationResponseIntentTemplatesItemFieldsMax),
+  "backend_function": zod.string().regex(updateAssistantConfigurationResponseIntentTemplatesItemBackendFunctionRegExp),
+  "guest_message": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemGuestMessageMax),
+  "responses": zod.object({
+  "success": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemResponsesSuccessMax),
+  "pending": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemResponsesPendingMax),
+  "not_found": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemResponsesNotFoundMax),
+  "error": zod.string().min(1).max(updateAssistantConfigurationResponseIntentTemplatesItemResponsesErrorMax)
+})
+})).optional(),
   "settings": zod.object({
   "confidence_threshold": zod.number().min(updateAssistantConfigurationResponseSettingsConfidenceThresholdMin).max(updateAssistantConfigurationResponseSettingsConfidenceThresholdMax),
   "synonyms": zod.array(zod.array(zod.string().min(updateAssistantConfigurationResponseSettingsSynonymsItemItemMin).max(updateAssistantConfigurationResponseSettingsSynonymsItemItemMax)).min(updateAssistantConfigurationResponseSettingsSynonymsItemMin).max(updateAssistantConfigurationResponseSettingsSynonymsItemMax)).max(updateAssistantConfigurationResponseSettingsSynonymsMax),

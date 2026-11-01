@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { getBackendConnectionStatus } from "@workspace/api-client-react";
+import { getAssistantConfiguration, getBackendConnectionStatus } from "@workspace/api-client-react";
 import { Download, PlugZap, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
+import { backendInstallationExample } from "./assistant/template-tools";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 
@@ -10,44 +11,14 @@ const fmt = (s: string) => {
   return isNaN(d.getTime()) ? s : d.toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 };
 
-const example = `// EXEMPLE À ADAPTER pour le développeur de la plateforme — serveur Node 21+ uniquement.
-// Variables d'environnement serveur (déjà configurées, aucune nouvelle clé) :
-//   SABITO_URL=https://…   SABITO_CLIENT_ID   SABITO_CLIENT_SECRET
-import { startSabitoBackend } from "./sabito-backend.mjs"; // fichier téléchargé
-
-const controller = new AbortController();
-
-startSabitoBackend({
-  signal: controller.signal,
-  onError: (code) => console.warn("sabito", code),
-  handlers: {
-    // job = { id, operation, external_user_id, expires_at, signal,
-    //         fields: { deposit_number, country, payment_method, transaction_id } }
-    async account_activation(job) {
-      // Brancher ici VOTRE service existant de comptes.
-      // Retrouver le membre par job.external_user_id (identité vérifiée par Sabito).
-      // Retour : { status: "active" | "inactive" | "pending" | "failed" }
-      throw new Error("Raccorder account_activation au service réel");
-    },
-    async deposit_status(job) {
-      // Brancher VOTRE service de dépôts. Vérifier que le dépôt
-      // appartient bien à job.external_user_id — jamais par transaction_id seul.
-      // Retour : { status: "confirmed" | "pending" | "failed" }
-      throw new Error("Raccorder deposit_status au service réel");
-    },
-    async referral_code(job) {
-      // Brancher VOTRE service de parrainage, avec contrôle des droits.
-      // Retour : { status: "ok", code }
-      throw new Error("Raccorder referral_code au service réel");
-    },
-  },
-});
-// Refus, introuvable ou erreur : { status: "forbidden" | "not_found" | "error" }
-// Exception non gérée → traitée comme "error" : ticket pour l'équipe,
-// aucune vérification n'est présentée comme effectuée.`;
-
-export function BackendConnection({ projectId }: { projectId: string }) {
+export function BackendConnection({ projectId, buzzBooster=false }: { projectId: string; buzzBooster?: boolean }) {
   const { headers } = useAdmin();
+  const config = useQuery({
+    queryKey: ["sabito-admin", "assistant-settings", projectId],
+    queryFn: () => getAssistantConfiguration(projectId, headers()),
+    staleTime: Infinity, refetchOnWindowFocus: false,
+  });
+  const bca = config.data?.profile === "bca";
   const q = useQuery({
     queryKey: ["sabito-admin", "backend", projectId],
     queryFn: () => getBackendConnectionStatus(projectId, headers()),
@@ -62,7 +33,8 @@ export function BackendConnection({ projectId }: { projectId: string }) {
         <h2 className="flex items-center gap-2 text-[15px] font-bold"><PlugZap size={16} />Connexion au serveur de la plateforme</h2>
         <button className="p-1.5 text-[#737b94] hover:text-[#3641f5]" onClick={() => void q.refetch()} aria-label="Actualiser" data-testid="button-refresh-backend"><RefreshCw size={15} className={q.isFetching ? "animate-spin" : ""} /></button>
       </div>
-      <p className="text-[12px] leading-5 text-[#6c748d]">Sabito peut interroger le serveur de la plateforme pour répondre aux questions d'activation de compte, de statut de dépôt et de code de parrainage. Le pont serveur authentifié est disponible dès maintenant. Il utilise <b>les mêmes</b> SABITO_CLIENT_ID et SABITO_CLIENT_SECRET déjà configurés côté serveur : aucune nouvelle clé n'est nécessaire.</p>
+      <p className="text-[12px] leading-5 text-[#6c748d]">{bca ? "BCA : consultation des paiements d’activation, dépôts, retraits et remboursements, transferts, conversions, soldes, parrainage, récompenses, formations, Digital Store et BCA Ads. Aucun mouvement d’argent n’est exécuté par Sabito." : buzzBooster ? "Sabito peut consulter les dépôts, les commandes de boost, le code et les commissions de parrainage de Buzz Booster. Aucun parcours d’activation de compte ni mouvement d’argent n’est exécuté." : "Sabito peut interroger les fonctions de consultation configurées pour cette plateforme."} Le pont serveur authentifié utilise <b>les mêmes</b> SABITO_CLIENT_ID et SABITO_CLIENT_SECRET déjà configurés côté serveur : aucune nouvelle clé n'est nécessaire.</p>
+      {bca && <p className="mt-2 text-[12px] leading-5 text-[#6c748d]">BCA utilise Laravel/PHP : le développeur peut implémenter le protocole ci-dessous dans une commande Laravel supervisée, sans réécrire le backend. L’exemple Node est une alternative, pas une obligation.</p>}
 
       <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
         <div className="rounded-xl border border-[#e8eaff] p-3" data-testid="status-backend-channel">
@@ -97,7 +69,8 @@ export function BackendConnection({ projectId }: { projectId: string }) {
         <div className="text-[12px] font-semibold">Exemple d'installation pour le développeur de la plateforme</div>
         <a href={sdkHref} download="sabito-backend.mjs" className="inline-flex items-center gap-2 rounded-[12px] border border-[#e3e6f8] px-3 py-2 text-[12px] font-medium text-[#48506a] transition hover:border-[#abb1ff] hover:text-[#3641f5]" data-testid="link-download-sdk"><Download size={14} />Télécharger sabito-backend.mjs</a>
       </div>
-      <pre className="mt-2 overflow-x-auto rounded-xl bg-[#171d53] p-4 font-mono text-[11.5px] leading-6 text-[#dfe3ff]" data-testid="text-backend-example">{example}</pre>
+      {config.error && <p role="alert" className="mt-2 text-[12px] text-[#9b2c2c]">Impossible de charger les fonctions configurées : {errMsg(config.error)}</p>}
+      <pre className="mt-2 max-h-[480px] overflow-auto rounded-xl bg-[#171d53] p-4 font-mono text-[11.5px] leading-6 text-[#dfe3ff]" data-testid="text-backend-example">{config.data ? backendInstallationExample(config.data.settings.intents) : config.error ? "Rechargez les réglages avant de préparer le connecteur." : "Chargement des fonctions configurées…"}</pre>
       <p className="mt-2 text-[11px] text-[#8b92a8]">Protocole (géré par le SDK, authentification Basic) : <code>POST /v1/backend/jobs/poll</code> → <code>{"{ jobs }"}</code> ; <code>POST /v1/backend/jobs/:id/result</code> avec <code>{"{ result }"}</code>.</p>
     </section>
   );
