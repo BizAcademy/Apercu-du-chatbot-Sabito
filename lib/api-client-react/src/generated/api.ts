@@ -24,12 +24,16 @@ import type {
   AssistantSettingsResult,
   AssistantSettingsUpdate,
   BackendResultSubmission,
+  ConversationHistory,
+  ConversationInsights,
   CoreStatus,
   CredentialResult,
   DocumentInput,
   DocumentList,
   DocumentResult,
   GetBackendConnectionStatus200,
+  GetConversationHistoryParams,
+  GetConversationInsightsParams,
   HealthStatus,
   KnowledgeEntry,
   KnowledgeInput,
@@ -1679,6 +1683,242 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+export const getGetConversationHistoryUrl = (conversationId: string,
+    params?: GetConversationHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/conversations/${conversationId}/history?${stringifiedParams}` : `/api/v1/conversations/${conversationId}/history`
+}
+
+export const getConversationHistory = async (conversationId: string,
+    params?: GetConversationHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<ConversationHistory> => {
+
+  return customFetch<ConversationHistory>(getGetConversationHistoryUrl(conversationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConversationHistoryQueryKey = (conversationId: string,
+    params?: GetConversationHistoryParams,) => {
+    return [
+    `/api/v1/conversations/${conversationId}/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetConversationHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getConversationHistory>>, TError = ErrorType<unknown>>(conversationId: string,
+    params?: GetConversationHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConversationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConversationHistoryQueryKey(conversationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConversationHistory>>> = ({ signal }) => getConversationHistory(conversationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: conversationId !== null && conversationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConversationHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetConversationHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getConversationHistory>>>
+export type GetConversationHistoryQueryError = ErrorType<unknown>
+
+
+
+export function useGetConversationHistory<TData = Awaited<ReturnType<typeof getConversationHistory>>, TError = ErrorType<unknown>>(
+ conversationId: string,
+    params?: GetConversationHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConversationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetConversationHistoryQueryOptions(conversationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetConversationInsightsUrl = (projectId: string,
+    params?: GetConversationInsightsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/projects/${projectId}/insights?${stringifiedParams}` : `/api/v1/admin/projects/${projectId}/insights`
+}
+
+export const getConversationInsights = async (projectId: string,
+    params?: GetConversationInsightsParams, options?: Parameters<typeof customFetch>[1]): Promise<ConversationInsights> => {
+
+  return customFetch<ConversationInsights>(getGetConversationInsightsUrl(projectId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConversationInsightsQueryKey = (projectId: string,
+    params?: GetConversationInsightsParams,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/insights`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetConversationInsightsQueryOptions = <TData = Awaited<ReturnType<typeof getConversationInsights>>, TError = ErrorType<unknown>>(projectId: string,
+    params?: GetConversationInsightsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConversationInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConversationInsightsQueryKey(projectId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConversationInsights>>> = ({ signal }) => getConversationInsights(projectId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConversationInsights>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetConversationInsightsQueryResult = NonNullable<Awaited<ReturnType<typeof getConversationInsights>>>
+export type GetConversationInsightsQueryError = ErrorType<unknown>
+
+
+
+export function useGetConversationInsights<TData = Awaited<ReturnType<typeof getConversationInsights>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    params?: GetConversationInsightsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConversationInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetConversationInsightsQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteUnansweredQuestionUrl = (projectId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/unanswered/${questionId}`
+}
+
+export const deleteUnansweredQuestion = async (projectId: string,
+    questionId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteUnansweredQuestionUrl(projectId,questionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteUnansweredQuestionMutationKey = () => ['deleteUnansweredQuestion'] as const;
+
+export const getDeleteUnansweredQuestionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUnansweredQuestion>>, TError,DeleteUnansweredQuestionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteUnansweredQuestion>>, TError,DeleteUnansweredQuestionMutationVariables, TContext> => {
+
+const mutationKey = getDeleteUnansweredQuestionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUnansweredQuestion>>, DeleteUnansweredQuestionMutationVariables> = (props) => {
+          const {projectId,questionId} = props ?? {};
+
+          return  deleteUnansweredQuestion(projectId,questionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteUnansweredQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUnansweredQuestion>>>
+
+    export type DeleteUnansweredQuestionMutationError = ErrorType<void>
+    export type DeleteUnansweredQuestionMutationVariables = {projectId: string;questionId: string}
+
+    export const useDeleteUnansweredQuestion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUnansweredQuestion>>, TError,DeleteUnansweredQuestionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteUnansweredQuestion>>,
+        TError,
+        DeleteUnansweredQuestionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteUnansweredQuestionMutationOptions(options));
+    }
+
 export const getListUnansweredQuestionsUrl = (projectId: string,
     params?: ListUnansweredQuestionsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -2000,6 +2240,76 @@ export function useListSupportTickets<TData = Awaited<ReturnType<typeof listSupp
 
 
 
+
+export const getDeleteSupportTicketUrl = (projectId: string,
+    ticketId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/tickets/${ticketId}`
+}
+
+export const deleteSupportTicket = async (projectId: string,
+    ticketId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteSupportTicketUrl(projectId,ticketId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteSupportTicketMutationKey = () => ['deleteSupportTicket'] as const;
+
+export const getDeleteSupportTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSupportTicket>>, TError,DeleteSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSupportTicket>>, TError,DeleteSupportTicketMutationVariables, TContext> => {
+
+const mutationKey = getDeleteSupportTicketMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSupportTicket>>, DeleteSupportTicketMutationVariables> = (props) => {
+          const {projectId,ticketId} = props ?? {};
+
+          return  deleteSupportTicket(projectId,ticketId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSupportTicketMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSupportTicket>>>
+
+    export type DeleteSupportTicketMutationError = ErrorType<void>
+    export type DeleteSupportTicketMutationVariables = {projectId: string;ticketId: string}
+
+    export const useDeleteSupportTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSupportTicket>>, TError,DeleteSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSupportTicket>>,
+        TError,
+        DeleteSupportTicketMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteSupportTicketMutationOptions(options));
+    }
 
 export const getUpdateSupportTicketUrl = (projectId: string,
     ticketId: string,) => {

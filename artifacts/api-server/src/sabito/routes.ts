@@ -8,6 +8,7 @@ import { activeCredential,authenticateProject,createProject,getProject,listProje
 import { configurationStatus,parseBasicCredentials,signAccessToken,tokenTtl,validAdminKey,verifyAccessToken,type AccessClaims } from "./security";
 import { saveKnowledge } from "./knowledge";
 import { getConversationMessages } from "./conversations";
+import { ownedRecentConversation,conversationHistoryPage } from "./conversation-history";
 import { revokeProjectSockets } from "./socket";
 import { widgetOrigins, widgetOriginsSchema } from "./widget";
 import { supportAdminRoutes } from "./support-admin";
@@ -164,9 +165,20 @@ coreRoutes.get("/v1/conversations/:conversationId/messages",async (req,res) => {
   if (!claims) {res.status(401).json({success:false,message:"Connexion expirée ou révoquée."});return;}
   if (!id.success) {res.status(422).json({success:false,message:"Identifiant invalide."});return;}
   const result = await pool.query(`SELECT id FROM sabito_core.conversations
-    WHERE id=$1 AND project_id=$2 AND external_user_id=$3`,[id.data,claims.sub,claims.externalUserId]);
+    WHERE id=$1 AND project_id=$2 AND external_user_id=$3
+    AND created_at>DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)`,[id.data,claims.sub,claims.externalUserId]);
   if (!result.rowCount) {res.status(404).json({success:false,message:"Conversation introuvable."});return;}
   res.json({success:true,data:await getConversationMessages(id.data)});
+});
+coreRoutes.get("/v1/conversations/:conversationId/history",async(req,res)=>{
+  const claims=await authorizedUser(req),id=idSchema.safeParse(req.params.conversationId);
+  const before=z.string().uuid().optional().safeParse(req.query.before);
+  if(!claims){res.sendStatus(401);return;}
+  if(!id.success||!before.success){res.sendStatus(422);return;}
+  const conversation=await ownedRecentConversation(claims,id.data);
+  if(!conversation){res.status(404).json({message:"Conversation introuvable ou expirée."});return;}
+  try{res.json({...await conversationHistoryPage(id.data,before.data),expiresAt:conversation.expires_at.toISOString()});}
+  catch(error){if(error instanceof Error&&error.message==="INVALID_HISTORY_CURSOR"){res.sendStatus(422);return;}throw error;}
 });
 coreRoutes.use(supportAdminRoutes);
 coreRoutes.use(assistantAdminRoutes);

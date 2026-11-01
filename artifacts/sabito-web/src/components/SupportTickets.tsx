@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSupportTicketMessages, listSupportTickets, updateSupportTicket, type SupportTicket } from "@workspace/api-client-react";
-import { ChevronLeft, ChevronRight, LifeBuoy, MessagesSquare, RefreshCw, RotateCcw, CheckCircle2, X } from "lucide-react";
+import { deleteSupportTicket, getSupportTicketMessages, listSupportTickets, updateSupportTicket, type SupportTicket } from "@workspace/api-client-react";
+import { ChevronLeft, ChevronRight, LifeBuoy, MessagesSquare, RefreshCw, RotateCcw, CheckCircle2, Trash2, TriangleAlert, X } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 
 type Filter = "ouvert" | "ferme" | "all";
@@ -67,6 +67,9 @@ export function SupportTickets({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<Filter>("ouvert");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<SupportTicket | null>(null);
+  const [deleting, setDeleting] = useState<SupportTicket | null>(null);
+  const { onLogout } = useAdmin();
+  useEffect(() => onLogout(() => { setDeleting(null); setOpen(null); }), [onLogout]);
   const q = useQuery({
     queryKey: [...ticketsKey(projectId), status, page],
     queryFn: () => listSupportTickets(projectId, { status, page }, headers()),
@@ -79,6 +82,16 @@ export function SupportTickets({ projectId }: { projectId: string }) {
   const rows = q.data?.data ?? [];
   const total = q.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const del = useMutation({
+    mutationFn: (id: string) => deleteSupportTicket(projectId, id, headers()),
+    onSuccess: (_r, id) => {
+      setDeleting(null);
+      setOpen((o) => (o && o.id === id ? null : o));
+      if (rows.length <= 1 && page > 0) setPage((p) => p - 1);
+      qc.removeQueries({ queryKey: [...ticketsKey(projectId), "messages", id] });
+      void qc.invalidateQueries({ queryKey: ticketsKey(projectId) });
+    },
+  });
   const toggle = (t: SupportTicket) => upd.mutate({ id: t.id, status: t.status === "ouvert" ? "ferme" : "ouvert" });
 
   return (
@@ -127,6 +140,7 @@ export function SupportTickets({ projectId }: { projectId: string }) {
                 <button className={ghost} disabled={upd.isPending} onClick={() => toggle(t)} data-testid={`button-ticket-toggle-${t.id}`}>
                   {t.status === "ouvert" ? <><CheckCircle2 size={14} />Fermer</> : <><RotateCcw size={14} />Rouvrir</>}
                 </button>
+                <button className="rounded-[10px] p-2 text-[#9aa1b8] transition hover:bg-[#fff6f6] hover:text-[#b4441f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b4441f] disabled:opacity-40" disabled={del.isPending} onClick={() => { del.reset(); setDeleting(t); }} aria-label={"Supprimer le ticket"} title={"Supprimer le ticket"} data-testid={`button-delete-ticket-${t.id}`}><Trash2 size={14} /></button>
               </div>
             </div>
           ))}
@@ -141,6 +155,7 @@ export function SupportTickets({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
+      {deleting && <ConfirmDelete testid="delete-ticket" title="Supprimer ce ticket ?" body={`Le ticket « ${INTENTS[deleting.intent] ?? deleting.intent} » (#${deleting.id.slice(0, 8)}) sera supprimé définitivement. Action irréversible. La conversation associée et les références validées sont conservées.`} pending={del.isPending} error={del.error} onConfirm={() => del.mutate(deleting.id)} close={() => setDeleting(null)} />}
       {open && <TicketDetail projectId={projectId} t={open} pending={upd.isPending} toggle={() => toggle(open)} close={() => setOpen(null)} />}
     </section>
   );
@@ -187,6 +202,22 @@ function TicketDetail({ projectId, t, pending, toggle, close }: { projectId: str
           <button className="inline-flex items-center gap-2 rounded-[12px] bg-[#3641f5] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-[#2934dc] disabled:bg-[#c8cbea]" disabled={pending} onClick={toggle} data-testid="button-ticket-detail-toggle">
             {pending ? "Mise à jour…" : t.status === "ouvert" ? "Marquer comme fermé" : "Rouvrir le ticket"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDelete({ title, body, pending, error, onConfirm, close, testid }: { title: string; body: string; pending: boolean; error: unknown; onConfirm: () => void; close: () => void; testid: string }) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-[#11162b]/40 p-4" role="dialog" aria-modal="true" aria-labelledby={`${testid}-title`} onKeyDown={(e) => { if (e.key === "Escape" && !pending) close(); }}>
+      <div className="w-full max-w-[480px] rounded-[22px] bg-white p-6 shadow-xl" data-testid={`modal-${testid}`}>
+        <div id={`${testid}-title`} className="flex items-center gap-2 text-[16px] font-bold text-[#7a2a12]"><TriangleAlert size={17} />{title}</div>
+        <p className="mt-2 rounded-xl bg-[#fff6f6] p-3 text-[12px] leading-5 text-[#7a2a12]">{body}</p>
+        {error ? <div className="mt-3"><Err msg={errMsg(error)} /></div> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className={ghost} onClick={close} disabled={pending} autoFocus data-testid={`button-cancel-${testid}`}>Annuler</button>
+          <button type="button" className="inline-flex items-center gap-2 rounded-[12px] bg-[#b4441f] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-[#9a3817] disabled:opacity-60" disabled={pending} onClick={onConfirm} data-testid={`button-confirm-${testid}`}><Trash2 size={14} />{pending ? "Suppression…" : "Supprimer définitivement"}</button>
         </div>
       </div>
     </div>

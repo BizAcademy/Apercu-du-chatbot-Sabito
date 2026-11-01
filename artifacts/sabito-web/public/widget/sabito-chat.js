@@ -25,7 +25,7 @@
   if (projectId && !/^[a-f0-9-]{36}$/i.test(projectId)) return fail("data-project-id invalide");
   if (projectId && !sessionProvider) sessionProvider = function (options) {
     return fetch(new URL("/v1/widget/" + projectId + "/session", sabitoOrigin), {
-      method: "POST", mode: "cors", credentials: "omit", cache: "no-store",
+      method: "POST", mode: "cors", credentials: "include", cache: "no-store",
       redirect: "error", signal: options.signal, headers: { "Content-Type": "application/json" },
       body: JSON.stringify(visitorToken ? { visitor_token: visitorToken } : {})
     }).then(function (response) {
@@ -189,6 +189,8 @@
 
   function logout() {
     visitorToken = null;
+    if (projectId && !window.SabitoWidgetSession) fetch(new URL("/v1/widget/" + projectId + "/session", sabitoOrigin),
+      {method:"DELETE",mode:"cors",credentials:"include",cache:"no-store",redirect:"error"}).catch(function () {});
     loggedOut = true; generation++; abortInflight();
     post({ type: "sabito:logout" });
     setOpen(false);

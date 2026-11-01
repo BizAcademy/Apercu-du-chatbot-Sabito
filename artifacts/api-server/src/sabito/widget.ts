@@ -5,6 +5,7 @@ import { z } from "zod";
 import { pool } from "./database";
 import { activeCredential } from "./projects";
 import { signAccessToken, verifyAccessToken, tokenTtl } from "./security";
+import { rememberedGuest,rememberGuest,forgetGuest } from "./widget-guest-memory";
 
 export function validWidgetOrigin(value: string) {
   try {
@@ -32,7 +33,8 @@ widgetPublicRoutes.use("/:projectId/session", async (req, res, next) => {
   }
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Credentials","true");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
@@ -43,7 +45,8 @@ widgetPublicRoutes.post("/:projectId/session", async (req, res) => {
   if (!credential) { res.status(403).json({ error: "WIDGET_INACTIVE" }); return; }
   const body = z.object({ visitor_token: z.string().max(16384).optional() }).safeParse(req.body ?? {});
   if (!body.success) { res.status(422).json({ error: "INVALID_WIDGET_SESSION" }); return; }
-  let externalUserId = `widget-guest:${randomUUID()}`;
+  const existing=await rememberedGuest(req,projectId,credential.client_id);
+  let externalUserId = existing??`widget-guest:${randomUUID()}`;
   if (body.data.visitor_token) {
     try {
       const claims = verifyAccessToken(body.data.visitor_token);
@@ -52,10 +55,14 @@ widgetPublicRoutes.post("/:projectId/session", async (req, res) => {
         res.status(401).json({ error: "INVALID_WIDGET_SESSION" }); return;
       }
       externalUserId = claims.externalUserId;
-    } catch { res.status(401).json({ error: "WIDGET_SESSION_EXPIRED" }); return; }
+    } catch { if(!existing){res.status(401).json({ error: "WIDGET_SESSION_EXPIRED" }); return;} }
   }
+  await rememberGuest(req,res,projectId,credential.client_id,externalUserId,existing);
   const token = signAccessToken({ sub: projectId, clientId: credential.client_id,
     externalUserId, scope: ["chat:connect", "widget:guest"], widgetOrigin: req.header("origin") });
   res.json({ access_token: token, expires_in: tokenTtl, external_user_id: externalUserId,
     socket_path: "/socket.io", identity_type: "guest" });
+});
+widgetPublicRoutes.delete("/:projectId/session",async(req,res)=>{
+  await forgetGuest(req,res,String(req.params.projectId));res.status(204).end();
 });

@@ -5,9 +5,28 @@ import { pool } from "./database";
 import { answerUnanswered } from "./unanswered";
 import { backendStatus } from "./backend-bridge";
 import { getConversationMessages } from "./conversations";
+import { conversationInsights } from "./support-insights";
 
 // Mounted after the existing /v1/admin authentication middleware.
 export const supportAdminRoutes = Router();
+supportAdminRoutes.get("/v1/admin/projects/:projectId/insights",async(req,res)=>{
+  const id=z.string().uuid().safeParse(req.params.projectId);
+  const days=z.coerce.number().refine(n=>[7,30,90].includes(n)).safeParse(req.query.days??30);
+  if(!id.success||!days.success){res.sendStatus(422);return;}
+  if(!await getProject(id.data)){res.sendStatus(404);return;}
+  res.json(await conversationInsights(id.data,days.data));
+});
+for(const resource of ["unanswered","tickets"] as const) {
+  supportAdminRoutes.delete(`/v1/admin/projects/:projectId/${resource}/:itemId`,async(req,res)=>{
+    const project=z.string().uuid().safeParse(req.params.projectId),item=z.string().uuid().safeParse(req.params.itemId);
+    if(!project.success||!item.success){res.sendStatus(422);return;}
+    const result=resource==="unanswered"
+      ?await pool.query("DELETE FROM questions_sans_reponse WHERE id=$1 AND plateforme=$2",[item.data,project.data])
+      :await pool.query("DELETE FROM sabito_core.support_tickets WHERE id=$1 AND project_id=$2",[item.data,project.data]);
+    if(!result.rowCount){res.sendStatus(404);return;}
+    res.status(204).end();
+  });
+}
 supportAdminRoutes.use("/v1/admin/projects/:projectId/unanswered", async (req, res, next) => {
   if (!z.string().uuid().safeParse(req.params.projectId).success || !await getProject(req.params.projectId as string)) {
     res.status(404).json({ message: "Plateforme introuvable." }); return;

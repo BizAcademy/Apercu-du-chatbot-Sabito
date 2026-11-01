@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { io, type Socket } from "socket.io-client";
-import { getPlatformMessages } from "@workspace/api-client-react";
+import { getConversationHistory } from "@workspace/api-client-react";
 import { RotateCw, Send, X } from "lucide-react";
 import { SabitoAvatar } from "@/components/SabitoAvatar";
 import { platformTitle } from "@/components/chat/platform-title";
@@ -47,6 +47,11 @@ export function WidgetChat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [hasMore,setHasMore]=useState(false);
+  const [loadingOlder,setLoadingOlder]=useState(false);
+  const [historyReady,setHistoryReady]=useState(false);
+  const historyTimer=useRef<number|undefined>(undefined);
+  const resumeRef=useRef<()=>void>(()=>{});
   const [greeting, setGreeting] = useState<Greeting | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const tokenRef = useRef<string | null>(null);
@@ -71,6 +76,7 @@ export function WidgetChat() {
   const teardown = useCallback(() => {
     genRef.current++;
     window.clearTimeout(expiryTimer.current);
+    window.clearTimeout(historyTimer.current);
     window.clearTimeout(renewRef.current.timer); renewRef.current.timer = undefined;
     socketRef.current?.removeAllListeners();
     socketRef.current?.disconnect();
@@ -78,7 +84,7 @@ export function WidgetChat() {
     tokenRef.current = null;
     userRef.current = null;
     convRef.current = null;
-    setMessages([]); setGreeting(null); setConnected(false); setSending(false); setInput("");
+    setMessages([]); setGreeting(null); setConnected(false); setSending(false); setInput("");setHasMore(false);setLoadingOlder(false);setHistoryReady(false);
   }, []);
 
   const renewSoon = useCallback(() => {
@@ -102,26 +108,48 @@ export function WidgetChat() {
     s.on("connect", () => { if (live()) { setConnected(true); setError(""); renewRef.current.delay = RENEW_MIN_MS; } });
     s.on("disconnect", (reason) => { if (!live()) return; setConnected(false); if (reason === "io server disconnect") renewSoon(); });
     s.on("connect_error", () => { if (!live()) return; setConnected(false); setError("Connexion au serveur impossible, nouvelle tentative…"); renewSoon(); });
-    const stale = (cid?: string) => !!cid && !!convRef.current && cid !== convRef.current;
+    const stale = (cid?: string) => !!cid && cid !== convRef.current;
+    const armHistoryExpiry=(expiresAt:string)=>{
+      window.clearTimeout(historyTimer.current);
+      historyTimer.current=window.setTimeout(()=>{
+        if(!live())return;
+        convRef.current=null;setMessages([]);setGreeting(null);setHasMore(false);
+        startConversation();
+      },Math.max(1,new Date(expiresAt).getTime()-Date.now()));
+    };
+    const startConversation=()=>{
+      setHistoryReady(false);
+      s.timeout(15_000).emit("conversation:start", {resume:true}, (err:Error|null,ack?:StartAck)=>{
+        if(!live())return;
+        if(err||!ack?.ok||!ack.data){setError("Impossible de reprendre la conversation.");return;}
+        convRef.current=ack.data.conversationId;
+        setMessages(fromHistory(ack.data.history??[]));setHasMore(ack.data.hasMore??false);
+        setHistoryReady(true);
+        setGreeting({conversationId:ack.data.conversationId,content:ack.data.greeting});
+        if(ack.data.expiresAt)armHistoryExpiry(ack.data.expiresAt);
+      });
+    };
+    resumeRef.current=startConversation;
     s.on("session:ready", async (session: { projectName?: string }) => {
       const cid = convRef.current, t = tokenRef.current;
       if (!live() || !t) return;
       setPlatformName(session?.projectName || cfg.product || "");
       if (!cid) {
-        s.timeout(15_000).emit("conversation:start", {}, (err: Error | null, ack?: StartAck) => {
-          if (!live() || convRef.current) return;
-          if (err || !ack?.ok || !ack.data) { setError("Impossible de démarrer la conversation."); return; }
-          convRef.current = ack.data.conversationId;
-          setGreeting({ conversationId: ack.data.conversationId, content: ack.data.greeting });
-        });
+        startConversation();
         return;
       }
       try {
-        const r = await getPlatformMessages(cid, { headers: { Authorization: `Bearer ${t}` } });
+        const r = await getConversationHistory(cid,undefined,{ headers: { Authorization: `Bearer ${t}` } });
         if (!live()) return;
         if (convRef.current !== cid) return;
         setMessages(fromHistory(r.data));
-      } catch { if (live()) setError("Historique de la conversation indisponible."); }
+        setHasMore(r.hasMore);armHistoryExpiry(r.expiresAt);
+        setHistoryReady(true);
+      } catch(e) {
+        if(!live())return;
+        if((e as {status?:number}).status===404){convRef.current=null;setMessages([]);startConversation();}
+        else setError("Historique de la conversation indisponible.");
+      }
     });
     s.on("conversation:welcome", (e: { conversationId: string; content: string }) => {
       if (live() && e.conversationId && e.conversationId === convRef.current) setGreeting({ conversationId: e.conversationId, content: e.content });
@@ -191,7 +219,7 @@ export function WidgetChat() {
   const send = (e?: FormEvent, picked?: string, followUpId?: string) => {
     e?.preventDefault();
     const content = (picked ?? input).trim(); const s = socketRef.current; const gen = genRef.current;
-    if (!content || !s || !connected || sending || phaseRef.current !== "ready") return;
+    if (!content || !s || !connected || !historyReady || sending || messages.some(m=>m.role==="assistant"&&m.pending) || phaseRef.current !== "ready") return;
     const localId = `local-${crypto.randomUUID()}`;
     setMessages((m) => [...m, { id: localId, role: "user", content, pending: true }]);
     if (picked === undefined) setInput(""); setSending(true); setError("");
@@ -199,6 +227,10 @@ export function WidgetChat() {
       if (gen !== genRef.current) return;
       setSending(false);
       if (err || !ack?.ok || !ack.data) {
+        if(typeof ack?.error==="object"&&ack.error?.code==="CONVERSATION_EXPIRED") {
+          convRef.current=null;setMessages([]);setInput(content);resumeRef.current();
+          setError("La conversation de 24 heures a expiré. Renvoyez votre message dans la nouvelle conversation.");return;
+        }
         const msg = err ? "Délai dépassé, aucune confirmation du serveur." : typeof ack?.error === "string" ? ack.error : ack?.error?.message ?? ack?.error?.code ?? "Envoi refusé.";
         setMessages((m) => m.map((x) => x.id === localId ? { ...x, pending: false, failed: msg } : x));
         setError(msg); return;
@@ -210,6 +242,17 @@ export function WidgetChat() {
   };
 
   const accent = cfg.color;
+  const loadOlder=async()=>{
+    const cid=convRef.current,token=tokenRef.current,first=messages[0]?.id,gen=genRef.current;
+    if(!cid||!token||!first||loadingOlder)return;
+    setLoadingOlder(true);
+    try{
+      const page=await getConversationHistory(cid,{before:first},{headers:{Authorization:`Bearer ${token}`}});
+      if(gen!==genRef.current||cid!==convRef.current)return;
+      setMessages(current=>[...fromHistory(page.data),...current]);setHasMore(page.hasMore);
+    }catch{if(gen===genRef.current)setError("Les messages précédents n’ont pas pu être chargés.");}
+    finally{if(gen===genRef.current)setLoadingOlder(false);}
+  };
   return (
     <main className="flex h-[100dvh] flex-col bg-[#f6f4ee] font-['Outfit',sans-serif] text-[#1a1d2e]" style={{ ["--acc" as string]: accent }}>
       <header className="flex items-center justify-between gap-3 px-4 py-3 text-[#fbfaf6]" style={{ background: accent }}>
@@ -228,6 +271,8 @@ export function WidgetChat() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5" aria-live="polite" aria-busy={phase === "loading"}>
+        {hasMore&&<button type="button" onClick={()=>void loadOlder()} disabled={loadingOlder}
+          className="mb-4 w-full rounded-xl border border-[#dfe2ef] px-3 py-2 text-xs disabled:opacity-50">{loadingOlder?"Chargement…":"Voir les messages précédents"}</button>}
         {phase === "loading" && (
           <div className="space-y-3" aria-label="Chargement">
             {[70, 45, 60].map((w, i) => <div key={i} className="h-10 animate-pulse rounded-2xl bg-[#e7e3d8]" style={{ width: `${w}%`, marginLeft: i % 2 ? "auto" : 0 }} />)}
@@ -280,7 +325,7 @@ export function WidgetChat() {
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={phase === "ready" ? "Écrivez votre message…" : "Chat indisponible"}
             className="max-h-28 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] outline-none disabled:opacity-60" data-testid="input-widget-chat" />
-          <button type="submit" disabled={!input.trim() || !connected || sending || phase !== "ready"} aria-label="Envoyer le message" className="grid h-10 w-10 place-items-center rounded-[12px] text-[#fbfaf6] disabled:opacity-40" style={{ background: accent }} data-testid="button-widget-send"><Send size={15} /></button>
+          <button type="submit" disabled={!input.trim() || !connected || !historyReady || sending || messages.some(m=>m.role==="assistant"&&m.pending) || phase !== "ready"} aria-label="Envoyer le message" className="grid h-10 w-10 place-items-center rounded-[12px] text-[#fbfaf6] disabled:opacity-40" style={{ background: accent }} data-testid="button-widget-send"><Send size={15} /></button>
         </div>
       </form>
     </main>

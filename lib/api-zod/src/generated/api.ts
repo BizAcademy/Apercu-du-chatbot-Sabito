@@ -834,6 +834,67 @@ export const HealthCheckResponse = zod.object({
 })
 
 
+export const GetConversationHistoryParams = zod.object({
+  "conversationId": zod.coerce.string()
+})
+
+export const GetConversationHistoryQueryParams = zod.object({
+  "before": zod.coerce.string().optional()
+})
+
+export const GetConversationHistoryResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "status": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "document_id": zod.string(),
+  "question": zod.string()
+})).optional(),
+  "suggestions_label": zod.string().optional(),
+  "closing_message": zod.string().optional()
+})),
+  "hasMore": zod.boolean(),
+  "expiresAt": zod.string()
+})
+
+
+export const GetConversationInsightsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetConversationInsightsQueryParams = zod.object({
+  "days": zod.union([zod.literal(7),zod.literal(30),zod.literal(90)]).optional()
+})
+
+export const GetConversationInsightsResponse = zod.object({
+  "period_days": zod.number().int(),
+  "total_questions": zod.number().int(),
+  "top_questions": zod.array(zod.object({
+  "question": zod.string(),
+  "count": zod.number().int()
+})),
+  "satisfaction": zod.object({
+  "asked": zod.number().int(),
+  "answered": zod.number().int(),
+  "satisfied": zod.number().int(),
+  "unsatisfied": zod.number().int(),
+  "pending": zod.number().int(),
+  "rate": zod.number().nullable(),
+  "response_rate": zod.number().nullable()
+})
+})
+
+
+export const DeleteUnansweredQuestionParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "questionId": zod.coerce.string()
+})
+
+export const DeleteUnansweredQuestionResponse = zod.void()
+
+
 export const ListUnansweredQuestionsParams = zod.object({
   "projectId": zod.coerce.string()
 })
@@ -925,6 +986,14 @@ export const ListSupportTicketsResponse = zod.object({
   "total": zod.number().int(),
   "page": zod.number().int()
 })
+
+
+export const DeleteSupportTicketParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "ticketId": zod.coerce.string()
+})
+
+export const DeleteSupportTicketResponse = zod.void()
 
 
 export const UpdateSupportTicketParams = zod.object({

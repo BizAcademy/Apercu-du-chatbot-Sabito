@@ -4,7 +4,7 @@ export type ChatMsg = {
   suggestions?: Suggestion[]; suggestions_label?: string; closing_message?: string;
 };
 export type Greeting = { conversationId: string; content: string };
-export type StartAck = { ok: boolean; data?: { conversationId: string; greeting: string }; error?: { code?: string; message?: string } | string };
+export type StartAck = { ok: boolean; data?: { conversationId: string; greeting: string; history?: HistoryRow[]; hasMore?: boolean; expiresAt?: string }; error?: { code?: string; message?: string } | string };
 export type CompleteEvent = { conversationId: string; messageId: string; content: string; replayed?: boolean; suggestions?: Suggestion[]; suggestions_label?: string; closing_message?: string };
 
 type HistoryRow = { id: string; role: "user" | "assistant"; content: string; status: string; suggestions?: Suggestion[] | null; suggestions_label?: string | null; closing_message?: string | null };

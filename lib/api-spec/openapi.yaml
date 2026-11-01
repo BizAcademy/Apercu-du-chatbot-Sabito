@@ -307,6 +307,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /v1/conversations/{conversationId}/history:
+    get:
+      operationId: getConversationHistory
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string}}
+        - {name: before, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: Historique paginé, identité vérifiée et conversation de moins de 24 heures
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConversationHistory"}
+  /v1/admin/projects/{projectId}/insights:
+    get:
+      operationId: getConversationInsights
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: days, in: query, schema: {type: integer, enum: [7, 30, 90]}}
+      responses:
+        "200":
+          description: Questions les plus fréquentes et satisfaction explicitement exprimée
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConversationInsights"}
+  /v1/admin/projects/{projectId}/unanswered/{questionId}:
+    delete:
+      operationId: deleteUnansweredQuestion
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: questionId, in: path, required: true, schema: {type: string}}
+      responses:
+        "204":
+          description: Entrée supprimée, sans supprimer la référence approuvée ni la conversation
+        "404":
+          description: Question introuvable dans cette plateforme
   /v1/admin/projects/{projectId}/unanswered:
     get:
       operationId: listUnansweredQuestions
@@ -385,6 +420,16 @@ paths:
                   total: {type: integer}
                   page: {type: integer}
   /v1/admin/projects/{projectId}/tickets/{ticketId}:
+    delete:
+      operationId: deleteSupportTicket
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: ticketId, in: path, required: true, schema: {type: string}}
+      responses:
+        "204":
+          description: Ticket supprimé, sans supprimer la conversation ni les données financières
+        "404":
+          description: Ticket introuvable dans cette plateforme
     patch:
       operationId: updateSupportTicket
       parameters:
@@ -756,6 +801,39 @@ components:
         suggestions: {type: array, items: {$ref: "#/components/schemas/ChatSuggestion"}}
         suggestions_label: {type: string}
         closing_message: {type: string}
+    ConversationHistory:
+      type: object
+      required: [data, hasMore, expiresAt]
+      properties:
+        data: {type: array, items: {$ref: "#/components/schemas/PlatformMessage"}}
+        hasMore: {type: boolean}
+        expiresAt: {type: string}
+    ConversationInsights:
+      type: object
+      required: [period_days, total_questions, top_questions, satisfaction]
+      properties:
+        period_days: {type: integer}
+        total_questions: {type: integer}
+        top_questions:
+          type: array
+          items: {$ref: "#/components/schemas/FrequentQuestion"}
+        satisfaction:
+          type: object
+          required: [asked, answered, satisfied, unsatisfied, pending, rate, response_rate]
+          properties:
+            asked: {type: integer}
+            answered: {type: integer}
+            satisfied: {type: integer}
+            unsatisfied: {type: integer}
+            pending: {type: integer}
+            rate: {type: ["number", "null"]}
+            response_rate: {type: ["number", "null"]}
+    FrequentQuestion:
+      type: object
+      required: [question, count]
+      properties:
+        question: {type: string}
+        count: {type: integer}
     MessageList:
       type: object
       required: [success, data]

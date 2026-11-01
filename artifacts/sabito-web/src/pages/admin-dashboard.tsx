@@ -13,6 +13,7 @@ import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
 import { UnansweredQuestions } from "@/components/UnansweredQuestions";
 import { SupportTickets } from "@/components/SupportTickets";
+import { ConversationInsights } from "@/components/ConversationInsights";
 import { BackendConnection } from "@/components/BackendConnection";
 import { AssistantSettingsPanel } from "@/components/assistant/AssistantSettingsPanel";
 
@@ -154,6 +155,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
         )}
       </section>
       <AssistantSettingsPanel key={p.id} projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
+      <ConversationInsights projectId={p.id} />
       <SupportTickets projectId={p.id} />
       <UnansweredQuestions projectId={p.id} />
       <Knowledge projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />

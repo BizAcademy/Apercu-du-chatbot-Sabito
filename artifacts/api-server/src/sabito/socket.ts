@@ -15,6 +15,10 @@ import { handleIntent } from "./intents";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { suggestedReply } from "./suggestion-replies";
 import { contextualBuzzReply } from "./public-help-context";
+import { ownedRecentConversation,conversationHistoryPage } from "./conversation-history";
+import { supportMemoryTurn,trackSupportQuestion,appendPreviousSatisfaction } from "./support-memory";
+import { createHash } from "node:crypto";
+import { pool } from "./database";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -22,7 +26,7 @@ const messageSchema = z.object({
   content:z.string().trim().min(1),
   follow_up_id:z.string().regex(/^[0-9a-f-]{36}:[0-9a-f]{24}$/).optional(),
 });
-const startSchema = z.object({metadata:z.record(z.string(),z.unknown()).optional()});
+const startSchema = z.object({metadata:z.record(z.string(),z.unknown()).optional(),resume:z.boolean().optional()});
 let currentIo: Server | undefined;
 const budgets=new Map<string,{time:number;count:number}>();
 function allowMessage(key:string) {
@@ -93,9 +97,14 @@ export function attachSocketServer(httpServer: HttpServer) {
       try {
         if (!await authorized()) return acknowledge({ok:false,error:{code:"UNAUTHORIZED"}});
         if(!allowMessage(`start:${claims.sub}:${claims.externalUserId}`))return acknowledge({ok:false,error:{code:"RATE_LIMITED"}});
-        const conversationId = await createConversation(claims.sub,claims.externalUserId,parsed.data.metadata);
+        const previous=parsed.data.resume?await ownedRecentConversation(claims):undefined;
+        const conversationId = previous?.id??await createConversation(claims.sub,claims.externalUserId,parsed.data.metadata);
         const {settings}=await searchState(claims.sub);
-        acknowledge({ok:true,data:{conversationId,greeting:initialGreeting(claims,settings)}});
+        const history=parsed.data.resume?await conversationHistoryPage(conversationId):undefined;
+        acknowledge({ok:true,data:{conversationId,greeting:initialGreeting(claims,settings),
+          ...(history?{history:history.data,hasMore:history.hasMore,
+            expiresAt:previous?.expires_at.toISOString()??new Date(Date.now()+86400000).toISOString()}:{} )}});
+        if(previous)return;
         void conversationGreeting(claims,conversationId).then(content=>{
           if(socket.connected)socket.emit("conversation:welcome",{conversationId,content});
         }).catch(error=>logger.error({err:error},"Conversation welcome unavailable"));
@@ -124,28 +133,45 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
+        const memory=parsed.data.follow_up_id?{}:await supportMemoryTurn(claims.sub,conversationId,parsed.data.content,assistantId);
+        const question=memory.query??parsed.data.content;
         const followUp = parsed.data.follow_up_id
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
-        const proposalAnswer = parsed.data.follow_up_id ? null :
+        const proposalAnswer = parsed.data.follow_up_id||memory.answer ? null :
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
-        const contextReply = parsed.data.follow_up_id || proposalAnswer ? null :
-          await contextualBuzzReply(claims,conversationId,parsed.data.content);
-        const intentAnswer = parsed.data.follow_up_id || proposalAnswer || contextReply ? null : await handleIntent(claims,conversationId,parsed.data.content);
-        const reply = parsed.data.follow_up_id
+        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer ? null :
+          await contextualBuzzReply(claims,conversationId,question);
+        const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply
+          ?await trackSupportQuestion(claims.sub,conversationId,userMessageId,parsed.data.content):false;
+        const intentAnswer = parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question);
+        const reply = parsed.data.follow_up_id||memory.answer
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             suggestions_label:"",closing_message:""}
-          : contextReply ?? await retrieveReply(claims.sub,parsed.data.content);
-        if(parsed.data.follow_up_id) {
+          : contextReply ?? await retrieveReply(claims.sub,question);
+        if(memory.answer){reply.answer=memory.answer;reply.reliable=true;}
+        else if(parsed.data.follow_up_id) {
           reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
           reply.reliable=true;
           reply.suggestions=[];
         } else if(proposalAnswer) Object.assign(reply,proposalAnswer);
         else if(intentAnswer){reply.answer=intentAnswer;reply.reliable=true;reply.suggestions=[];}
+        if(!reply.reliable&&memory.fallbackQuestion) {
+          const fallback=await retrieveReply(claims.sub,memory.fallbackQuestion);
+          if(fallback.reliable)Object.assign(reply,fallback,{answer:`Reprenons votre question « ${memory.fallbackQuestion} ».\n\n${fallback.answer}`});
+        }
         // Only an unrecognized question with a relevant search proposal gets a clarification title.
         reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
-        const answer = reply.answer;
+        const answer = tracked?await appendPreviousSatisfaction(claims.sub,conversationId,userMessageId,assistantId,reply.answer):reply.answer;
+        if(intentAnswer||memory.feedbackOnly) {
+          const state=await pool.query("SELECT collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2 AND status='complete'",[conversationId,claims.sub]);
+          if(state.rows[0]) {
+            const fields=JSON.parse(state.rows[0].collected_json);
+            if(fields.__answer_hash){fields.__answer_hash=createHash("sha256").update(answer).digest("hex");
+              await pool.query("UPDATE sabito_core.intent_sessions SET collected_json=$1 WHERE conversation_id=$2 AND project_id=$3 AND status='complete'",[JSON.stringify(fields),conversationId,claims.sub]);}
+          }
+        }
         for (const delta of streamParts(answer)) socket.emit("message:delta",{conversationId,messageId:assistantId,delta});
         await saveMessagePresentation(assistantId,reply);
         await finishMessage(assistantId,answer);
@@ -153,7 +179,7 @@ export function attachSocketServer(httpServer: HttpServer) {
         socket.emit("message:complete",{conversationId,messageId:assistantId,content:answer,
           suggestions:reply.suggestions,suggestions_label:reply.suggestions_label,closing_message:reply.closing_message});
       } catch (error) {
-        const code = error instanceof Error && error.message === "CONVERSATION_NOT_FOUND" ? error.message : "INTERNAL_ERROR";
+        const code = error instanceof Error && ["CONVERSATION_NOT_FOUND","CONVERSATION_EXPIRED"].includes(error.message) ? error.message : "INTERNAL_ERROR";
         logger.error({err:error,projectId:claims.sub},"Sabito message failed");
         if (!userMessageId) acknowledge({ok:false,error:{code,message:"Le message n’a pas été accepté."}});
         else {

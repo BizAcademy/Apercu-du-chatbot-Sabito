@@ -481,6 +481,36 @@ export interface PlatformMessage {
   closing_message?: string;
 }
 
+export interface ConversationHistory {
+  data: PlatformMessage[];
+  hasMore: boolean;
+  expiresAt: string;
+}
+
+export type ConversationInsightsSatisfaction = {
+  asked: number;
+  answered: number;
+  satisfied: number;
+  unsatisfied: number;
+  pending: number;
+  /** @nullable */
+  rate: number | null;
+  /** @nullable */
+  response_rate: number | null;
+};
+
+export interface FrequentQuestion {
+  question: string;
+  count: number;
+}
+
+export interface ConversationInsights {
+  period_days: number;
+  total_questions: number;
+  top_questions: FrequentQuestion[];
+  satisfaction: ConversationInsightsSatisfaction;
+}
+
 export interface MessageList {
   success: boolean;
   data: PlatformMessage[];
@@ -543,6 +573,23 @@ export interface KnowledgeEntry {
   question: string;
   answer: string;
 }
+
+export type GetConversationHistoryParams = {
+before?: string;
+};
+
+export type GetConversationInsightsParams = {
+days?: GetConversationInsightsDays;
+};
+
+export type GetConversationInsightsDays = typeof GetConversationInsightsDays[keyof typeof GetConversationInsightsDays];
+
+
+export const GetConversationInsightsDays = {
+  NUMBER_7: 7,
+  NUMBER_30: 30,
+  NUMBER_90: 90,
+} as const;
 
 export type ListUnansweredQuestionsParams = {
 status?: ListUnansweredQuestionsStatus;

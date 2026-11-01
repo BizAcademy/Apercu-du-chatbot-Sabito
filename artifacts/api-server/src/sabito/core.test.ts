@@ -30,6 +30,7 @@ import { semanticSimilarity } from "./semantic";
 import { buzzGuides } from "./buzzbooster-guides";
 import { contextualBuzzReply } from "./public-help-context";
 import { verifyDirectOrders } from "./tests/buzzbooster-orders";
+import { verifySupportMemory } from "./tests/support-memory";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -157,7 +158,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal((await send("Comment ça fonctionne ?")).content,wave.content);
       assert.equal(await contextualBuzzReply({...claims,externalUserId:"other-member"},conversationId,"Comment ça fonctionne ?"),null);
       const intro=await send("C’est quoi Buzz Booster ?");
-      assert.equal(intro.content,overview.content);
+      assert.ok(intro.content.startsWith(overview.content));
       assert.equal(intro.suggestions.length,2);
       assert.match(intro.content,/déjà connecté.*inutile de recréer/);
       assert.doesNotMatch(intro.content,/numéro de commande|référence de transaction/);
@@ -1465,6 +1466,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     });
     await t.test("Direct order verification makes scoped fresh tool calls, retains context and batches safely without confirmations",
       ()=>verifyDirectOrders({app,adminKey,address:localTestAddress,projectIds,sockets,openSocket}));
+    await t.test("Support history resumes for 24 hours, scopes deletion, records explicit satisfaction and isolates guest cookies",
+      ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       const disconnected = socketOnce(sockets[0],"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);

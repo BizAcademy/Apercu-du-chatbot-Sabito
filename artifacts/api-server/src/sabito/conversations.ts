@@ -32,10 +32,11 @@ export async function acceptUserMessage(input: {
     }
     const conversationId = input.conversationId ?? randomUUID();
     if (input.conversationId) {
-      const result = await connection.query(`SELECT id FROM sabito_core.conversations
+      const result = await connection.query(`SELECT id,created_at FROM sabito_core.conversations
         WHERE id=$1 AND project_id=$2 AND external_user_id=$3 FOR UPDATE`,
         [conversationId,input.projectId,input.externalUserId]);
       if (!result.rowCount) throw new Error("CONVERSATION_NOT_FOUND");
+      if(Date.now()-new Date(result.rows[0].created_at).getTime()>=86400000)throw new Error("CONVERSATION_EXPIRED");
     } else {
       await connection.query(`INSERT INTO sabito_core.conversations(id,project_id,external_user_id) VALUES ($1,$2,$3)`,
         [conversationId,input.projectId,input.externalUserId]);

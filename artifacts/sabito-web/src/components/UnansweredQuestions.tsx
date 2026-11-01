@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { answerUnansweredQuestion, listUnansweredQuestions, type UnansweredQuestion } from "@workspace/api-client-react";
-import { ChevronLeft, ChevronRight, CircleHelp, MessageSquarePlus, RefreshCw, X } from "lucide-react";
+import { answerUnansweredQuestion, deleteUnansweredQuestion, listUnansweredQuestions, type UnansweredQuestion } from "@workspace/api-client-react";
+import { ChevronLeft, ChevronRight, CircleHelp, MessageSquarePlus, RefreshCw, Trash2, TriangleAlert, X } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 
 type Filter = "a_traiter" | "traite" | "all";
@@ -28,6 +28,10 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<Filter>("a_traiter");
   const [page, setPage] = useState(0);
   const [answering, setAnswering] = useState<UnansweredQuestion | null>(null);
+  const [deleting, setDeleting] = useState<UnansweredQuestion | null>(null);
+  const qc = useQueryClient();
+  const { onLogout } = useAdmin();
+  useEffect(() => onLogout(() => { setDeleting(null); setAnswering(null); }), [onLogout]);
   const q = useQuery({
     queryKey: [...unansweredKey(projectId), status, page],
     queryFn: () => listUnansweredQuestions(projectId, { status, page }, headers()),
@@ -36,6 +40,15 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
   const rows = q.data?.data ?? [];
   const total = q.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const del = useMutation({
+    mutationFn: (id: string) => deleteUnansweredQuestion(projectId, id, headers()),
+    onSuccess: () => {
+      setDeleting(null);
+      if (rows.length <= 1 && page > 0) setPage((p) => p - 1);
+      void qc.invalidateQueries({ queryKey: unansweredKey(projectId) });
+      void qc.invalidateQueries({ queryKey: ["sabito-admin", "insights", projectId] });
+    },
+  });
 
   return (
     <section className={card} data-testid="section-unanswered">
@@ -78,6 +91,7 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
                 </div>
               </div>
               {r.statut === "a_traiter" && <button className={ghost} onClick={() => setAnswering(r)} data-testid={`button-answer-${r.id}`}><MessageSquarePlus size={14} />Ajouter une réponse</button>}
+              <button className="rounded-[10px] p-2 text-[#9aa1b8] transition hover:bg-[#fff6f6] hover:text-[#b4441f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b4441f] disabled:opacity-40" disabled={del.isPending} onClick={() => { del.reset(); setDeleting(r); }} aria-label={"Supprimer la question"} title={"Supprimer la question"} data-testid={`button-delete-unanswered-${r.id}`}><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
@@ -91,6 +105,7 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
+      {deleting && <ConfirmDelete testid="delete-unanswered" title="Supprimer cette question ?" body={`« ${deleting.question.length > 160 ? deleting.question.slice(0, 160) + "…" : deleting.question} » sera retirée définitivement de la liste. Action irréversible. Les conversations et les références validées ne sont pas supprimées.`} pending={del.isPending} error={del.error} onConfirm={() => del.mutate(deleting.id)} close={() => setDeleting(null)} />}
       {answering && <AnswerDialog projectId={projectId} question={answering} close={() => setAnswering(null)} />}
     </section>
   );
@@ -123,6 +138,22 @@ function AnswerDialog({ projectId, question, close }: { projectId: string; quest
         {m.error && <Err msg={errMsg(m.error)} />}
         <div className="mt-3 flex justify-end gap-2"><button type="button" className={ghost} onClick={close} disabled={m.isPending}>Annuler</button><button disabled={!valid || m.isPending} className={btn} data-testid="button-save-answer">{m.isPending ? "Enregistrement…" : "Enregistrer la réponse"}</button></div>
       </form>
+    </div>
+  );
+}
+
+function ConfirmDelete({ title, body, pending, error, onConfirm, close, testid }: { title: string; body: string; pending: boolean; error: unknown; onConfirm: () => void; close: () => void; testid: string }) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-[#11162b]/40 p-4" role="dialog" aria-modal="true" aria-labelledby={`${testid}-title`} onKeyDown={(e) => { if (e.key === "Escape" && !pending) close(); }}>
+      <div className="w-full max-w-[480px] rounded-[22px] bg-white p-6 shadow-xl" data-testid={`modal-${testid}`}>
+        <div id={`${testid}-title`} className="flex items-center gap-2 text-[16px] font-bold text-[#7a2a12]"><TriangleAlert size={17} />{title}</div>
+        <p className="mt-2 rounded-xl bg-[#fff6f6] p-3 text-[12px] leading-5 text-[#7a2a12]">{body}</p>
+        {error ? <div className="mt-3"><Err msg={errMsg(error)} /></div> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className={ghost} onClick={close} disabled={pending} autoFocus data-testid={`button-cancel-${testid}`}>Annuler</button>
+          <button type="button" className="inline-flex items-center gap-2 rounded-[12px] bg-[#b4441f] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-[#9a3817] disabled:opacity-60" disabled={pending} onClick={onConfirm} data-testid={`button-confirm-${testid}`}><Trash2 size={14} />{pending ? "Suppression…" : "Supprimer définitivement"}</button>
+        </div>
+      </div>
     </div>
   );
 }
