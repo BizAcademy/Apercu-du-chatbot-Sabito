@@ -1,7 +1,8 @@
 import type { IntentDefinition } from "./assistant-settings";
 import type { BackendResult } from "./backend-bridge";
+import { catalogueOperations,catalogueBackendFields } from "./buzzbooster-catalogue";
 export const buzzOperations=["deposit_status","deposit_bonus_status","order_status","order_refund_status","referral_code",
-  "referral_reward_status","referee_bonus_status","wallet_balance","wallet_movement_status","admin_adjustment_status"];
+  "referral_reward_status","referee_bonus_status","wallet_balance","wallet_movement_status","admin_adjustment_status",...catalogueOperations];
 const depositOps=new Set(["deposit_status","deposit_bonus_status"]);
 export function alignBuzzIntent(intent:IntentDefinition):IntentDefinition {
   const operation=intent.backend_function;
@@ -40,6 +41,7 @@ export function buzzDepositIdentifier(input:string):{name:string;value:string}|u
 }
 /** Restrict emitted keys to the existing platform contract; never change identity. */
 export function buzzBackendFields(operation:string,fields:Record<string,string>):Record<string,string> {
+  if(catalogueOperations.includes(operation as typeof catalogueOperations[number]))return catalogueBackendFields(fields);
   const values=Object.fromEntries(Object.entries(fields).filter(([key])=>!key.startsWith("__")));
   if(depositOps.has(operation)) {
     const input=values.deposit_number??values.transaction_id??values.phone_number;

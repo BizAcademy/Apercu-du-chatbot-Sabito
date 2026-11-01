@@ -27,8 +27,8 @@ test("Public general questions route to approved complete guides, not personal l
   assert.match(buzzGuides.find(guide=>guide.key==="affiliation")!.content,/défaut.*modifiables/);
   assert.match(buzzGuides.find(guide=>guide.key==="support")!.content,/après son enregistrement réel/);
 });
-test("The exact ten operations and their identifiers remain separate",()=>{
-  assert.equal(buzzOperations.length,10);
+test("Ten financial reads and two catalogue reads keep their identifiers separate",()=>{
+  assert.equal(buzzOperations.length,12);
   assert.equal(buzzOperations.some(name=>/activation|withdrawal/.test(name)),false);
   for(const reference of ["BUZZ_0012","BB-0012"])assert.deepEqual(buzzBackendFields("deposit_status",{deposit_number:reference}),{deposit_number:reference});
   for(const reference of ["PIM0012","POM0012"])assert.deepEqual(buzzBackendFields("deposit_bonus_status",{deposit_number:reference}),{transaction_id:reference});

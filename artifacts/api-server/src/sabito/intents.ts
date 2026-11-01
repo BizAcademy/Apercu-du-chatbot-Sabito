@@ -11,6 +11,9 @@ import { greetingReply } from "./greeting-reply";
 import { buzzGuideFor } from "./buzzbooster-guides";
 import { isBcaHelpQuestion } from "./bca-knowledge-install";
 import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,optionalBuzzField,buzzOperations } from "./buzzbooster-contract";
+import { handleBuzzCatalogue } from "./buzzbooster-catalogue-flow";
+import { directBuzzOrders } from "./buzzbooster-order-flow";
+import { explicitOrderRead,orderContext } from "./buzzbooster-orders";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -42,6 +45,13 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   const normalized=normalizeQuestion(text);
   const {settings,profile}=await searchState(claims.sub);
   const buzz=profile==="buzzbooster",guide=buzz?buzzGuideFor(text):undefined;
+  if(buzz) {
+    const orders=await directBuzzOrders(claims,conversationId,text,settings,
+      ()=>ticket(claims.sub,conversationId,claims,"order_status","BACKEND_UNAVAILABLE"));
+    if(orders!==null)return orders;
+    const catalogue=await handleBuzzCatalogue(claims,conversationId,text,settings);
+    if(catalogue!==null)return catalogue;
+  }
   // Public BCA instructions use approved references, not member lookups.
   // Do not clear an interrupted collection while answering a how-to question.
   if(profile==="bca" && isBcaHelpQuestion(text) && (await retrieveReply(claims.sub,text)).reliable)
@@ -93,7 +103,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       }
       await connection.query("COMMIT");return settings.checking_message;
     }
-    if (/^(annuler|annule|stop|abandonner)$/.test(normalized) && current?.status==="collecting") {
+    if ((/^(annuler|annule|stop|abandonner)$/.test(normalized)||
+      buzz&&intentRegistry[current?.intent]?.backendOperation==="order_status"&&/^(non|non merci)$/.test(normalized)) && current?.status==="collecting") {
       await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1",[conversationId]);
       await connection.query("COMMIT");return settings.cancelled_message;
     }
@@ -153,7 +164,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     } else if(!current || current.status!=="collecting" || current.intent!==intent) {
       const explicitPersonal=buzz&&((/[?？]/.test(text)&&/\b(mon|ma|mes)\b/.test(normalized)) ||
         /^(mon|ma|mes)\b.*(?:pas arrive|non recu|pas recu|non credite|partiel)/.test(normalized) || !!suppliedDeposit);
-      if(explicitPersonal&&!refundQuestion) {
+      const explicitOrder=buzz&&definition.backendOperation==="order_status"&&explicitOrderRead(text);
+      if((explicitPersonal||explicitOrder)&&!refundQuestion) {
         if(!isVerifiedMember(claims)) {await connection.query("COMMIT");return definition.guest_message;}
         justConfirmed=true;
         if(suppliedDeposit&&definition.backendOperation==="deposit_status"&&definition.required.some(field=>field.name==="deposit_number"))
@@ -181,6 +193,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       await connection.query("COMMIT");return guide;
     }
     const missing=definition.required.find(field=>!fields[field.name]);
+    if(buzz&&definition.backendOperation==="order_status"&&missing&&/^(oui|yes|ouais)$/.test(normalized)) {
+      await connection.query("COMMIT");return missing.prompt;
+    }
     if (missing && !detected && !justConfirmed) {
       const value=collectedValue(missing,text);
       if(buzz&&["deposit_status","deposit_bonus_status"].includes(definition.backendOperation)&&missing.name==="deposit_number"&&/^\d{7,15}$/.test(value)) {
@@ -200,7 +215,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if (next) return `${next.prompt} ${settings.privacy_message}`;
   } catch(error) {await connection.query("ROLLBACK");throw error;}
   finally {connection.release();}
-  let reason="BACKEND_UNAVAILABLE",failureTemplate="",retrySaved=false;
+  let reason="BACKEND_UNAVAILABLE",failureTemplate="",retrySaved=false,orderReply:string|undefined;
   try {
     if (!isVerifiedMember(claims)) {reason="MEMBER_AUTH_REQUIRED";throw new Error(reason);}
     const definition=intentRegistry[intent!];
@@ -235,7 +250,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     }
     if(buzz) {
       const answer=buzzResultAnswer(definition.backendOperation,response);
-      if(answer)return answer;
+      if(answer) {
+        if(definition.backendOperation==="order_status"&&fields!.order_number)orderReply=answer;
+        return answer;
+      }
       reason="BACKEND_UNVERIFIED_RESULT";
       throw new Error(reason);
     }
@@ -255,8 +273,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const code=error instanceof Error ? error.message : "";
     if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT"].includes(code)) reason=code;
   } finally {
-    if(!retrySaved) await pool.query(`UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}',updated_at=CURRENT_TIMESTAMP(6)
-      WHERE conversation_id=$1 AND project_id=$2 AND intent=$3 AND status='checking'`,[conversationId,claims.sub,intent!]);
+    if(!retrySaved) await pool.query(`UPDATE sabito_core.intent_sessions SET status='complete',collected_json=$1,updated_at=CURRENT_TIMESTAMP(6)
+      WHERE conversation_id=$2 AND project_id=$3 AND intent=$4 AND status='checking'`,
+      [JSON.stringify(orderReply?orderContext([fields!.order_number],orderReply):{}),conversationId,claims.sub,intent!]);
   }
   const id=await ticket(claims.sub,conversationId,claims,intent!,reason);
   await recordUnanswered(claims.sub,originalQuestion,isVerifiedMember(claims)?claims.externalUserId:undefined);

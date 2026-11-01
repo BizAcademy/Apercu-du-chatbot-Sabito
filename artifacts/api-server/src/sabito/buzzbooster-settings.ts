@@ -1,6 +1,7 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
 import { isDeepStrictEqual } from "node:util";
 import { alignBuzzIntent } from "./buzzbooster-contract";
+import { catalogueIntents } from "./buzzbooster-catalogue-settings";
 
 export function isBuzzBooster(slug: string, name: string): boolean {
   return [slug, name].some(value => /^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g, "")));
@@ -50,7 +51,7 @@ export function legacyBuzzBoosterIntents(): IntentDefinition[] {
   ];
 }
 
-export function buzzBoosterIntents(): IntentDefinition[] {
+export function buzzFinancialIntents(): IntentDefinition[] {
   const base = legacyBuzzBoosterIntents();
   base[0].triggers.push("dépôt Mobile Money", "dépôt en cryptomonnaie");
   base[0].triggers.push("mon dépôt n'est pas arrivé","solde non crédité","paiement débité mais dépôt non reçu");
@@ -115,10 +116,14 @@ export function buzzBoosterIntents(): IntentDefinition[] {
   }))].map(alignBuzzIntent);
 }
 
+export function buzzBoosterIntents():IntentDefinition[] {
+  return [...buzzFinancialIntents(),...catalogueIntents()];
+}
+
 /** Read-time compatibility upgrade: never overwrites authored messages or custom rules. */
 export function adaptBuzzBooster(settings: AssistantSettings, legacy: AssistantSettings): AssistantSettings {
   const defaults = buzzBoosterIntents();
-  if (isDeepStrictEqual(settings.intents, legacyBuzzBoosterIntents())) {
+  if (isDeepStrictEqual(settings.intents, legacyBuzzBoosterIntents())||isDeepStrictEqual(settings.intents,buzzFinancialIntents())) {
     return { ...settings, intents: defaults };
   }
   const hadActivation = settings.intents.some(intent => intent.backend_function === "account_activation" && intent.enabled);
