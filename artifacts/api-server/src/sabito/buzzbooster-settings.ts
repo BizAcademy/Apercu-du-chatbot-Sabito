@@ -1,10 +1,12 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
+import { isDeepStrictEqual } from "node:util";
 
 export function isBuzzBooster(slug: string, name: string): boolean {
   return [slug, name].some(value => /^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g, "")));
 }
 
-export function buzzBoosterIntents(): IntentDefinition[] {
+/** Historical four-rule catalog, retained only to recognize untouched saved configurations. */
+export function legacyBuzzBoosterIntents(): IntentDefinition[] {
   const guest_message = "Connectez-vous à votre compte Buzz Booster pour consulter vos informations personnelles.";
   const result = "Statut : {statut}.\n{details_transaction}";
   const responses = {
@@ -47,17 +49,80 @@ export function buzzBoosterIntents(): IntentDefinition[] {
   ];
 }
 
+export function buzzBoosterIntents(): IntentDefinition[] {
+  const base = legacyBuzzBoosterIntents();
+  base[0].triggers.push("dépôt Mobile Money", "dépôt en cryptomonnaie");
+  base[1].triggers.push("suivi de ma commande");
+  base[3].triggers.push("commission de parrainage");
+  const guest_message = "Connectez-vous à votre compte Buzz Booster pour consulter vos informations personnelles.";
+  const result = "Statut : {statut}.\n{details_transaction}";
+  const additional = [
+    {
+      operation: "deposit_bonus_status", name: "Bonus de dépôt",
+      triggers: ["bonus de dépôt", "bonus de dépôt non reçu", "vérifier mon bonus de dépôt", "bonus de dépôt en attente", "bonus de dépôt crypto"],
+      initial: "L’attribution d’un bonus de dépôt dépend des conditions de Buzz Booster. Je peux proposer une consultation du bonus réellement enregistré, sans en attribuer un.",
+      confirmation: "Souhaitez-vous vérifier le bonus associé à un dépôt ? Répondez par oui ou non.",
+      field: { name: "deposit_number", prompt: "Quelle est la référence du dépôt dont vous souhaitez vérifier le bonus ?" },
+    },
+    {
+      operation: "order_refund_status", name: "Remboursement total ou partiel d'une commande",
+      triggers: ["remboursement de ma commande", "remboursement d'une commande", "commande annulée mais pas remboursée", "remboursement partiel de ma commande", "commande non remboursée"],
+      initial: "L’annulation d’une commande ne prouve pas que son remboursement a déjà été crédité. Je peux proposer une consultation du montant et du statut réellement enregistrés.",
+      confirmation: "Souhaitez-vous vérifier le remboursement d’une commande ? Répondez par oui ou non.",
+      field: { name: "order_id", prompt: "Quel est le numéro de la commande concernée par le remboursement ?" },
+    },
+    {
+      operation: "referee_bonus_status", name: "Bonus reçu en tant que filleul",
+      triggers: ["bonus du filleul", "mon bonus de filleul", "bonus du filleul non reçu", "vérifier mon bonus filleul", "bonus de bienvenue du filleul"],
+      initial: "Le bonus du filleul dépend des conditions de parrainage de Buzz Booster. Je peux proposer une vérification de votre propre bonus sans consulter les données privées d’autres membres.",
+      confirmation: "Souhaitez-vous consulter votre bonus en tant que filleul ? Répondez par oui ou non.",
+    },
+    {
+      operation: "wallet_balance", name: "Soldes des portefeuilles local et USD",
+      triggers: ["mon solde", "mon solde disponible", "consulter mes soldes", "mon solde USD", "solde de mon portefeuille"],
+      initial: "Je peux proposer une consultation de vos soldes. Les portefeuilles et leurs devises restent séparés ; aucune conversion ni modification ne sera effectuée.",
+      confirmation: "Souhaitez-vous consulter les soldes de vos portefeuilles ? Répondez par oui ou non.",
+    },
+    {
+      operation: "wallet_movement_status", name: "Crédit ou débit d'un mouvement de solde",
+      triggers: ["mon solde a diminué", "vérifier un mouvement de mon solde", "détail de ma transaction", "débit de ma commande"],
+      initial: "Un mouvement peut correspondre à un dépôt, un achat, un remboursement, un bonus ou une commission. Je peux proposer une consultation de son origine réelle, sans modifier le solde.",
+      confirmation: "Souhaitez-vous vérifier un mouvement de votre solde ? Répondez par oui ou non.",
+      field: { name: "transaction_id", prompt: "Quelle est la référence du mouvement de solde à vérifier ?" },
+    },
+    {
+      operation: "admin_adjustment_status", name: "Ajustement manuel du solde par l'administrateur",
+      triggers: ["ajustement manuel du solde", "ajustement de mon solde", "correction administrateur de mon solde", "crédit administrateur de mon portefeuille", "débit administrateur de mon portefeuille"],
+      initial: "Je peux proposer une consultation de l’ajustement enregistré et de son libellé autorisé. Aucune correction de solde ne sera exécutée et les notes internes ne seront pas divulguées.",
+      confirmation: "Souhaitez-vous consulter un ajustement administrateur de votre solde ? Répondez par oui ou non.",
+      field: { name: "transaction_id", prompt: "Quelle est la référence de l’ajustement de votre solde ?" },
+    },
+  ];
+  return [...base, ...additional.map(template => ({
+    id: template.operation, backend_function: template.operation,
+    name: template.name, enabled: true, triggers: template.triggers,
+    initial_response: template.initial, confirmation_question: template.confirmation,
+    fields: template.field ? [{ ...template.field, type: "text" as const, min_length: 1, max_length: 128 }] : [],
+    guest_message,
+    responses: { success: result, pending: result, error: result,
+      not_found: "Aucune opération accessible à votre compte ne correspond aux informations fournies." },
+  }))];
+}
+
 /** Read-time compatibility upgrade: never overwrites authored messages or custom rules. */
 export function adaptBuzzBooster(settings: AssistantSettings, legacy: AssistantSettings): AssistantSettings {
   const defaults = buzzBoosterIntents();
+  if (isDeepStrictEqual(settings.intents, legacyBuzzBoosterIntents())) {
+    return { ...settings, intents: defaults };
+  }
   const hadActivation = settings.intents.some(intent => intent.backend_function === "account_activation" && intent.enabled);
   const intents = settings.intents.flatMap(intent => {
     const old = legacy.intents.find(item => item.id === intent.id);
     if (intent.backend_function === "account_activation") {
-      return old && JSON.stringify(intent) === JSON.stringify(old) ? [] : [{ ...intent, enabled: false }];
+      return old && isDeepStrictEqual(intent,old) ? [] : [{ ...intent, enabled: false }];
     }
     const replacement = defaults.find(item => item.backend_function === intent.backend_function);
-    return [hadActivation && old && replacement && JSON.stringify(intent) === JSON.stringify(old) ? replacement : intent];
+    return [hadActivation && old && replacement && isDeepStrictEqual(intent,old) ? replacement : intent];
   });
   if (hadActivation) {
     for (const template of defaults) {

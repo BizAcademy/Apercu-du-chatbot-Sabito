@@ -18,7 +18,7 @@ import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
 import { verifyAccessToken,signAccessToken } from "./security";
 import { defaultSettings,readAssistantSettings,settingsSchema } from "./assistant-settings";
-import { adaptBuzzBooster,buzzBoosterIntents,isBuzzBooster } from "./buzzbooster-settings";
+import { adaptBuzzBooster,buzzBoosterIntents,isBuzzBooster,legacyBuzzBoosterIntents } from "./buzzbooster-settings";
 import { bcaIntents } from "./bca-settings";
 import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
@@ -73,7 +73,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       projectIds.push(id);
       const fresh=await readAssistantSettings(id);
       assert.deepEqual(fresh.settings.intents.map(i=>i.backend_function),
-        ["deposit_status","order_status","referral_code","referral_reward_status"]);
+        ["deposit_status","order_status","referral_code","referral_reward_status","deposit_bonus_status","order_refund_status",
+          "referee_bonus_status","wallet_balance","wallet_movement_status","admin_adjustment_status"]);
       const claims={sub:id,clientId:response.body.data.credentials.clientId,externalUserId:`buzz-member-${randomUUID()}`,scope:["chat:connect","member:verified"]};
       const conversation=await createConversation(id,claims.externalUserId);
       const proposal=await handleIntent(claims,conversation,"Où est ma commande ?");
@@ -87,6 +88,19 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const upgraded=await readAssistantSettings(id);
       assert.equal(upgraded.settings.intents.some(i=>i.backend_function==="account_activation"),false);
       assert.equal(upgraded.settings.intents.filter(i=>i.backend_function==="order_status").length,1);
+      assert.equal(upgraded.settings.intents.length,10);
+      const historical={...legacy,greeting_member:"Bonjour {nom_utilisateur}, bienvenue chez Buzz Booster.",intents:legacyBuzzBoosterIntents()};
+      const completed=adaptBuzzBooster(settingsSchema.parse(historical),legacy);
+      assert.equal(completed.intents.length,10);
+      assert.equal(completed.greeting_member,historical.greeting_member);
+      assert.deepEqual(adaptBuzzBooster(completed,legacy),completed);
+      const previousCustom=structuredClone(historical);
+      previousCustom.intents[0].triggers=["notre dépôt personnalisé"];
+      previousCustom.intents[1].enabled=false;
+      assert.deepEqual(adaptBuzzBooster(previousCustom,legacy),previousCustom);
+      const previouslyDeleted=structuredClone(historical);
+      previouslyDeleted.intents=previouslyDeleted.intents.filter(intent=>intent.id!=="order_status");
+      assert.deepEqual(adaptBuzzBooster(previouslyDeleted,legacy),previouslyDeleted);
       const custom=structuredClone(legacy);
       custom.greeting_member="Bienvenue {nom_utilisateur} dans notre espace personnalisé.";
       custom.intents[0].name="Ancienne règle personnalisée";
@@ -108,6 +122,88 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         .send({slug:`bca-test-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les connaissances approuvées."}).expect(201);
       projectIds.push(bca.body.data.project.id);
       assert.equal((await readAssistantSettings(bca.body.data.project.id)).settings.intents.some(i=>i.backend_function==="account_activation"&&i.enabled),true);
+    });
+    await t.test("All Buzz Booster money paths confirm, collect and dispatch exact scoped results without activation or withdrawals", async () => {
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`smm-finance-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const {project,credentials}=created.body.data;
+      const id=project.id,url=`/v1/admin/projects/${id}/assistant-settings`;
+      projectIds.push(id);
+      let config=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body;
+      assert.equal(config.profile,"buzzbooster");
+      assert.equal(config.intent_templates.length,10);
+      const settings=settingsSchema.parse(config.settings);
+      assert.equal(settings.intents.every(intent=>intent.enabled),true);
+      assert.equal(settings.intents.some(intent=>/activation|withdrawal/.test(intent.backend_function)),false);
+      const claims={sub:id,clientId:credentials.clientId,externalUserId:"buzz-financial-member",scope:["chat:connect","member:verified"]};
+      const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
+        .send({operations:settings.intents.map(intent=>intent.backend_function)});
+      await poll().expect(200);
+      for(const intent of settings.intents) {
+        for(const trigger of intent.triggers) {
+          assert.equal(detectIntent(trigger,settings),intent.id,trigger);
+          assert.equal(detectIntent(`Bonjour, pouvez-vous vérifier : ${trigger} ?`,settings),intent.id,`prose: ${trigger}`);
+        }
+        const conv=await createConversation(id,claims.externalUserId);
+        assert.match((await handleIntent(claims,conv,intent.triggers[0]))!,/oui ou non/);
+        assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+        let answer:Promise<string|null>;
+        if(intent.fields.length) {
+          assert.ok((await handleIntent(claims,conv,"oui"))!.includes(intent.fields[0].prompt));
+          assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+          answer=handleIntent(claims,conv,"REF-BUZZ-123");
+        } else answer=handleIntent(claims,conv,"oui");
+        let completed=false;
+        const partial=intent.backend_function==="order_refund_status";
+        const status=intent.backend_function==="deposit_bonus_status"?"pending":"confirmed";
+        const label=partial?"Remboursement partiel effectué":status==="pending"?"Bonus en attente":"Résultat réel Buzz Booster";
+        for(let attempt=0;attempt<100;attempt++) {
+          const job=(await poll().expect(200)).body.jobs.find((item:{operation:string})=>item.operation===intent.backend_function);
+          if(job) {
+            assert.equal(job.external_user_id,claims.externalUserId);
+            assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:"REF-BUZZ-123"}:{});
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+              .send({result:{status,data:{statut:label,reference:"REF-BUZZ-123",montant:partial?500:1250,devise:"USD",code:"PARRAIN-BUZZ"}}}).expect(200);
+            completed=true;break;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        assert.equal(completed,true,intent.backend_function);
+        const rendered=await answer;
+        if(intent.backend_function==="referral_code") assert.equal(rendered,"Votre code de parrainage est : PARRAIN-BUZZ");
+        else {
+          assert.ok(rendered!.includes(label),intent.backend_function);
+          assert.ok(rendered!.includes(partial?"500":"1250"));
+          assert.match(rendered!,/USD/);
+        }
+        assert.doesNotMatch(rendered!,/ticket a été créé/);
+      }
+      for(const member of [claims,{...claims,externalUserId:"guest:buzz-financial",scope:["chat:connect"]}]) {
+        for(const intent of settings.intents) {
+          const conv=await createConversation(id,member.externalUserId);
+          await handleIntent(member,conv,intent.triggers[0]);
+          const reply=await handleIntent(member,conv,member===claims?"non":"oui");
+          if(member!==claims) assert.match(reply!,/Connectez-vous/);
+          assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+        }
+      }
+      const old={...settings,intents:legacyBuzzBoosterIntents()};
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:old,expected_revision:config.revision}).expect(200)).body;
+      assert.equal(config.settings.intents.length,10);
+      assert.equal((await readAssistantSettings(id)).settings.intents.length,10);
+      // Intentionally disabled/deleted rules must not be silently reactivated/restored.
+      const custom=structuredClone(old);
+      custom.intents[0].triggers=["mon dépôt spécial"];
+      custom.intents[1].enabled=false;
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
+      assert.deepEqual(config.settings.intents,settingsSchema.parse(custom).intents);
+      assert.equal(config.intent_templates.length,10);
+      custom.intents=[];
+      config=(await request(app).put(url).set("X-Admin-Key",adminKey)
+        .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
+      assert.deepEqual(config.settings.intents,[]);
     });
     await t.test("BCA financial catalog confirms, collects and dispatches every enabled read operation with isolated identity", async () => {
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)

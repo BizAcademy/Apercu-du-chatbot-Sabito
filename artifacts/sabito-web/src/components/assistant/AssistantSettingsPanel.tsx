@@ -63,6 +63,9 @@ export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { proje
   const warnings = settingsWarnings(draft);
   const dirty = JSON.stringify(draft) !== baseline.current;
   const bca = q.data?.profile === "bca";
+  const smm = q.data?.profile === "buzzbooster" || buzzBooster;
+  const catalogPlatform = bca ? "BCA" : smm ? "Buzz Booster" : "";
+  const catalogKey = bca ? "bca" : "buzzbooster";
   const templates = q.data?.intent_templates ?? [];
   const missingTemplates = templates.filter(template => !draft.intents.some(intent => intent.backend_function === template.backend_function));
   const patch = (p: Partial<AssistantSettings>) => setDraft({ ...draft, ...p });
@@ -88,33 +91,45 @@ export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { proje
       {tab === "messages" && <MessagesEditor value={draft} onChange={patch} />}
       {tab === "intents" && (
         <div>
-          {bca && <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3" data-testid="section-bca-financial-templates">
-            <div className={label}>Parcours financiers BCA — consultation uniquement</div>
-            <p className={`${hint} mb-3`}>Dépôts, retraits, transferts, conversions, parrainage, formations, Digital Store, BCA Ads et ajustements. Chaque fonction doit être raccordée au backend BCA. Les gains d’activité restent désactivés tant que leur service réel n’est pas confirmé. Vos règles existantes ne sont pas écrasées.</p>
+          {catalogPlatform && <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3" data-testid={`section-${catalogKey}-financial-templates`}>
+            <div className={label}>Parcours financiers {catalogPlatform} — consultation uniquement</div>
+            <p className={`${hint} mb-3`}>{bca ? "Dépôts, retraits, transferts, conversions, parrainage, formations, Digital Store, BCA Ads et ajustements. Les gains d’activité restent désactivés tant que leur service réel n’est pas confirmé." : "Dépôts Mobile Money et crypto, bonus de dépôt, commandes de boost, remboursements totaux ou partiels, code et commissions de parrainage, bonus du filleul, soldes, mouvements et ajustements administrateur. Aucun parcours d’activation de compte ni de retrait n’est ajouté."} Chaque fonction doit être raccordée au backend {catalogPlatform}. Vos règles existantes ne sont pas écrasées.</p>
             <div className="flex flex-wrap items-center gap-2">
-              <label htmlFor={`bca-template-${projectId}`} className="sr-only">Modèle financier BCA à ajouter</label>
-              <select id={`bca-template-${projectId}`} className="max-w-full rounded-lg border border-[#e3e6f8] bg-white p-2 text-[12px]" value={templateId} onChange={event => setTemplateId(event.target.value)} data-testid="select-bca-intent-template">
+              <label htmlFor={`financial-template-${projectId}`} className="sr-only">Modèle financier {catalogPlatform} à ajouter</label>
+              <select id={`financial-template-${projectId}`} className="max-w-full rounded-lg border border-[#e3e6f8] bg-white p-2 text-[12px]" value={templateId} onChange={event => setTemplateId(event.target.value)} data-testid={`select-${catalogKey}-intent-template`}>
                 <option value="">Choisir un parcours manquant</option>
                 {missingTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
               </select>
               <button type="button" className={ghost} disabled={draft.intents.length>=100 || !missingTemplates.some(template=>template.id===templateId)} onClick={() => {
                 patch({intents:appendIntentTemplates(draft.intents,missingTemplates.filter(template=>template.id===templateId))});setTemplateId("");
-              }} data-testid="button-add-bca-template">Ajouter ce parcours</button>
+              }} data-testid={`button-add-${catalogKey}-template`}>Ajouter ce parcours</button>
               <button type="button" className={ghost} disabled={draft.intents.length+missingTemplates.length>100 || !missingTemplates.length} onClick={() => {
                 patch({intents:appendIntentTemplates(draft.intents,missingTemplates)});setTemplateId("");
-              }} data-testid="button-add-all-bca-templates">Ajouter les parcours BCA manquants ({missingTemplates.length})</button>
+              }} data-testid={`button-add-all-${catalogKey}-templates`}>Ajouter les parcours {catalogPlatform} manquants ({missingTemplates.length})</button>
             </div>
+            <details className="mt-3 text-[12px]" data-testid={`coverage-${catalogKey}-intents`}>
+              <summary className="cursor-pointer font-semibold text-[#48506a]">Vérifier les {templates.length} parcours : {templates.length-missingTemplates.length} configurés, {missingTemplates.length} manquants</summary>
+              <ul className="mt-2 space-y-2">
+                {templates.map(template => {
+                  const matches=draft.intents.filter(intent=>intent.backend_function===template.backend_function);
+                  return <li key={template.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-white p-2">
+                    <span>{template.name} <code className="text-[10px] text-[#6c748d]">({template.backend_function})</code></span>
+                    <span>{!matches.length ? "Manquant" : matches.some(intent=>intent.enabled) ? "Configuré · actif" : "Configuré · désactivé"}</span>
+                  </li>;
+                })}
+              </ul>
+              <p className={`${hint} mt-2`}>Ce bilan concerne les règles Sabito, pas la disponibilité ni la validité des services backend. Les modifications prennent effet après enregistrement.</p>
+            </details>
             {draft.intents.length+missingTemplates.length>100 && <p role="alert" className={`${hint} mt-2`}>L’ajout de tous les parcours dépasserait la limite de 100 intentions. Ajoutez les modèles individuellement ou retirez des règles inutilisées.</p>}
             <p className={`${hint} mt-2`}>Cliquez sur « Enregistrer » pour appliquer vos ajouts. Pour remplacer une règle personnalisée, modifiez-la directement plutôt que créer un doublon.</p>
           </div>}
-          {buzzBooster && <p className="mb-3 rounded-xl bg-[#f6f7ff] p-3 text-[12px] text-[#48506a]">Buzz Booster : suivi des dépôts, commandes de boost et parrainage. Aucune activation de compte ni opération financière n'est exécutée par Sabito. Les fonctions doivent être raccordées au backend Buzz Booster.</p>}
           <p className={`${hint} mb-3`}>Une intention répond d'abord à la question, puis demande confirmation. Après un « oui », elle collecte les champs nécessaires et appelle une fonction en lecture seule du serveur de la plateforme. Activation, suppression et modifications sont appliquées à l'enregistrement.</p>
           <div className="mb-4 rounded-xl bg-[#f6f7ff] p-3">
             <div className={label}>Synonymes propres à cette plateforme</div>
             <p className={`${hint} mb-2`}>Exemple : dépôt, recharge, versement. Ils sont reconnus dans les déclencheurs, même au milieu d'une phrase. Préférez « dépôt non reçu » à un mot trop général comme « compte ».</p>
             <SynonymsEditor value={draft.synonyms} onChange={(synonyms) => patch({ synonyms })} />
           </div>
-          {!bca && <><button type="button" className={`${ghost} mb-3`} disabled={draft.intents.length >= 100}
+          {!catalogPlatform && <><button type="button" className={`${ghost} mb-3`} disabled={draft.intents.length >= 100}
             onClick={() => patch({ intents: [...draft.intents, depositIntent(draft.intents)] })}
             data-testid="button-add-deposit-intent">Ajouter le modèle « Dépôt non reçu »</button>
           {!buzzBooster && <button type="button" className={`${ghost} mb-3 ml-2`} disabled={draft.intents.length >= 100}
