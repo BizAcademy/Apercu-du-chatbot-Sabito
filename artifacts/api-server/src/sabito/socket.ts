@@ -19,6 +19,7 @@ import { ownedRecentConversation,conversationHistoryPage } from "./conversation-
 import { supportMemoryTurn,trackSupportQuestion,appendPreviousSatisfaction } from "./support-memory";
 import { createHash } from "node:crypto";
 import { pool } from "./database";
+import { publicGuidance,savePublicGuidance } from "./public-guidance";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -139,11 +140,13 @@ export function attachSocketServer(httpServer: HttpServer) {
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
         const proposalAnswer = parsed.data.follow_up_id||memory.answer ? null :
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
-        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer ? null :
+        const guidance=parsed.data.follow_up_id||proposalAnswer||memory.answer?null:
+          await publicGuidance(claims,conversationId,question,userMessageId);
+        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance ? null :
           await contextualBuzzReply(claims,conversationId,question);
-        const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply
+        const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply&&!guidance?.continuing
           ?await trackSupportQuestion(claims.sub,conversationId,userMessageId,parsed.data.content):false;
-        const intentAnswer = parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question);
+        const intentAnswer = guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question));
         const reply = parsed.data.follow_up_id||memory.answer
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             suggestions_label:"",closing_message:""}
@@ -163,7 +166,9 @@ export function attachSocketServer(httpServer: HttpServer) {
         reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
         if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
-        const answer = tracked?await appendPreviousSatisfaction(claims.sub,conversationId,userMessageId,assistantId,reply.answer):reply.answer;
+        const answer = guidance?.context.awaiting?reply.answer:
+          (tracked||guidance)?await appendPreviousSatisfaction(claims.sub,conversationId,guidance?.context.questionId??userMessageId,assistantId,reply.answer):reply.answer;
+        if(guidance)await savePublicGuidance(claims.sub,conversationId,guidance,answer);
         if(intentAnswer||memory.feedbackOnly) {
           const state=await pool.query("SELECT collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2 AND status='complete'",[conversationId,claims.sub]);
           if(state.rows[0]) {

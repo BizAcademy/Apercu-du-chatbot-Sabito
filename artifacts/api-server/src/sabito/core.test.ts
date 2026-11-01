@@ -31,6 +31,7 @@ import { buzzGuides } from "./buzzbooster-guides";
 import { contextualBuzzReply } from "./public-help-context";
 import { verifyDirectOrders } from "./tests/buzzbooster-orders";
 import { verifySupportMemory } from "./tests/support-memory";
+import { verifyPublicGuidance } from "./tests/public-guidance";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -1466,6 +1467,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     });
     await t.test("Direct order verification makes scoped fresh tool calls, retains context and batches safely without confirmations",
       ()=>verifyDirectOrders({app,adminKey,address:localTestAddress,projectIds,sockets,openSocket}));
+    await t.test("Public Buzz guidance recognizes actions, retains context and only queries a real member catalogue",
+      ()=>verifyPublicGuidance({app,adminKey,projectIds,openSocket}));
     await t.test("Support history resumes for 24 hours, scopes deletion, records explicit satisfaction and isolates guest cookies",
       ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {

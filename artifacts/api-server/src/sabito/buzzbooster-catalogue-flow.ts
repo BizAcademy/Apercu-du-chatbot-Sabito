@@ -89,9 +89,9 @@ export async function handleBuzzCatalogue(claims:AccessClaims,conversationId:str
     } else if(Object.keys(parsed).some(key=>!["page","foreignCurrency"].includes(key)))fields.page="1";
     const publicFields=Object.fromEntries(Object.entries(fields).filter(([key])=>!key.startsWith("__"))) as CatalogueFields;
     const invalid=invalidCatalogueField(publicFields);
-    const needed=fields.__foreign_currency?"currency":invalid??(!fields.network?"network":!fields.goal?"goal":
-      operation==="service_recommendations"&&!fields.quantity&&!fields.__quantity_skipped?"quantity":
-      operation==="service_recommendations"&&!fields.budget_xaf&&!fields.__budget_skipped?"budget_xaf":undefined);
+    // Quantity is necessary with a total budget, or when the backend explicitly
+    // requests it. Neither quantity nor budget is required to browse/compare.
+    const needed=fields.__foreign_currency?"currency":invalid??(!fields.network?"network":!fields.goal?"goal":undefined);
     if(needed) {
       if(needed!=="currency")delete fields[needed];
       fields.__needed=needed;await save("collecting");await connection.query("COMMIT");
