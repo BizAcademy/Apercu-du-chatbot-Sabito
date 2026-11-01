@@ -11,9 +11,9 @@ export function initialGreeting(claims:AccessClaims,settings:AssistantSettings) 
     : settings.greeting_member_no_name;
 }
 export async function conversationGreeting(claims:AccessClaims,conversationId:string) {
-  const {settings}=await searchState(claims.sub);
+  const {settings,profile}=await searchState(claims.sub);
   let content=initialGreeting(claims,settings),name=claims.externalUserName;
-  if(isVerifiedMember(claims)&&!name) {
+  if(profile!=="buzzbooster"&&isVerifiedMember(claims)&&!name) {
     try {
       const result=await requestBackend(claims.sub,claims.externalUserId,"user_profile",{});
       const candidate=result.data?.nom_utilisateur??result.data?.username??result.data?.name;

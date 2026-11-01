@@ -13,7 +13,7 @@ import { widgetOrigins, widgetOriginsSchema } from "./widget";
 import { supportAdminRoutes } from "./support-admin";
 import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
 import { normalizedText } from "./semantic";
-import { assistantAdminRoutes,touchAssistant } from "./assistant-settings";
+import { assistantAdminRoutes,touchAssistant,readAssistantSettings } from "./assistant-settings";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
@@ -98,6 +98,7 @@ coreRoutes.use("/v1/admin/projects/:projectId/knowledge",async (req,res,next) =>
   next();
 });
 coreRoutes.get("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
+  await readAssistantSettings(String(req.params.projectId));
   const result = await pool.query(`SELECT kd.id,kd.title,kd.content,q.variantes_de_question,f.questions_json FROM sabito_core.knowledge_documents kd
     LEFT JOIN sabito_core.knowledge_question_variants q ON q.document_id=kd.id AND q.project_id=kd.project_id
     LEFT JOIN sabito_core.knowledge_follow_ups f ON f.document_id=kd.id AND f.project_id=kd.project_id

@@ -6,6 +6,7 @@ import { normalizeQuestion as normalized } from "./question-normalization";
 import { conversationClosing, isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
 import { expandQuestion, tokenSimilarity, spellingSimilarity, protectedMismatch } from "./question-spelling";
+import { buzzGuideFor } from "./buzzbooster-guides";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -59,7 +60,7 @@ export function detectIntent(text:string,settings:AssistantSettings):string|unde
   return fuzzy[0]&&(!fuzzy[1]||fuzzy[0].score-fuzzy[1].score>=0.06)?fuzzy[0].id:undefined;
 }
 type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>;followUps:FollowUp[];exactPriority:number};
-type State={settings:AssistantSettings;revision:number;entries:Entry[];df:Map<string,number>;average:number;checked:number};
+type State={settings:AssistantSettings;revision:number;profile:"bca"|"buzzbooster"|"generic";entries:Entry[];df:Map<string,number>;average:number;checked:number};
 const cache=new Map<string,State>(),loading=new Map<string,Promise<State>>(),generations=new Map<string,number>();
 onAssistantChange(id=>{cache.delete(id);loading.delete(id);generations.set(id,(generations.get(id)??0)+1);});
 export async function searchState(projectId:string):Promise<State> {
@@ -167,6 +168,11 @@ export async function retrieveReply(projectId:string,question:string) {
     closing_message:"",suggestions_label:"",
   };
   const {settings,matches}=await rankedQuestions(projectId,question);
+  const state=await searchState(projectId),guide=state.profile==="buzzbooster"?buzzGuideFor(question):undefined;
+  const entry=guide?state.entries.find(entry=>entry.title===guide.title):undefined;
+  // Keep exact authored overrides/conflicts authoritative; otherwise a known
+  // guide route uses its editable approved document, never generated prose.
+  if(entry && matches[0]?.similarity!==1)return {answer:entry.content,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,closing_message:"",suggestions_label:""};
   const match=matches[0],reliable=!!match?.directAnswer;
   const exactConflict=!!match && match.similarity===1 && !reliable;
   const tokenize=tokenizer(settings),queryTokens=tokenize(question);

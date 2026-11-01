@@ -8,6 +8,8 @@ import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
 import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
+import { buzzGuideFor } from "./buzzbooster-guides";
+import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,optionalBuzzField,buzzOperations } from "./buzzbooster-contract";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -20,7 +22,7 @@ function collectedValue(field:IntentDefinition["fields"][number],text:string) {
   // leading zeros, case and punctuation may be part of the actual order number.
   const labeled=/^(?:(?:pardon|désolé|desole|correction)[,:\s]+)?(?:(?:le bon|la bonne|mon|ma|le|la|voici le|voici la)\s+)?(?:numéro|numero|référence|reference|identifiant|id)(?:\s+(?:de (?:ma |la )?commande|du dépôt|du depot|du retrait))?\s*(?:est|c['’]est|:|=|n[°ºo])?\s*#?([\p{L}\p{N}._/-]+)\s*$/iu.exec(value);
   const corrected=/^(?:pardon|désolé|desole|correction|c['’]est|voici)\s*[:,]?\s+#?([\p{L}\p{N}._/-]+)$/iu.exec(value);
-  return labeled?.[1]??corrected?.[1]??(field.name==="order_id"?value.replace(/^#(?=[\p{L}\p{N}])/u,""):value);
+  return labeled?.[1]??corrected?.[1]??(["order_id","order_number"].includes(field.name)?value.replace(/^#(?=[\p{L}\p{N}])/u,""):value);
 }
 async function ticket(projectId:string,conversationId:string,claims:AccessClaims,intent:BackendOperation,reason:string,
   executor:Pick<typeof pool,"query">=pool) {
@@ -37,18 +39,24 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   // Leave any in-progress verification intact.
   if(greetingReply(text)) return null;
   const normalized=normalizeQuestion(text);
-  const {settings}=await searchState(claims.sub);
+  const {settings,profile}=await searchState(claims.sub);
+  const buzz=profile==="buzzbooster",guide=buzz?buzzGuideFor(text):undefined;
+  const refundQuestion=guide?.key==="refunds" && /ticket.*ferm/i.test(normalized);
+  // General approved instructions are public, not requests to inspect an account.
+  // Keep an interrupted collection intact while answering a general question.
+  if(guide&&!refundQuestion)return null;
   const intentRegistry=Object.fromEntries(settings.intents.filter(d=>d.enabled).map(d=>[d.id,{
     ...d,backendOperation:d.backend_function,
     required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
   }]));
-  let detected=detectIntent(text,settings);
+  let detected=refundQuestion?settings.intents.find(intent=>intent.enabled&&intent.backend_function==="order_refund_status")?.id:detectIntent(text,settings);
+  const suppliedDeposit=buzz?buzzDepositIdentifier(text):undefined;
   if(!detected) {
     const owner=await pool.query(`SELECT c.id,s.status FROM sabito_core.conversations c LEFT JOIN sabito_core.intent_sessions s
       ON s.conversation_id=c.id AND s.project_id=c.project_id WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
       [conversationId,claims.sub,claims.externalUserId]);
     if(!owner.rows.length)throw new Error("CONVERSATION_NOT_FOUND");
-    if(!["collecting","checking"].includes(String(owner.rows[0].status)))return null;
+    if(!suppliedDeposit&&!["collecting","checking"].includes(String(owner.rows[0].status)))return null;
   }
   const connection=await pool.connect();
   let intent:BackendOperation,fields:Record<string,string>,originalQuestion=text;
@@ -84,6 +92,15 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1",[conversationId]);
       await connection.query("COMMIT");return settings.cancelled_message;
     }
+    if(suppliedDeposit&&!detected&&current?.status!=="collecting")detected=settings.intents.find(intent=>intent.enabled&&intent.backend_function==="deposit_status")?.id;
+    if(buzz&&current?.status==="collecting"&&intentRegistry[current.intent]) {
+      const retained=JSON.parse(String(current.collected_json)) as Record<string,string>;
+      for(const name of (retained.__requested_field??"").split(",").filter(Boolean)) {
+        const optional=optionalBuzzField(intentRegistry[current.intent].backendOperation,name);
+        if(optional&&!intentRegistry[current.intent].required.some(field=>field.name===optional.name))
+          intentRegistry[current.intent].required.push({...optional,valid:(value:string)=>validField(optional,value)});
+      }
+    }
     if(current?.status==="collecting" && intentRegistry[current.intent]) {
       const retained=JSON.parse(String(current.collected_json)) as Record<string,string>;
       if(retained.__awaiting_confirmation!=="true") {
@@ -106,6 +123,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       ? JSON.parse(String(current.collected_json)) : {};
     if(current?.status==="collecting" && (!detected || detected===current.intent)) originalQuestion=String(current.original_question);
     const definition=intentRegistry[intent];
+    if(buzz&&!buzzOperations.includes(definition.backendOperation)) {
+      await connection.query("COMMIT");return "Cette consultation n’est pas proposée par le connecteur Buzz Booster. Consultez Support pour connaître les possibilités disponibles.";
+    }
     const confirmationQuestion=definition.confirmation_question ??
       `Souhaitez-vous lancer la vérification « ${definition.name} » ? Répondez par oui ou non.`;
     // Reserved marker cannot collide with configurable field names (which must
@@ -126,6 +146,14 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       delete fields.__awaiting_confirmation;
       justConfirmed=true;
     } else if(!current || current.status!=="collecting" || current.intent!==intent) {
+      const explicitPersonal=buzz&&((/[?？]/.test(text)&&/\b(mon|ma|mes)\b/.test(normalized)) ||
+        /^(mon|ma|mes)\b.*(?:pas arrive|non recu|pas recu|non credite|partiel)/.test(normalized) || !!suppliedDeposit);
+      if(explicitPersonal&&!refundQuestion) {
+        if(!isVerifiedMember(claims)) {await connection.query("COMMIT");return definition.guest_message;}
+        justConfirmed=true;
+        if(suppliedDeposit&&definition.backendOperation==="deposit_status"&&definition.required.some(field=>field.name==="deposit_number"))
+          fields.deposit_number=text.trim();
+      } else {
       const reply=await retrieveReply(claims.sub,text);
       const initial=reply.reliable?reply.answer:(definition.initial_response?.trim()||settings.no_answer_message);
       await connection.query(`INSERT INTO sabito_core.intent_sessions (conversation_id,project_id,intent,collected_json,status,original_question)
@@ -134,8 +162,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
         [conversationId,claims.sub,intent,JSON.stringify({__awaiting_confirmation:"true"}),text]);
       await connection.query("COMMIT");
       return `${initial}\n\n${confirmationQuestion}`;
+      }
     }
     for(const name of Object.keys(fields)) {
+      if(buzz&&name==="__requested_field")continue;
       const field=definition.required.find(f=>f.name===name);
       if(!field||!field.valid(fields[name]))delete fields[name];
     }
@@ -148,6 +178,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const missing=definition.required.find(field=>!fields[field.name]);
     if (missing && !detected && !justConfirmed) {
       const value=collectedValue(missing,text);
+      if(buzz&&["deposit_status","deposit_bonus_status"].includes(definition.backendOperation)&&missing.name==="deposit_number"&&/^\d{7,15}$/.test(value)) {
+        await connection.query("COMMIT");
+        return "S’agit-il du numéro de téléphone ou de la référence du dépôt ? Pour éviter une confusion, renvoyez « téléphone : votre numéro » ou « dépôt : votre référence ». Aucun code secret n’est nécessaire.";
+      }
       if (!missing.valid(value)) {await connection.query("COMMIT");return `${settings.invalid_field_message} ${missing.prompt} ${settings.privacy_message}`;}
       fields[missing.name]=value;
     }
@@ -165,13 +199,23 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   try {
     if (!isVerifiedMember(claims)) {reason="MEMBER_AUTH_REQUIRED";throw new Error(reason);}
     const definition=intentRegistry[intent!];
-    const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,fields!);
-    if(["not_found","forbidden","invalid_input"].includes(response.status) && definition.required.length) {
-      const field=response.status==="invalid_input" && response.invalid_field
-        ? definition.required.find(field=>field.name===response.invalid_field) : definition.required[0];
+    const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,buzz?buzzBackendFields(definition.backendOperation,fields!):fields!);
+    if(buzz&&response.status==="forbidden")return "Je ne suis pas autorisé à consulter cette opération. Reconnectez-vous à votre compte ou contactez Support. Aucune information sur une opération d’un autre membre ne peut être divulguée.";
+    const ambiguous=buzz&&response.status!=="error"&&(response.data?.ambiguous===true||typeof response.data?.match_count==="number"&&response.data.match_count>1);
+    if(ambiguous) {
+      response.status="invalid_input";
+      response.invalid_field=definition.required[0]?.name??optionalBuzzField(definition.backendOperation)?.name;
+    }
+    const optional=buzz?optionalBuzzField(definition.backendOperation,response.status==="invalid_input"?response.invalid_field:undefined):undefined;
+    if(["not_found","forbidden","invalid_input"].includes(response.status) && (definition.required.length||optional)) {
+      const invalidName=buzz&&["deposit_status","deposit_bonus_status"].includes(definition.backendOperation)
+        &&["transaction_id","phone_number"].includes(response.invalid_field??"")?"deposit_number":response.invalid_field;
+      const field=response.status==="invalid_input" && invalidName
+        ? definition.required.find(field=>field.name===invalidName)??(optional?.name===invalidName?optional:undefined) : definition.required[0]??optional;
       if(!field)throw new Error("BACKEND_UNVERIFIED_RESULT");
       const retained={...fields!};
       delete retained[field.name];
+      if(optional?.name===field.name)retained.__requested_field=[...new Set([...(retained.__requested_field??"").split(",").filter(Boolean),field.name])].join(",");
       // Persist before replying: subsequent messages/reconnects reuse this intent
       // and the other valid fields, without another confirmation or a support ticket.
       await pool.query(`UPDATE sabito_core.intent_sessions SET status='collecting',collected_json=$1,updated_at=CURRENT_TIMESTAMP(6)
@@ -179,9 +223,16 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
         [JSON.stringify(retained),conversationId,claims.sub,intent!]);
       retrySaved=true;
       // Never expose a forbidden record, backend messages or existence information.
-      const explanation=response.status==="invalid_input" ? settings.invalid_field_message
+      const explanation=ambiguous?"Plusieurs opérations correspondent. Fournissez une référence précise pour identifier la bonne opération."
+        :response.status==="invalid_input" ? settings.invalid_field_message
         : "Je n’ai pas pu retrouver une opération accessible à votre compte avec ces informations.";
       return `${explanation} Vérifiez l’information demandée et renvoyez-la pour continuer la vérification.\n\n${field.prompt} ${settings.privacy_message}`;
+    }
+    if(buzz) {
+      const answer=buzzResultAnswer(definition.backendOperation,response);
+      if(answer)return answer;
+      reason="BACKEND_UNVERIFIED_RESULT";
+      throw new Error(reason);
     }
     const outcome: keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success"
       : ["pending","inactive"].includes(response.status)?"pending":["not_found","forbidden"].includes(response.status)?"not_found":"error";
@@ -204,6 +255,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   }
   const id=await ticket(claims.sub,conversationId,claims,intent!,reason);
   await recordUnanswered(claims.sub,originalQuestion,isVerifiedMember(claims)?claims.externalUserId:undefined);
+  if(buzz)return `Je ne peux pas vérifier cette information de façon fiable pour le moment. Un ticket interne Sabito a été enregistré : ${id}. Cela ne signifie pas que votre opération financière a échoué. Pour contacter directement l’équipe Buzz Booster, ouvrez Support dans la plateforme.`;
   const ticketText=renderTemplate(settings.ticket_message,{ticket_id:id})??settings.no_answer_message;
   return [failureTemplate,ticketText,reason==="MEMBER_AUTH_REQUIRED"?intentRegistry[intent!].guest_message:""].filter(Boolean).join(" ");
 }

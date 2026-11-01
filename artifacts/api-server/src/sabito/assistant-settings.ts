@@ -73,13 +73,17 @@ export async function touchAssistant(projectId:string,executor:Pick<typeof pool,
     ON DUPLICATE KEY UPDATE revision=revision+1`,[projectId]);
   invalidateAssistant(projectId);
 }
-export async function readAssistantSettings(projectId:string) {
+export async function readAssistantSettings(projectId:string):Promise<{settings:AssistantSettings;revision:number;profile:"bca"|"buzzbooster"|"generic";intent_templates:IntentDefinition[]}> {
   const result=await pool.query(`SELECT s.config_json,s.revision,p.slug,p.name FROM sabito_core.projects p
     LEFT JOIN sabito_core.assistant_settings s ON s.project_id=p.id WHERE p.id=$1`,[projectId]);
   const row=result.rows[0];if(!row) throw new Error("PROJECT_NOT_FOUND");
   const bca=/\bbca\b|sabitobca|biz\s*connect\s*academy/i.test(`${row.slug} ${row.name}`);
   const legacy=settingsSchema.parse(defaultSettings(bca));
   const buzz=isBuzzBooster(String(row.slug),String(row.name));
+  if(buzz) {
+    const {ensureBuzzBoosterKnowledge}=await import("./buzzbooster-knowledge-install");
+    if(await ensureBuzzBoosterKnowledge(projectId))return readAssistantSettings(projectId);
+  }
   const defaults=buzz ? {...legacy,intents:buzzBoosterIntents()} : bca ? {...legacy,intents:bcaIntents()} : legacy;
   const settings=settingsSchema.parse({...defaults,...JSON.parse(String(row.config_json??"{}"))});
   return {settings:settingsSchema.parse(buzz ? adaptBuzzBooster(settings,legacy) : bca ? adaptBca(settings,legacy) : settings),

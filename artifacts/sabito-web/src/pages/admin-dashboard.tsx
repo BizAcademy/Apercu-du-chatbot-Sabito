@@ -156,7 +156,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
       <AssistantSettingsPanel key={p.id} projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <SupportTickets projectId={p.id} />
       <UnansweredQuestions projectId={p.id} />
-      <Knowledge projectId={p.id} />
+      <Knowledge projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <WidgetIntegration project={p} />
       <BackendConnection projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <section className={card}>
@@ -168,7 +168,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
   );
 }
 
-function Knowledge({ projectId }: { projectId: string }) {
+function Knowledge({ projectId, buzzBooster=false }: { projectId: string; buzzBooster?:boolean }) {
   const { headers } = useAdmin();
   const qc = useQueryClient();
   const key = ["sabito-admin", "knowledge", projectId];
@@ -182,6 +182,7 @@ function Knowledge({ projectId }: { projectId: string }) {
         <h2 className="flex items-center gap-2 text-[15px] font-bold"><BookOpen size={16} />Références validées</h2>
         <button className={ghost} onClick={() => setEdit("new")} data-testid="button-add-doc"><Plus size={14} />Ajouter</button>
       </div>
+      {buzzBooster && <p className="mb-3 rounded-xl bg-[#f6f7ff] p-3 text-[12px] text-[#6c748d]">La base d’aide Buzz Booster fournie est installée une seule fois, sans écraser vos références. Vous pouvez modifier ou supprimer chaque guide ici. Les frais, seuils et taux documentés ne prouvent pas les paramètres actuellement actifs. Les liens vers une plateforme ne sont pas inventés.</p>}
       {q.isLoading && <div className="h-20 animate-pulse rounded-xl bg-[#f1f3ff]" />}
       {q.error && <ErrorBox msg={errMsg(q.error)} retry={() => void q.refetch()} />}
       {del.error && <ErrorBox msg={errMsg(del.error)} />}

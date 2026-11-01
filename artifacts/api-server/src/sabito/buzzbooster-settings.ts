@@ -1,5 +1,6 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
 import { isDeepStrictEqual } from "node:util";
+import { alignBuzzIntent } from "./buzzbooster-contract";
 
 export function isBuzzBooster(slug: string, name: string): boolean {
   return [slug, name].some(value => /^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g, "")));
@@ -52,7 +53,10 @@ export function legacyBuzzBoosterIntents(): IntentDefinition[] {
 export function buzzBoosterIntents(): IntentDefinition[] {
   const base = legacyBuzzBoosterIntents();
   base[0].triggers.push("dépôt Mobile Money", "dépôt en cryptomonnaie");
+  base[0].triggers.push("mon dépôt n'est pas arrivé","solde non crédité","paiement débité mais dépôt non reçu");
+  base[0].fields[0].prompt="Indiquez la référence marchande du dépôt (BUZZ_… ou BB-…), l’identifiant AfribaPay (PIM… ou POM…), ou précisez « téléphone : … ». N’envoyez aucun OTP ni code secret.";
   base[1].triggers.push("suivi de ma commande");
+  base[1].triggers.push("ma commande est partielle","ma commande a échoué","ma commande est annulée");
   base[1].fields[0].prompt="Veuillez communiquer le numéro de commande affiché dans votre historique de commandes, et non la référence du paiement.";
   base[1].responses.not_found="Aucune commande accessible à votre compte ne correspond à ce numéro de commande.";
   base[3].triggers.push("commission de parrainage");
@@ -108,7 +112,7 @@ export function buzzBoosterIntents(): IntentDefinition[] {
     guest_message,
     responses: { success: result, pending: result, error: result,
       not_found: "Aucune opération accessible à votre compte ne correspond aux informations fournies." },
-  }))];
+  }))].map(alignBuzzIntent);
 }
 
 /** Read-time compatibility upgrade: never overwrites authored messages or custom rules. */
@@ -141,5 +145,5 @@ export function adaptBuzzBooster(settings: AssistantSettings, legacy: AssistantS
       }
     }
   }
-  return { ...settings, intents };
+  return { ...settings, intents:intents.map(alignBuzzIntent) };
 }

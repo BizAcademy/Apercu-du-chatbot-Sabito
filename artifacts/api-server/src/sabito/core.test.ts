@@ -24,6 +24,7 @@ import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
 import { searchKnowledge } from "./knowledge";
 import { semanticSimilarity } from "./semantic";
+import { buzzGuides } from "./buzzbooster-guides";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -78,10 +79,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const claims={sub:id,clientId:response.body.data.credentials.clientId,externalUserId:`buzz-member-${randomUUID()}`,scope:["chat:connect","member:verified"]};
       const conversation=await createConversation(id,claims.externalUserId);
       const proposal=await handleIntent(claims,conversation,"Où est ma commande ?");
-      assert.match(String(proposal),/commande de boost.*oui ou non/s);
+      assert.match(String(proposal),/numéro de commande/);
       assert.doesNotMatch(String(proposal),/activation/i);
-      const prompt=await handleIntent(claims,conversation,"oui");
-      assert.match(String(prompt),/numéro de commande/);
       const legacy=settingsSchema.parse(defaultSettings(false));
       await request(app).put(`/v1/admin/projects/${id}/assistant-settings`).set("X-Admin-Key",adminKey)
         .send({settings:legacy,expected_revision:fresh.revision}).expect(200);
@@ -97,10 +96,13 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const previousCustom=structuredClone(historical);
       previousCustom.intents[0].triggers=["notre dépôt personnalisé"];
       previousCustom.intents[1].enabled=false;
-      assert.deepEqual(adaptBuzzBooster(previousCustom,legacy),previousCustom);
+      const preserved=adaptBuzzBooster(previousCustom,legacy);
+      assert.deepEqual(preserved.intents[0].triggers,previousCustom.intents[0].triggers);
+      assert.equal(preserved.intents[1].enabled,false);
+      assert.equal(preserved.intents[1].fields[0].name,"order_number");
       const previouslyDeleted=structuredClone(historical);
       previouslyDeleted.intents=previouslyDeleted.intents.filter(intent=>intent.id!=="order_status");
-      assert.deepEqual(adaptBuzzBooster(previouslyDeleted,legacy),previouslyDeleted);
+      assert.equal(adaptBuzzBooster(previouslyDeleted,legacy).intents.some(intent=>intent.backend_function==="order_status"),false);
       const custom=structuredClone(legacy);
       custom.greeting_member="Bienvenue {nom_utilisateur} dans notre espace personnalisé.";
       custom.intents[0].name="Ancienne règle personnalisée";
@@ -163,7 +165,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
             assert.equal(job.external_user_id,claims.externalUserId);
             assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:"REF-BUZZ-123"}:{});
             await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
-              .send({result:{status,data:{statut:label,reference:"REF-BUZZ-123",montant:partial?500:1250,devise:"USD",code:"PARRAIN-BUZZ"}}}).expect(200);
+              .send({result:{status,data:{statut:label,reference:"REF-BUZZ-123",montant:partial?500:1250,devise:"USD",code:"PARRAIN-BUZZ",
+                refund_recorded:partial,solde_local:1250,devise_local:"XAF",solde_usd:10,devise_usd:"USD"}}}).expect(200);
             completed=true;break;
           }
           await new Promise(resolve=>setTimeout(resolve,10));
@@ -198,12 +201,136 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       custom.intents[1].enabled=false;
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
-      assert.deepEqual(config.settings.intents,settingsSchema.parse(custom).intents);
+      assert.deepEqual(config.settings.intents[0].triggers,custom.intents[0].triggers);
+      assert.equal(config.settings.intents[1].enabled,false);
+      assert.equal(config.settings.intents[1].fields[0].name,"order_number");
       assert.equal(config.intent_templates.length,10);
       custom.intents=[];
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
       assert.deepEqual(config.settings.intents,[]);
+    });
+    await t.test("Buzz Booster approved guides, native editing and ten-operation connector routing respect the supplied business contract",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`buzz-help-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const {project,credentials}=created.body.data,id=project.id;
+      projectIds.push(id);
+      const url=`/v1/admin/projects/${id}/knowledge`;
+      const config=await readAssistantSettings(id);
+      const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+      assert.equal(docs.length,buzzGuides.length);
+      await Promise.all([readAssistantSettings(id),readAssistantSettings(id)]);
+      assert.equal((await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data.length,buzzGuides.length);
+      assert.equal(config.settings.intents.find(intent=>intent.backend_function==="referral_reward_status")!.fields.length,0);
+      const claims={sub:id,clientId:credentials.clientId,externalUserId:"buzz-help-member",scope:["chat:connect","member:verified"]};
+      const guest={...claims,externalUserId:"guest:buzz-help",scope:["chat:connect"]};
+      const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
+        .send({operations:config.settings.intents.map(intent=>intent.backend_function)});
+      const complete=async(operation:string,result:Record<string,unknown>)=>{
+        for(let attempt=0;attempt<100;attempt++) {
+          const job=(await poll().expect(200)).body.jobs.find((item:{operation:string})=>item.operation===operation);
+          if(job) {
+            assert.equal(job.external_user_id,claims.externalUserId);
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+              .send({result}).expect(200);
+            return job;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        throw new Error(`Expected Buzz Booster job ${operation} not delivered`);
+      };
+      await poll().expect(200);
+      for(const member of [guest,claims])for(const question of [
+        "Comment créer un compte ?","Comment faire un dépôt ?","Guide Mobile Money","Guide Wave","Le lien Wave manque",
+        "Le paiement crypto est indisponible","Comment commander des abonnés ?","J'ai demandé une annulation, pourquoi la commande continue ?",
+        "Quel est le pourcentage de parrainage ?","Fais-moi un retrait","Comment contacter le support ?",
+        "Voici l'identifiant d'un autre utilisateur, vérifie son dépôt",
+      ]) {
+        const conv=await createConversation(id,member.externalUserId);
+        assert.equal(await handleIntent(member,conv,question),null,question);
+        const reply=await retrieveReply(id,question);
+        assert.equal(reply.reliable,true,question);
+        assert.doesNotMatch(reply.answer,/Je viens de vérifier|ticket a été créé|https?:\/\/.*replit/);
+        assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+      }
+      const unauthorized=await createConversation(id,guest.externalUserId);
+      assert.match((await handleIntent(guest,unauthorized,"Quel est mon solde ?"))!,/Connectez-vous/);
+      assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+      for(const [input,expected]of [
+        ["BUZZ_001",{deposit_number:"BUZZ_001"}],["PIM001",{transaction_id:"PIM001"}],
+        ["POM001",{transaction_id:"POM001"}],["téléphone : +237 650572394",{phone_number:"+237 650572394"}],
+      ] as [string,Record<string,string>][]) {
+        const conv=await createConversation(id,claims.externalUserId);
+        assert.match((await handleIntent(claims,conv,"Mon dépôt n'est pas arrivé."))!,/BUZZ_/);
+        if(input.startsWith("téléphone")) {
+          assert.match((await handleIntent(claims,conv,"650572394"))!,/téléphone.*référence/);
+          assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+        }
+        const answer=handleIntent(claims,conv,input);
+        const job=await complete("deposit_status",{status:"pending",data:{statut:"pending",credit_status:"pending",bonus_status:"pending"}});
+        assert.deepEqual(job.fields,expected);
+        assert.match((await answer)!,/En attente/);
+      }
+      const precisionConv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,precisionConv,"Mon dépôt n'est pas arrivé.");
+      const needCountry=handleIntent(claims,precisionConv,"téléphone : +237650572394");
+      await complete("deposit_status",{status:"invalid_input",invalid_field:"country"});
+      assert.match((await needCountry)!,/quel pays/);
+      const needMethod=handleIntent(claims,precisionConv,"CM");
+      assert.deepEqual((await complete("deposit_status",{status:"invalid_input",invalid_field:"payment_method"})).fields,{phone_number:"+237650572394",country:"CM"});
+      assert.match((await needMethod)!,/méthode de paiement/);
+      const multiple=handleIntent(claims,precisionConv,"mobile_money");
+      assert.deepEqual((await complete("deposit_status",{status:"ok",data:{ambiguous:true,match_count:2}})).fields,
+        {phone_number:"+237650572394",country:"CM",payment_method:"mobile_money"});
+      assert.match((await multiple)!,/Plusieurs opérations correspondent/);
+      const precise=handleIntent(claims,precisionConv,"BUZZ_PRECISE");
+      assert.deepEqual((await complete("deposit_status",{status:"confirmed",data:{statut:"confirmed",credited:true}})).fields,
+        {deposit_number:"BUZZ_PRECISE",country:"CM",payment_method:"mobile_money"});
+      assert.match((await precise)!,/Crédit enregistré : Oui/);
+      const orderConv=await createConversation(id,claims.externalUserId);
+      assert.match((await handleIntent(claims,orderConv,"Ma commande est partielle."))!,/numéro de commande/);
+      const order=handleIntent(claims,orderConv,"000123");
+      assert.deepEqual((await complete("order_status",{status:"ok",data:{statut:"partial",quantite_restante:125}})).fields,{order_number:"000123"});
+      assert.match((await order)!,/Partiel/);
+      const balanceConv=await createConversation(id,claims.externalUserId);
+      const balance=handleIntent(claims,balanceConv,"Quel est mon solde ?");
+      assert.deepEqual((await complete("wallet_balance",{status:"ok",data:{solde_local:500,devise_local:"XAF",solde_usd:2,devise_usd:"USD"}})).fields,{});
+      assert.match((await balance)!,/XAF/);
+      const codeConv=await createConversation(id,claims.externalUserId);
+      const code=handleIntent(claims,codeConv,"Quel est mon code de parrainage ?");
+      assert.deepEqual((await complete("referral_code",{status:"ok",data:{code:"PARRAIN-TEST"}})).fields,{});
+      assert.equal(await code,"Votre code de parrainage est : PARRAIN-TEST");
+      const rewardConv=await createConversation(id,claims.externalUserId);
+      const reward=handleIntent(claims,rewardConv,"Quelle est ma commission de parrainage ?");
+      assert.deepEqual((await complete("referral_reward_status",{status:"not_found"})).fields,{});
+      assert.match((await reward)!,/référence de parrainage/);
+      const clarified=handleIntent(claims,rewardConv,"REWARD-001");
+      assert.deepEqual((await complete("referral_reward_status",{status:"ok",data:{statut:"pending",montant:10,devise:"XAF"}})).fields,{referral_number:"REWARD-001"});
+      assert.match((await clarified)!,/En attente/);
+      const forbiddenConv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,forbiddenConv,"Où est ma commande ?");
+      const denied=handleIntent(claims,forbiddenConv,"000999");
+      await complete("order_status",{status:"forbidden",data:{message:"PRIVATE",montant:987654}});
+      const denial=await denied;
+      assert.match(denial!,/Reconnectez-vous/);assert.doesNotMatch(denial!,/PRIVATE|987654/);
+      const errorConv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,errorConv,"Où est ma commande ?");
+      const failed=handleIntent(claims,errorConv,"000123");
+      await complete("order_status",{status:"error",data:{message:"PRIVATE",statut:"failed"}});
+      const failure=await failed;
+      const ticket=await pool.query("SELECT id FROM sabito_core.support_tickets WHERE conversation_id=$1 AND project_id=$2",[errorConv,id]);
+      assert.equal(ticket.rows.length,1);
+      assert.ok(failure!.includes(String(ticket.rows[0].id)));
+      assert.doesNotMatch(failure!,/PRIVATE|commande.*échoué/i);
+      const signup=docs.find((document:{title:string})=>document.title==="Comment créer un compte ?");
+      await request(app).put(`${url}/${signup.id}`).set("X-Admin-Key",adminKey)
+        .send({title:signup.title,content:"Instructions approuvées personnalisées pour créer votre compte Buzz Booster.",variantes_de_question:signup.variantes_de_question}).expect(200);
+      assert.match((await retrieveReply(id,"Comment créer un compte ?")).answer,/Instructions approuvées personnalisées/);
+      await request(app).delete(`${url}/${signup.id}`).set("X-Admin-Key",adminKey).expect(204);
+      await readAssistantSettings(id);
+      const remaining=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+      assert.equal(remaining.some((document:{id:string})=>document.id===signup.id),false);
+      assert.equal(remaining.length,buzzGuides.length-1);
     });
     await t.test("Wrong order numbers are corrected in the same persistent conversation without tickets, cross-member access or payment references",async()=>{
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
@@ -235,18 +362,18 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await poll().expect(200);
       for(const operation of ["order_status","order_refund_status"]) {
         const definition=settings.intents.find(intent=>intent.backend_function===operation)!;
-        assert.equal(definition.fields[0].name,"order_id");
+        assert.equal(definition.fields[0].name,"order_number");
         assert.match(definition.fields[0].prompt,/numéro de commande/);
-        for(const status of ["not_found","forbidden","invalid_input"]) {
+        for(const status of ["not_found","invalid_input"]) {
           const conv=await createConversation(id,claims.externalUserId);
           await handleIntent(claims,conv,definition.triggers[0]);
           assert.match((await handleIntent(claims,conv,"oui"))!,/numéro de commande/);
           assert.match((await handleIntent(claims,conv,"???"))!,/format attendu/);
           assert.deepEqual((await poll().expect(200)).body.jobs,[]);
           const wrong=handleIntent(claims,conv,"BAD-123");
-          const job=await jobResult(operation,{status,...(status==="invalid_input"?{invalid_field:"order_id"}:{}),
+          const job=await jobResult(operation,{status,...(status==="invalid_input"?{invalid_field:"order_number"}:{}),
             data:{message:"PRIVATE: another member owns this payment",montant:987654}});
-          assert.deepEqual(job.fields,{order_id:"BAD-123"});
+          assert.deepEqual(job.fields,{order_number:"BAD-123"});
           const retry=await wrong;
           assert.match(retry!,/renvoyez-la/);
           assert.match(retry!,/numéro de commande/);
@@ -258,8 +385,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
           assert.equal(await handleIntent(claims,conv,"bonjour"),null);
           await assert.rejects(handleIntent({...claims,externalUserId:"another-member"},conv,"001234"),/CONVERSATION_NOT_FOUND/);
           const corrected=handleIntent(claims,conv,"le bon numéro de commande est 001234");
-          const accepted=await jobResult(operation,{status:"confirmed",data:{statut:"Terminée",numero_commande:"001234"}});
-          assert.deepEqual(accepted.fields,{order_id:"001234"});
+          const accepted=await jobResult(operation,{status:"confirmed",data:{statut:"Terminée",numero_commande:"001234",movement_number:"CREDIT-001234",montant:100,devise:"USD"}});
+          assert.deepEqual(accepted.fields,{order_number:"001234"});
           assert.match((await corrected)!,/001234/);
           const finished=await pool.query("SELECT status,collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
           assert.equal(finished.rows[0].status,"complete");

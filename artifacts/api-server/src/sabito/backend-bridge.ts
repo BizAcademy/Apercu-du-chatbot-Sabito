@@ -6,6 +6,7 @@ import { authenticateProject } from "./projects";
 import { parseBasicCredentials } from "./security";
 import { identifier } from "./assistant-settings";
 import { searchState } from "./question-search";
+import { buzzOperations } from "./buzzbooster-contract";
 
 export const operations = ["account_activation", "deposit_status", "referral_code"] as const;
 export type BackendOperation = string;
@@ -32,7 +33,8 @@ export function backendStatus(projectId:string) {
     available_operations:lastSeen?.operations??[]};
 }
 export async function requestBackend(projectId:string, externalUserId:string, operation:BackendOperation, fields:Record<string,string>):Promise<BackendResult> {
-  const {settings}=await searchState(projectId);
+  const {settings,profile}=await searchState(projectId);
+  if(profile==="buzzbooster"&&!buzzOperations.includes(operation))throw new Error("BACKEND_OPERATION_NOT_CONFIGURED");
   if(!identifier.safeParse(operation).success || (operation!=="user_profile"&&!settings.intents.some(i=>i.enabled&&i.backend_function===operation)))
     throw new Error("BACKEND_OPERATION_NOT_CONFIGURED");
   if (!backendStatus(projectId).connected) return Promise.reject(new Error("BACKEND_OFFLINE"));

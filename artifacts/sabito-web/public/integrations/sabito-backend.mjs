@@ -3,11 +3,16 @@
  * Uses the same Sabito-generated SABITO_CLIENT_ID and SABITO_CLIENT_SECRET.
  * Bind handlers to your existing services; perform ownership/permission checks
  * using job.external_user_id. Never search a transaction by ID alone.
- * For order_status / order_refund_status, fields.order_id is the order NUMBER
+ * For Buzz Booster order_status / order_refund_status, fields.order_number is the order NUMBER
  * shown to the member, not a payment reference or an arbitrary internal row ID.
- * Return {status:"invalid_input",invalid_field:"order_id"} for an invalid number.
+ * Return {status:"invalid_input",invalid_field:"order_number"} for an invalid number.
  * invalid_field must name a field collected by this intent. Sabito will ask again
  * and retain other fields. not_found also permits correction, without a ticket.
+ * Buzz Booster deposits use deposit_number (BUZZ_/BB-), transaction_id (PIM/POM)
+ * or phone_number; never confuse these identifiers. Movements use movement_number,
+ * rewards may optionally use referral_number. Do not add financial capabilities.
+ * An invalid_input result may request an optional country, payment_method,
+ * movement_type or referral_number; Sabito preserves the collected context.
  */
 export async function startSabitoBackend({handlers,signal,onError=()=>{}}) {
   const url=new URL(process.env.SABITO_URL);
