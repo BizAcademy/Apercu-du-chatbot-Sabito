@@ -3,6 +3,11 @@
  * Uses the same Sabito-generated SABITO_CLIENT_ID and SABITO_CLIENT_SECRET.
  * Bind handlers to your existing services; perform ownership/permission checks
  * using job.external_user_id. Never search a transaction by ID alone.
+ * For order_status / order_refund_status, fields.order_id is the order NUMBER
+ * shown to the member, not a payment reference or an arbitrary internal row ID.
+ * Return {status:"invalid_input",invalid_field:"order_id"} for an invalid number.
+ * invalid_field must name a field collected by this intent. Sabito will ask again
+ * and retain other fields. not_found also permits correction, without a ticket.
  */
 export async function startSabitoBackend({handlers,signal,onError=()=>{}}) {
   const url=new URL(process.env.SABITO_URL);

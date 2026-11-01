@@ -18,6 +18,10 @@ export function backendInstallationExample(intents: IntentDefinition[]): string 
 // BCA Laravel : une commande PHP persistante peut utiliser le même protocole.
 // Variables déjà configurées : SABITO_URL, SABITO_CLIENT_ID, SABITO_CLIENT_SECRET.
 // Ne déployer que les handlers réellement raccordés et testés.
+// order_id = numéro de commande affiché au membre, jamais référence de paiement.
+// Si une donnée est incorrecte : {status:"invalid_input",invalid_field:"order_id"}.
+// Choisir invalid_field parmi les champs de la tâche ; Sabito le redemandera.
+// not_found redemande le premier champ ; forbidden ne révèle aucune donnée.
 import { startSabitoBackend } from "./sabito-backend.mjs";
 const controller = new AbortController();
 startSabitoBackend({

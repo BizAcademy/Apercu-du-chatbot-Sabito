@@ -218,12 +218,18 @@ export const BackendResultSubmissionResultStatus = {
   inactive: 'inactive',
   forbidden: 'forbidden',
   error: 'error',
+  invalid_input: 'invalid_input',
 } as const;
 
 export type BackendResultSubmissionResultData = {[key: string]: string | number | boolean | null};
 
 export type BackendResultSubmissionResult = {
   status: BackendResultSubmissionResultStatus;
+  /**
+     * Champ collecté à corriger lorsque status vaut invalid_input. Sabito conserve la conversation et redemande ce champ.
+     * @pattern ^[a-z][a-z0-9_]{1,63}$
+     */
+  invalid_field?: string;
   /**
      * @minLength 1
      * @maxLength 100

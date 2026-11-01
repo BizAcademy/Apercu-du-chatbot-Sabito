@@ -81,7 +81,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.match(String(proposal),/commande de boost.*oui ou non/s);
       assert.doesNotMatch(String(proposal),/activation/i);
       const prompt=await handleIntent(claims,conversation,"oui");
-      assert.match(String(prompt),/numéro de votre commande/);
+      assert.match(String(prompt),/numéro de commande/);
       const legacy=settingsSchema.parse(defaultSettings(false));
       await request(app).put(`/v1/admin/projects/${id}/assistant-settings`).set("X-Admin-Key",adminKey)
         .send({settings:legacy,expected_revision:fresh.revision}).expect(200);
@@ -204,6 +204,121 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
       assert.deepEqual(config.settings.intents,[]);
+    });
+    await t.test("Wrong order numbers are corrected in the same persistent conversation without tickets, cross-member access or payment references",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`smm-retry-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const {project,credentials}=created.body.data,id=project.id;
+      projectIds.push(id);
+      const configuration=await readAssistantSettings(id);
+      // A broad trigger must not steal a labeled correction from the refund check.
+      configuration.settings.intents.find(intent=>intent.backend_function==="order_status")!.triggers.push("commande");
+      await request(app).put(`/v1/admin/projects/${id}/assistant-settings`).set("X-Admin-Key",adminKey)
+        .send({settings:configuration.settings,expected_revision:configuration.revision}).expect(200);
+      const {settings}=await readAssistantSettings(id);
+      const claims={sub:id,clientId:credentials.clientId,externalUserId:"order-number-owner",scope:["chat:connect","member:verified"]};
+      const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
+        .send({operations:settings.intents.map(intent=>intent.backend_function)});
+      const jobResult=async(operation:string, result:Record<string,unknown>)=>{
+        for(let attempt=0;attempt<100;attempt++) {
+          const job=(await poll().expect(200)).body.jobs.find((item:{operation:string})=>item.operation===operation);
+          if(job) {
+            assert.equal(job.external_user_id,claims.externalUserId);
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+              .send({result}).expect(200);
+            return job;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        throw new Error("Expected correction job not delivered");
+      };
+      await poll().expect(200);
+      for(const operation of ["order_status","order_refund_status"]) {
+        const definition=settings.intents.find(intent=>intent.backend_function===operation)!;
+        assert.equal(definition.fields[0].name,"order_id");
+        assert.match(definition.fields[0].prompt,/numéro de commande/);
+        for(const status of ["not_found","forbidden","invalid_input"]) {
+          const conv=await createConversation(id,claims.externalUserId);
+          await handleIntent(claims,conv,definition.triggers[0]);
+          assert.match((await handleIntent(claims,conv,"oui"))!,/numéro de commande/);
+          assert.match((await handleIntent(claims,conv,"???"))!,/format attendu/);
+          assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+          const wrong=handleIntent(claims,conv,"BAD-123");
+          const job=await jobResult(operation,{status,...(status==="invalid_input"?{invalid_field:"order_id"}:{}),
+            data:{message:"PRIVATE: another member owns this payment",montant:987654}});
+          assert.deepEqual(job.fields,{order_id:"BAD-123"});
+          const retry=await wrong;
+          assert.match(retry!,/renvoyez-la/);
+          assert.match(retry!,/numéro de commande/);
+          assert.doesNotMatch(retry!,/ticket|PRIVATE|987654/);
+          const pending=await pool.query("SELECT status,collected_json,original_question FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+          assert.equal(pending.rows[0].status,"collecting");
+          assert.deepEqual(JSON.parse(String(pending.rows[0].collected_json)),{});
+          assert.equal(pending.rows[0].original_question,definition.triggers[0]);
+          assert.equal(await handleIntent(claims,conv,"bonjour"),null);
+          await assert.rejects(handleIntent({...claims,externalUserId:"another-member"},conv,"001234"),/CONVERSATION_NOT_FOUND/);
+          const corrected=handleIntent(claims,conv,"le bon numéro de commande est 001234");
+          const accepted=await jobResult(operation,{status:"confirmed",data:{statut:"Terminée",numero_commande:"001234"}});
+          assert.deepEqual(accepted.fields,{order_id:"001234"});
+          assert.match((await corrected)!,/001234/);
+          const finished=await pool.query("SELECT status,collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+          assert.equal(finished.rows[0].status,"complete");
+          assert.deepEqual(JSON.parse(String(finished.rows[0].collected_json)),{});
+          const tickets=await pool.query("SELECT id FROM sabito_core.support_tickets WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+          assert.equal(tickets.rows.length,0);
+          assert.equal(await handleIntent(claims,conv,"001234"),null);
+        }
+      }
+      const conv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,conv,"statut de ma commande");
+      await handleIntent(claims,conv,"oui");
+      const missing=handleIntent(claims,conv,"MISSING");
+      await jobResult("order_status",{status:"not_found"});
+      await missing;
+      assert.match((await handleIntent(claims,conv,"annuler"))!,/annulée/);
+      assert.equal(await handleIntent(claims,conv,"12345"),null);
+    });
+    await t.test("Backend invalid_input retries only the named field, retaining other collected values",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`retry-fields-${randomUUID()}`,name:"Retry fields",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
+      const {project,credentials}=created.body.data,id=project.id;
+      projectIds.push(id);
+      const config=await readAssistantSettings(id);
+      const intent=config.settings.intents.find(intent=>intent.backend_function==="deposit_status")!;
+      intent.fields=[
+        {name:"deposit_number",prompt:"Numéro de dépôt ?",type:"identifier",min_length:1,max_length:100},
+        {name:"country",prompt:"Dans quel pays ?",type:"country",min_length:2,max_length:80},
+      ];
+      await request(app).put(`/v1/admin/projects/${id}/assistant-settings`).set("X-Admin-Key",adminKey)
+        .send({settings:config.settings,expected_revision:config.revision}).expect(200);
+      const claims={sub:id,clientId:credentials.clientId,externalUserId:"retry-deposit-owner",scope:["chat:connect","member:verified"]};
+      const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
+        .send({operations:["deposit_status"]});
+      const complete=async(result:Record<string,unknown>)=>{
+        for(let attempt=0;attempt<100;attempt++) {
+          const job=(await poll().expect(200)).body.jobs[0];
+          if(job) {
+            await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+              .send({result}).expect(200);
+            return job;
+          }
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        throw new Error("Expected multi-field job not delivered");
+      };
+      await poll().expect(200);
+      const conv=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,conv,"dépôt non reçu");
+      await handleIntent(claims,conv,"oui");
+      await handleIntent(claims,conv,"DEP-0001");
+      const wrong=handleIntent(claims,conv,"Cameroun");
+      await complete({status:"invalid_input",invalid_field:"country"});
+      assert.match((await wrong)!,/Dans quel pays/);
+      const pending=await pool.query("SELECT collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2",[conv,id]);
+      assert.deepEqual(JSON.parse(String(pending.rows[0].collected_json)),{deposit_number:"DEP-0001"});
+      const corrected=handleIntent(claims,conv,"Gabon");
+      assert.deepEqual((await complete({status:"confirmed"})).fields,{deposit_number:"DEP-0001",country:"Gabon"});
+      assert.match((await corrected)!,/reçu/);
     });
     await t.test("BCA financial catalog confirms, collects and dispatches every enabled read operation with isolated identity", async () => {
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)

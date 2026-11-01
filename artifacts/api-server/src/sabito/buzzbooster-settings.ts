@@ -53,6 +53,8 @@ export function buzzBoosterIntents(): IntentDefinition[] {
   const base = legacyBuzzBoosterIntents();
   base[0].triggers.push("dépôt Mobile Money", "dépôt en cryptomonnaie");
   base[1].triggers.push("suivi de ma commande");
+  base[1].fields[0].prompt="Veuillez communiquer le numéro de commande affiché dans votre historique de commandes, et non la référence du paiement.";
+  base[1].responses.not_found="Aucune commande accessible à votre compte ne correspond à ce numéro de commande.";
   base[3].triggers.push("commission de parrainage");
   const guest_message = "Connectez-vous à votre compte Buzz Booster pour consulter vos informations personnelles.";
   const result = "Statut : {statut}.\n{details_transaction}";
@@ -69,7 +71,7 @@ export function buzzBoosterIntents(): IntentDefinition[] {
       triggers: ["remboursement de ma commande", "remboursement d'une commande", "commande annulée mais pas remboursée", "remboursement partiel de ma commande", "commande non remboursée"],
       initial: "L’annulation d’une commande ne prouve pas que son remboursement a déjà été crédité. Je peux proposer une consultation du montant et du statut réellement enregistrés.",
       confirmation: "Souhaitez-vous vérifier le remboursement d’une commande ? Répondez par oui ou non.",
-      field: { name: "order_id", prompt: "Quel est le numéro de la commande concernée par le remboursement ?" },
+      field: { name: "order_id", prompt: "Quel est le numéro de commande affiché dans votre historique pour la commande à rembourser ? Ne communiquez pas la référence du paiement." },
     },
     {
       operation: "referee_bonus_status", name: "Bonus reçu en tant que filleul",
@@ -102,7 +104,7 @@ export function buzzBoosterIntents(): IntentDefinition[] {
     id: template.operation, backend_function: template.operation,
     name: template.name, enabled: true, triggers: template.triggers,
     initial_response: template.initial, confirmation_question: template.confirmation,
-    fields: template.field ? [{ ...template.field, type: "text" as const, min_length: 1, max_length: 128 }] : [],
+    fields: template.field ? [{ ...template.field, type: template.field.name==="order_id" ? "identifier" as const : "text" as const, min_length: 1, max_length: 128 }] : [],
     guest_message,
     responses: { success: result, pending: result, error: result,
       not_found: "Aucune opération accessible à votre compte ne correspond aux informations fournies." },
@@ -122,7 +124,13 @@ export function adaptBuzzBooster(settings: AssistantSettings, legacy: AssistantS
       return old && isDeepStrictEqual(intent,old) ? [] : [{ ...intent, enabled: false }];
     }
     const replacement = defaults.find(item => item.backend_function === intent.backend_function);
-    return [hadActivation && old && replacement && isDeepStrictEqual(intent,old) ? replacement : intent];
+    const chosen=hadActivation && old && replacement && isDeepStrictEqual(intent,old) ? replacement : intent;
+    if(["order_status","order_refund_status"].includes(chosen.backend_function)) {
+      return [{...chosen,fields:chosen.fields.map(field=>field.name==="order_id" && /r[ée]f[ée]rence|identifiant/i.test(field.prompt)
+        && !/num[eé]ro de (?:votre |la )?commande/i.test(field.prompt)
+        ? {...field,prompt:"Veuillez communiquer le numéro de commande affiché dans votre historique de commandes, et non la référence du paiement."}:field)}];
+    }
+    return [chosen];
   });
   if (hadActivation) {
     for (const template of defaults) {

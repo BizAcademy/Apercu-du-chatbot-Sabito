@@ -13,6 +13,15 @@ function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
     (field.type==="text" || (field.type==="identifier" ? /^[\p{L}\p{N}._/-]+$/u.test(value) : /^[\p{L} .'-]+$/u.test(value)));
 }
+function collectedValue(field:IntentDefinition["fields"][number],text:string) {
+  const value=text.trim();
+  if(field.type!=="identifier" && !/(?:_id|_number|_reference)$/.test(field.name))return value;
+  // Only unwrap explicit correction/identifier labels. Never normalize the value:
+  // leading zeros, case and punctuation may be part of the actual order number.
+  const labeled=/^(?:(?:pardon|désolé|desole|correction)[,:\s]+)?(?:(?:le bon|la bonne|mon|ma|le|la|voici le|voici la)\s+)?(?:numéro|numero|référence|reference|identifiant|id)(?:\s+(?:de (?:ma |la )?commande|du dépôt|du depot|du retrait))?\s*(?:est|c['’]est|:|=|n[°ºo])?\s*#?([\p{L}\p{N}._/-]+)\s*$/iu.exec(value);
+  const corrected=/^(?:pardon|désolé|desole|correction|c['’]est|voici)\s*[:,]?\s+#?([\p{L}\p{N}._/-]+)$/iu.exec(value);
+  return labeled?.[1]??corrected?.[1]??(field.name==="order_id"?value.replace(/^#(?=[\p{L}\p{N}])/u,""):value);
+}
 async function ticket(projectId:string,conversationId:string,claims:AccessClaims,intent:BackendOperation,reason:string,
   executor:Pick<typeof pool,"query">=pool) {
   await executor.query(`INSERT INTO sabito_core.support_tickets
@@ -33,7 +42,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     ...d,backendOperation:d.backend_function,
     required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
   }]));
-  const detected=detectIntent(text,settings);
+  let detected=detectIntent(text,settings);
   if(!detected) {
     const owner=await pool.query(`SELECT c.id,s.status FROM sabito_core.conversations c LEFT JOIN sabito_core.intent_sessions s
       ON s.conversation_id=c.id AND s.project_id=c.project_id WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
@@ -74,6 +83,18 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if (/^(annuler|annule|stop|abandonner)$/.test(normalized) && current?.status==="collecting") {
       await connection.query("UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}' WHERE conversation_id=$1",[conversationId]);
       await connection.query("COMMIT");return settings.cancelled_message;
+    }
+    if(current?.status==="collecting" && intentRegistry[current.intent]) {
+      const retained=JSON.parse(String(current.collected_json)) as Record<string,string>;
+      if(retained.__awaiting_confirmation!=="true") {
+        const missing=intentRegistry[current.intent].required.find(field=>!retained[field.name]);
+        if(missing) {
+          const value=collectedValue(missing,text);
+          // A clearly supplied correction belongs to the current check, even if
+          // its label contains the keyword of a different configured intent.
+          if(missing.valid(value) && (value!==text.trim() || /^(?=.*\d)[\p{L}\p{N}._/-]+$/u.test(value))) detected=undefined;
+        }
+      }
     }
     if (!detected && current?.status!=="collecting") {await connection.query("COMMIT");return null;}
     intent=detected ?? current.intent as BackendOperation;
@@ -126,7 +147,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     }
     const missing=definition.required.find(field=>!fields[field.name]);
     if (missing && !detected && !justConfirmed) {
-      const value=text.trim();
+      const value=collectedValue(missing,text);
       if (!missing.valid(value)) {await connection.query("COMMIT");return `${settings.invalid_field_message} ${missing.prompt} ${settings.privacy_message}`;}
       fields[missing.name]=value;
     }
@@ -140,11 +161,28 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if (next) return `${next.prompt} ${settings.privacy_message}`;
   } catch(error) {await connection.query("ROLLBACK");throw error;}
   finally {connection.release();}
-  let reason="BACKEND_UNAVAILABLE",failureTemplate="";
+  let reason="BACKEND_UNAVAILABLE",failureTemplate="",retrySaved=false;
   try {
     if (!isVerifiedMember(claims)) {reason="MEMBER_AUTH_REQUIRED";throw new Error(reason);}
     const definition=intentRegistry[intent!];
     const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,fields!);
+    if(["not_found","forbidden","invalid_input"].includes(response.status) && definition.required.length) {
+      const field=response.status==="invalid_input" && response.invalid_field
+        ? definition.required.find(field=>field.name===response.invalid_field) : definition.required[0];
+      if(!field)throw new Error("BACKEND_UNVERIFIED_RESULT");
+      const retained={...fields!};
+      delete retained[field.name];
+      // Persist before replying: subsequent messages/reconnects reuse this intent
+      // and the other valid fields, without another confirmation or a support ticket.
+      await pool.query(`UPDATE sabito_core.intent_sessions SET status='collecting',collected_json=$1,updated_at=CURRENT_TIMESTAMP(6)
+        WHERE conversation_id=$2 AND project_id=$3 AND intent=$4 AND status='checking'`,
+        [JSON.stringify(retained),conversationId,claims.sub,intent!]);
+      retrySaved=true;
+      // Never expose a forbidden record, backend messages or existence information.
+      const explanation=response.status==="invalid_input" ? settings.invalid_field_message
+        : "Je n’ai pas pu retrouver une opération accessible à votre compte avec ces informations.";
+      return `${explanation} Vérifiez l’information demandée et renvoyez-la pour continuer la vérification.\n\n${field.prompt} ${settings.privacy_message}`;
+    }
     const outcome: keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success"
       : ["pending","inactive"].includes(response.status)?"pending":["not_found","forbidden"].includes(response.status)?"not_found":"error";
     const data={...response.data,statut:response.data?.statut??response.status,
@@ -159,10 +197,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     reason="BACKEND_UNVERIFIED_RESULT";
   } catch (error) {
     const code=error instanceof Error ? error.message : "";
-    if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED"].includes(code)) reason=code;
+    if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT"].includes(code)) reason=code;
   } finally {
-    await pool.query(`UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}',updated_at=CURRENT_TIMESTAMP(6)
-      WHERE conversation_id=$1 AND project_id=$2`,[conversationId,claims.sub]);
+    if(!retrySaved) await pool.query(`UPDATE sabito_core.intent_sessions SET status='complete',collected_json='{}',updated_at=CURRENT_TIMESTAMP(6)
+      WHERE conversation_id=$1 AND project_id=$2 AND intent=$3 AND status='checking'`,[conversationId,claims.sub,intent!]);
   }
   const id=await ticket(claims.sub,conversationId,claims,intent!,reason);
   await recordUnanswered(claims.sub,originalQuestion,isVerifiedMember(claims)?claims.externalUserId:undefined);

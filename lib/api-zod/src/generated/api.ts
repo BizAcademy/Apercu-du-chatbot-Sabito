@@ -982,6 +982,7 @@ export const SubmitBackendJobResultParams = zod.object({
   "jobId": zod.coerce.string()
 })
 
+export const submitBackendJobResultBodyResultInvalidFieldRegExp = new RegExp('^[a-z][a-z0-9_]{1,63}$');
 export const submitBackendJobResultBodyResultCodeMax = 100;
 
 export const submitBackendJobResultBodyResultDataOneMax = 2000;
@@ -990,7 +991,8 @@ export const submitBackendJobResultBodyResultDataOneMax = 2000;
 
 export const SubmitBackendJobResultBody = zod.object({
   "result": zod.object({
-  "status": zod.enum(['ok', 'success', 'pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error']),
+  "status": zod.enum(['ok', 'success', 'pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error', 'invalid_input']),
+  "invalid_field": zod.string().regex(submitBackendJobResultBodyResultInvalidFieldRegExp).optional().describe('Champ collecté à corriger lorsque status vaut invalid_input. Sabito conserve la conversation et redemande ce champ.'),
   "code": zod.string().min(1).max(submitBackendJobResultBodyResultCodeMax).optional(),
   "data": zod.record(zod.string(), zod.union([zod.string().max(submitBackendJobResultBodyResultDataOneMax),zod.number(),zod.boolean()]).nullable()).optional()
 })

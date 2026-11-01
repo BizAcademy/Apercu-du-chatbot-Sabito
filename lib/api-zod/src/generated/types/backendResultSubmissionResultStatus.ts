@@ -20,4 +20,5 @@ export const BackendResultSubmissionResultStatus = {
   inactive: 'inactive',
   forbidden: 'forbidden',
   error: 'error',
+  invalid_input: 'invalid_input',
 } as const;

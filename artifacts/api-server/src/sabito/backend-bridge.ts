@@ -10,7 +10,8 @@ import { searchState } from "./question-search";
 export const operations = ["account_activation", "deposit_status", "referral_code"] as const;
 export type BackendOperation = string;
 export const backendResult = z.object({
-  status:z.enum(["ok","success","pending","confirmed","failed","not_found","active","inactive","forbidden","error"]),
+  status:z.enum(["ok","success","pending","confirmed","failed","not_found","active","inactive","forbidden","error","invalid_input"]),
+  invalid_field:identifier.optional(),
   code:z.string().regex(/^[\p{L}\p{N}_-]{1,100}$/u).optional(),
   data:z.record(identifier,z.union([z.string().max(2000),z.number().finite(),z.boolean(),z.null()]))
     .refine(data=>Object.keys(data).length<=32).optional(),

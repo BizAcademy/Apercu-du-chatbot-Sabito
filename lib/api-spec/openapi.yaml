@@ -557,7 +557,11 @@ components:
           additionalProperties: false
           required: [status]
           properties:
-            status: {type: string, enum: [ok, success, pending, confirmed, failed, not_found, active, inactive, forbidden, error]}
+            status: {type: string, enum: [ok, success, pending, confirmed, failed, not_found, active, inactive, forbidden, error, invalid_input]}
+            invalid_field:
+              type: string
+              pattern: '^[a-z][a-z0-9_]{1,63}$'
+              description: Champ collecté à corriger lorsque status vaut invalid_input. Sabito conserve la conversation et redemande ce champ.
             code: {type: string, minLength: 1, maxLength: 100}
             data:
               type: object
