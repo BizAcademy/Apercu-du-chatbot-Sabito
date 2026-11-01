@@ -9,11 +9,13 @@ import { handleBuzzCatalogue } from "./buzzbooster-catalogue-flow";
 import { guidanceLanguage,paymentClues,publicJourney } from "./public-guidance-language";
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
+import { guidanceBudget,guidanceBudgetSchema,budgetAdvice,purposeAnswer } from "./guidance-budget";
 
 const hash=(s:string)=>createHash("sha256").update(s).digest("hex");
 const contextSchema=z.object({
-  topic:z.enum(["deposit","boost","diagnostic","cancel"]),
-  questionId:z.string().uuid(),awaiting:z.enum(["method","network","goal","details","catalogue"]).optional(),
+  topic:z.enum(["deposit","boost","diagnostic","cancel","purpose"]),
+  questionId:z.string().uuid(),awaiting:z.enum(["method","network","goal","details","catalogue","currency","funding","usable","quantity"]).optional(),
+  budget:guidanceBudgetSchema.optional(),
   country:z.string().max(80).optional(),operator:z.string().max(80).optional(),method:z.string().max(40).optional(),
   filters:z.record(z.string(),z.string().max(160)).refine(fields=>Object.keys(fields).every(key=>
     (catalogueFields as readonly string[]).includes(key))).default({}),
@@ -52,19 +54,33 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
   const methodOnly=/^(?:wave|orange(?: money)?|mtn(?: momo)?|moov(?: money)?|mobile money|momo|crypto|cryptomonnaie)$/.test(q);
   const criteriaOnly=Object.keys(parsed).length>0&&q.split(" ").length<=12&&!explicitCheck;
   const continuing=!journey&&!!previous&&previous.topic!=="cancel"&&previous.awaiting!=="catalogue"&&!explicitCheck&&
-    (methodOnly||previous.topic==="boost"&&criteriaOnly||!!clues.country||
+    (methodOnly||["boost","purpose"].includes(previous.topic)&&criteriaOnly||!!clues.country||
+      ["currency","funding","usable","quantity"].includes(previous.awaiting??"")&&q.length<160&&
+        (/\b(?:xaf|xof|usd|eur|portefeuille|frais|solde|disponible|deposer)\b/.test(q)||/^\d[\d ]*$/.test(q))||
       previous.awaiting==="details"&&q.length<240&&!/^(?:comment|pourquoi|quel|quels|quelle|quelles|c est quoi|je veux|je souhaite)\b/.test(q));
   if(!journey&&!continuing)return null;
   const sameTopic=previous&&(previous.topic===journey||continuing);
   const context:Context=sameTopic&&previous?{...previous,filters:{...previous.filters}}:
     {topic:journey!,questionId,filters:{}};
   if(journey)context.topic=journey;
+  if(continuing&&context.topic==="purpose")context.topic="boost";
   Object.assign(context,clues);
   for(const key of catalogueFields)if(parsed[key]!==undefined)context.filters[key]=parsed[key]!;
   if(parsed.foreignCurrency)context.foreignCurrency=true;
+  context.budget=guidanceBudget(text,context.budget,previous?.awaiting);
+  if(context.budget) {
+    // No ambiguous currency or gross deposit amount ever reaches budget_xaf.
+    delete context.filters.budget_xaf;
+    if(context.budget.currency==="XAF"&&context.budget.funding==="wallet"&&context.budget.amount)
+      context.filters.budget_xaf=context.budget.amount;
+    context.foreignCurrency=context.budget.currency==="foreign";
+  }
+  if(continuing&&previous?.awaiting==="quantity"&&/^\d+$/.test(q))context.filters.quantity=q;
   delete context.awaiting;
   let answer:string;
-  if(context.topic==="cancel") {
+  if(context.topic==="purpose") {
+    answer=purposeAnswer;context.awaiting="network";
+  } else if(context.topic==="cancel") {
     answer="Pour demander l’annulation d’une commande, ouvrez « Ordres », retrouvez son numéro et utilisez la demande prévue par la plateforme. Si cette option n’est pas proposée, ouvrez « Support » et indiquez le numéro de la commande ainsi que le motif.\nUne demande ne signifie pas que la commande est annulée ou remboursée. Je n’exécute pas cette action à votre place.";
   } else if(context.topic==="diagnostic") {
     const info=[context.operator,context.country].filter(Boolean).join(" — ");
@@ -84,9 +100,20 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
     else answer=`Dans « Recharger », sélectionnez Mobile Money${context.country?` et le pays ${context.country}`:""}, puis un opérateur réellement affiché. Renseignez le numéro et le montant, vérifiez les frais et le total, puis suivez les instructions sécurisées de paiement. Attendez la confirmation du crédit.`;
   } else {
     const {network,goal}=context.filters;
-    const intro=sameTopic?"":orderSteps+"\n\n";
+    const intro=sameTopic?"":context.budget
+      ?`Je peux vous aider à choisir selon votre budget${context.budget.amount?` de ${context.budget.amount}${context.budget.currency==="XAF"?" XAF":""}`:""}. Ce montant déclaré n’est pas une vérification du solde réel. Aucune offre n’a encore été confirmée comme finançable.\n${budgetAdvice}\n\n`
+      :orderSteps+"\n\n";
     if(!network){answer=intro+"Quel réseau social souhaitez-vous booster ?";context.awaiting="network";}
     else if(!goal){answer=intro+`Pour ${network}, quel est votre objectif : abonnés, vues, likes, commentaires ou partages ?`;context.awaiting="goal";}
+    else if(context.budget&&context.budget.currency!=="XAF"){
+      answer=intro+"Pour comparer un budget, il faut un montant en XAF internes. « F » ou « FCFA » seul ne distingue pas XAF et XOF ; je ne convertis pas automatiquement les devises. Quel budget souhaitez-vous utiliser en XAF ?";context.awaiting="currency";
+    } else if(context.budget&&context.budget.funding==="unknown"){
+      answer=intro+"Ce budget est-il déjà disponible dans votre portefeuille Buzz Booster, ou correspond-il à la somme totale à déposer, frais compris ?";context.awaiting="funding";
+    } else if(context.budget&&context.budget.funding==="total"){
+      answer=intro+"Les frais de dépôt peuvent réduire le budget utilisable pour la commande. Vérifiez le récapitulatif dans « Recharger » ; je n’invente pas ces frais. Quel montant net en XAF sera disponible pour commander après les frais ?";context.awaiting="usable";
+    } else if(context.budget&&(!context.budget.amount||!context.filters.quantity)&&isVerifiedMember(claims)){
+      answer=intro+(!context.budget.amount?"Quel montant en XAF souhaitez-vous consacrer à cette commande ?":"Quelle quantité souhaitez-vous comparer avec ce budget ? Je vérifierai les minimums et maximums retournés par le catalogue avant de proposer une offre.");context.awaiting=context.budget.amount?"quantity":"usable";
+    }
     else if(isVerifiedMember(claims)&&settings.intents.some(i=>i.enabled&&["service_catalog","service_recommendations"].includes(i.backend_function))) {
       const fields=Object.entries(context.filters).map(([k,v])=>`${k}: ${v}`).join("; ");
       const canRecommend=settings.intents.some(i=>i.enabled&&i.backend_function==="service_recommendations");
@@ -95,7 +122,7 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
       const catalogue=await handleBuzzCatalogue(claims,conversationId,`${trigger}; ${fields}${context.foreignCurrency?"; devise XOF":""}`,settings);
       answer=intro+(catalogue??"Consultez les offres actuelles dans « Nouvelle commande ». Aucune offre précise n’a été vérifiée.");
       context.awaiting="catalogue";
-    } else answer=intro+`Pour des ${goal} sur ${network}, ouvrez « Nouvelle commande » et recherchez les offres correspondant à cet objectif. Vérifiez le type de lien, les limites de quantité, les conditions et le prix final avant de valider. Je n’ai pas consulté de catalogue membre dans cet échange et je ne peux pas citer d’offre précise comme disponible.`;
+    } else answer=intro+`Pour des ${goal} sur ${network}, ouvrez « Nouvelle commande » et recherchez les offres correspondant à cet objectif. Vérifiez le type de lien, les limites de quantité, les conditions et le prix final avant de valider. Je n’ai pas consulté de catalogue membre dans cet échange et je ne peux pas citer d’offre précise comme disponible. Une connexion membre autorisée est nécessaire pour utiliser ces outils de comparaison.`;
   }
   return {answer,context,continuing};
 }

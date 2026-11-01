@@ -101,7 +101,7 @@ export function catalogueAnswer(result:BackendResult,fields:CatalogueFields,oper
   const metadata=Object.entries(result.data??{}).filter(([key])=>!/^service_/.test(key)&&!privateKey.test(key)&&
     /periode|period|date|page|couverture|coverage|incomplet|partial|indisponible|unavailable|inaccessible|limite|limit|correspond|total|count|tri|sort|fournisseur/.test(key))
     .map(([key,value])=>`${literal(key.replaceAll("_"," "))} : ${literal(value)}`);
-  if(result.status==="not_found")return ["Aucune offre ne correspond à ces critères. Vous pouvez changer de réseau, d’objectif, de quantité ou de budget. Ce résultat ne signifie pas que le service est en panne.",
+  if(result.status==="not_found")return ["Aucune offre ne correspond à ces critères. Vous pouvez changer de réseau ou d’objectif. Une quantité inférieure n’est une alternative que si elle respecte les limites d’une offre vérifiée ; je ne suppose pas qu’elle est achetable et ne vous pousse pas à augmenter votre budget. Ce résultat ne signifie pas que le service est en panne.",
     ...metadata,"Si des fournisseurs sont signalés inaccessibles, cette recherche est partielle."].join("\n");
   if(!["ok","success"].includes(result.status))throw new Error("BACKEND_UNVERIFIED_RESULT");
   const data=result.data??{},offers:string[]=[];
@@ -113,6 +113,7 @@ export function catalogueAnswer(result:BackendResult,fields:CatalogueFields,oper
     offers.push([`${n}. ${literal(name)}`,`Fournisseur : ${literal(provider)} — ID du service : ${literal(id)}`,
       data[`${prefix}categorie`]?`Catégorie : ${literal(data[`${prefix}categorie`])}`:"",
       fields.quantity?`Quantité demandée : ${fields.quantity}`:"Quantité non précisée : ne pas confondre un prix pour 1 000 avec le total d’une commande.",
+      `Intérêt de cette option : offre retournée pour ${literal(fields.network??"le réseau demandé")} et ${literal(fields.goal??"l’objectif demandé")}, à comparer selon les conditions et le classement ci-dessous, pas sur une qualité supposée.`,
       `Prix publics indicatifs — XAF internes : ${price}`,`Conditions documentées : ${conditions}`,
       `Statistiques retournées : ${statistics}`,
       data[`${prefix}description`]?`Description du fournisseur (contenu externe) : « ${literal(data[`${prefix}description`])} »`:"Description non communiquée.",
@@ -140,6 +141,7 @@ export function catalogueAnswer(result:BackendResult,fields:CatalogueFields,oper
     "Un échantillon de moins de 20 états clos est faible. Popularité, volume terminé et fiabilité statistique sont différents ; aucune observation ne garantit la qualité future, la satisfaction ou la livraison.",
     "Un fournisseur inaccessible peut rendre la comparaison partielle : les offres retournées ne prouvent pas un inventaire exhaustif. L’option refill ne précise pas, à elle seule, une durée de garantie.",
     "Les prix sont indicatifs en XAF internes. Le prix final affiché avant commande prévaut. Je ne passe aucune commande et n’effectue aucun paiement.",
+    "Un prix plus bas ne prouve pas une livraison plus rapide ; un prix plus élevé ne prouve pas une meilleure qualité. Comparez le total à quantité égale, les minimums et maximums, les conditions, la période et l’échantillon avant de choisir. Le budget déclaré n’est pas une vérification du solde ; les frais d’un dépôt à venir sont distincts.",
     catalogueNextPage(result,Number(fields.page??1))?"Écrivez « page suivante » pour consulter trois autres offres.":"Vous pouvez préciser un autre réseau, objectif, fournisseur ou tri.",
   ].filter(Boolean).join("\n\n");
 }

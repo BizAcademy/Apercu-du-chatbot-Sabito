@@ -19,11 +19,15 @@ export function guidanceLanguage(text:string) {
   return normalizeQuestion(expandQuestion(text)).split(" ").map(word=>aliases[word]??
     (word.length>=5?(words.find(known=>known!==word&&Math.abs(known.length-word.length)<=1&&distance(word,known)<=1)??word):word)).join(" ");
 }
-export type PublicJourney="deposit"|"boost"|"diagnostic"|"cancel";
+export type PublicJourney="deposit"|"boost"|"diagnostic"|"cancel"|"purpose";
 export function publicJourney(text:string):PublicJourney|undefined {
   const q=guidanceLanguage(text).replace(/\bbuzz booster\b/g,"buzzbooster");
+  if(/\b(?:but de|a quoi sert|pourquoi utiliser|peut m apporter|peut apporter)\b/.test(q)&&
+    /\b(?:plateforme|buzzbooster|ca|cela)\b/.test(q))return "purpose";
   if(/\b(?:annul\w*|cancel)\b/.test(q)&&/\bcommande\b/.test(q))return "cancel";
   if(/\b(?:verifi\w*|statut|suivi|suivre)\b/.test(q))return undefined;
+  if(/\b(?:budget|boostage)\b/.test(q)&&/\b(?:conseill\w*|choisir|booster|boostage|petit budget)\b/.test(q)||
+    /\bque puis je faire avec\b/.test(q)&&/\d/.test(q))return "boost";
   const deposit=/\b(?:depot|deposer|recharger|recharge|alimenter|solde|mettre de l argent)\b/.test(q);
   if(deposit&&/\b(?:pourquoi|erreur|ne passe pas|n arrive pas a|impossible de|echec du paiement)\b/.test(q)&&
     !/\b(?:debite|non recu|pas recu|pas arrive|non credite)\b/.test(q))return "diagnostic";

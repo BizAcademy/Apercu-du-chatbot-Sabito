@@ -58,7 +58,7 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
   const memberSocket=await openSocket(signAccessToken(member));
   conversationId=await createConversation(id,member.externalUserId);
   const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
-    .send({operations:["service_catalog","order_status"]});
+    .send({operations:["service_catalog","service_recommendations","order_status"]});
   assert.deepEqual((await poll().expect(200)).body.jobs,[],"Public guides never dispatch member jobs");
   const pending=send(memberSocket,conversationId,"Je veux des vues TikTok");
   let found:{id:string;operation:string;external_user_id:string;fields:Record<string,string>}|undefined;
@@ -78,6 +78,48 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
   // A stale help topic cannot reinterpret arbitrary numbers or other questions.
   assert.equal(await publicGuidance(member,conversationId,"162717",randomUUID()),null);
   assert.equal(await publicGuidance(member,conversationId,"Vérifie ma commande 162717",randomUUID()),null);
+  conversationId=await createConversation(id,guest.externalUserId);
+  answer=(await send(socket,conversationId,"Quel est le but de la plateforme ?")).content;
+  assert.match(answer,/audience apparente/);assert.match(answer,/Quel réseau social/);
+  assert.doesNotMatch(answer,/communiqu.*référence|connectez-vous/i);
+  answer=(await send(socket,conversationId,"Instagram")).content;
+  assert.match(answer,/instagram.*quel est votre objectif/i);
+  conversationId=await createConversation(id,guest.externalUserId);
+  answer=(await send(socket,conversationId,"J’ai 1000f, je veux faire un boostage, que me conseilles-tu ?")).content;
+  assert.match(answer,/1000/);assert.match(answer,/Quel réseau social/);
+  assert.doesNotMatch(answer,/Pour recharger votre solde|référence/i);
+  answer=(await send(socket,conversationId,"TikTok")).content;
+  assert.match(answer,/quel est votre objectif/i);
+  answer=(await send(socket,conversationId,"vues")).content;
+  assert.match(answer,/XAF et XOF/);
+  answer=(await send(socket,conversationId,"XAF")).content;
+  assert.match(answer,/portefeuille.*frais compris/i);
+  answer=(await send(socket,conversationId,"somme totale frais compris")).content;
+  assert.match(answer,/montant net en XAF/);
+  answer=(await send(socket,conversationId,"900")).content;
+  assert.match(answer,/vues sur tiktok/i);assert.match(answer,/connexion membre autorisée/i);
+  assert.deepEqual((await poll().expect(200)).body.jobs,[],"Guest budget guidance must not query a member catalogue");
+  conversationId=await createConversation(id,member.externalUserId);
+  answer=(await send(memberSocket,conversationId,"J’ai 1000 FCFA, je veux booster 100 vues TikTok")).content;
+  assert.match(answer,/XAF et XOF/);
+  assert.deepEqual((await poll().expect(200)).body.jobs,[],"An ambiguous currency cannot be dispatched as XAF");
+  answer=(await send(memberSocket,conversationId,"XAF")).content;
+  assert.match(answer,/portefeuille.*frais compris/i);
+  assert.deepEqual((await poll().expect(200)).body.jobs,[],"Gross and net spending must be distinguished before comparison");
+  const budgetPending=send(memberSocket,conversationId,"déjà disponible dans mon portefeuille");
+  found=undefined;
+  for(let i=0;i<100&&!found;i++){
+    found=(await poll().expect(200)).body.jobs[0];
+    if(!found)await new Promise(r=>setTimeout(r,20));
+  }
+  assert.ok(found);assert.equal(found.operation,"service_recommendations");
+  assert.equal(found.fields.quantity,"100");assert.equal(found.fields.budget_xaf,"1000");
+  assert.equal(found.fields.network.toLowerCase(),"tiktok");assert.equal(found.fields.goal,"vues");
+  assert.equal(found.external_user_id,member.externalUserId);
+  await request(app).post(`/v1/backend/jobs/${found.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+    .send({result:{status:"not_found"}}).expect(200);
+  answer=(await budgetPending).content;
+  assert.match(answer,/Aucune offre/);assert.match(answer,/respecte les limites/);
   const generic=(await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
     .send({slug:`other-${randomUUID()}`,name:"Other platform",assistant_name:"Sabito",
       system_prompt:"Utiliser les références approuvées de cette plateforme uniquement."}).expect(201)).body.data;

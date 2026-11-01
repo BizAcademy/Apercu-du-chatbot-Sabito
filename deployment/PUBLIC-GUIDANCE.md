@@ -1,3 +1,11 @@
+# Présentation et conseil budgétaire
+
+Les demandes sur le but de Buzz Booster expliquent l’utilité et les limites des prestations avant de proposer le réseau à développer. Les demandes de conseil avec un budget conservent le montant, le réseau et l’objectif, sans être transformées en guides de dépôt.
+
+Avant une comparaison chiffrée : préciser XAF (F/FCFA seul est ambigu), distinguer argent disponible et somme à déposer frais compris, puis demander la quantité nécessaire au filtre budget. Aucun montant étranger ou brut n’est transmis comme budget XAF net. Le montant déclaré n’est jamais présenté comme un solde vérifié.
+
+Ces comportements utilisent le contexte public existant de la migration 010 ; aucune migration supplémentaire ni nouvelle clé. Les visiteurs reçoivent des conseils généraux, les outils restent réservés aux membres autorisés. La validation du catalogue en production exige toujours un vrai essai membre.
+
 # Guides conversationnels Buzz Booster
 
 La migration additive `010_public_guidance_context.sql` conserve le contexte des

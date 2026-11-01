@@ -1447,7 +1447,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.match(currency.content,/XAF/);assert.match(currency.content,/ne convertis pas/);
       assert.deepEqual((await poll().expect(200)).body.jobs,[]);
       const recommendationFilters={network:"instagram",goal:"abonnés",quantity:"1000",budget_xaf:"5000",page:"1"};
-      const recommendation=await finish(send("5000 XAF"),"service_recommendations",recommendationFilters,{status:"ok",data:offer});
+      assert.match((await send("5000 XAF")).content,/portefeuille.*frais compris/i);
+      assert.deepEqual((await poll().expect(200)).body.jobs,[]);
+      const recommendation=await finish(send("déjà disponible dans mon portefeuille"),"service_recommendations",recommendationFilters,{status:"ok",data:offer});
       assert.match(recommendation,/Wilson à 95/);assert.match(recommendation,/Budget total demandé : 5000 XAF/);
       const sorted={...recommendationFilters,sort:"popular",days:"7"};
       const correction=await finish(send("Tri par popularité sur 7 jours"),"service_recommendations",sorted,
