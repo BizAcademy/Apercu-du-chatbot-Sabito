@@ -83,6 +83,9 @@ export async function readAssistantSettings(projectId:string):Promise<{settings:
   if(buzz) {
     const {ensureBuzzBoosterKnowledge}=await import("./buzzbooster-knowledge-install");
     if(await ensureBuzzBoosterKnowledge(projectId))return readAssistantSettings(projectId);
+  } else if(bca) {
+    const {ensureBcaKnowledge}=await import("./bca-knowledge-install");
+    if(await ensureBcaKnowledge(projectId))return readAssistantSettings(projectId);
   }
   const defaults=buzz ? {...legacy,intents:buzzBoosterIntents()} : bca ? {...legacy,intents:bcaIntents()} : legacy;
   const settings=settingsSchema.parse({...defaults,...JSON.parse(String(row.config_json??"{}"))});

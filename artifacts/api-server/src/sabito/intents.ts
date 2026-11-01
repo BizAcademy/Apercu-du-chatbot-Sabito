@@ -9,6 +9,7 @@ import type { IntentDefinition } from "./assistant-settings";
 import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
 import { buzzGuideFor } from "./buzzbooster-guides";
+import { isBcaHelpQuestion } from "./bca-knowledge-install";
 import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,optionalBuzzField,buzzOperations } from "./buzzbooster-contract";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
@@ -41,6 +42,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   const normalized=normalizeQuestion(text);
   const {settings,profile}=await searchState(claims.sub);
   const buzz=profile==="buzzbooster",guide=buzz?buzzGuideFor(text):undefined;
+  // Public BCA instructions use approved references, not member lookups.
+  // Do not clear an interrupted collection while answering a how-to question.
+  if(profile==="bca" && isBcaHelpQuestion(text) && (await retrieveReply(claims.sub,text)).reliable)
+    return null;
   const refundQuestion=guide?.key==="refunds" && /ticket.*ferm/i.test(normalized);
   // General approved instructions are public, not requests to inspect an account.
   // Keep an interrupted collection intact while answering a general question.

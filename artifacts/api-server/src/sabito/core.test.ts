@@ -22,7 +22,10 @@ import { adaptBuzzBooster,buzzBoosterIntents,isBuzzBooster,legacyBuzzBoosterInte
 import { bcaIntents } from "./bca-settings";
 import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
-import { searchKnowledge } from "./knowledge";
+import { searchKnowledge,saveKnowledge } from "./knowledge";
+import { bcaGuides } from "./bca-guide-data";
+import { ensureBcaKnowledge,isBcaHelpQuestion } from "./bca-knowledge-install";
+import { selectedFollowUp } from "./knowledge-follow-ups";
 import { semanticSimilarity } from "./semantic";
 import { buzzGuides } from "./buzzbooster-guides";
 
@@ -446,6 +449,82 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const corrected=handleIntent(claims,conv,"Gabon");
       assert.deepEqual((await complete({status:"confirmed"})).fields,{deposit_number:"DEP-0001",country:"Gabon"});
       assert.match((await corrected)!,/reçu/);
+    });
+    await t.test("BCA owner-approved help installs atomically, preserves authored content and supports native follow-up buttons", async () => {
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`bca-help-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",
+          system_prompt:"Instructions BCA personnalisées à conserver."}).expect(201);
+      const {project,credentials}=created.body.data,id=project.id;
+      projectIds.push(id);
+      const custom="Ma procédure de dépôt personnalisée approuvée. Utilisez uniquement le formulaire sécurisé.";
+      // An authored alias is authoritative too, even when its title differs.
+      await saveKnowledge(id,"Guide de dépôt de l’administrateur",custom,undefined,undefined,[bcaGuides[9].title]);
+      await pool.query("UPDATE sabito_core.assistant_settings SET config_json=$2 WHERE project_id=$1",
+        [id,JSON.stringify({greeting_guest:"Bienvenue dans mon espace BCA personnalisé."})]);
+      await Promise.all(Array.from({length:4},()=>readAssistantSettings(id)));
+      const config=await readAssistantSettings(id);
+      assert.equal(config.profile,"bca");
+      assert.equal(config.settings.greeting_guest,"Bienvenue dans mon espace BCA personnalisé.");
+      assert.equal(bcaGuides.length,38); // 37 guides plus the document's purchase clarification.
+      assert.equal(new Set(bcaGuides.map(guide=>guide.key)).size,38);
+      assert.equal((await pool.query("SELECT system_prompt FROM sabito_core.projects WHERE id=$1",[id])).rows[0].system_prompt,
+        "Instructions BCA personnalisées à conserver.");
+      const url=`/v1/admin/projects/${id}/knowledge`;
+      const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+      assert.equal(docs.length,38); // 37 imported references plus the preserved original.
+      const marker=await pool.query("SELECT metadata FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",
+        [id,"bca.help_pack.installed"]);
+      assert.equal(marker.rows.length,1);
+      const metadata=marker.rows[0].metadata;
+      assert.equal((typeof metadata==="string"?JSON.parse(metadata):metadata).documentIds.length,37);
+      for(const guide of bcaGuides) {
+        const reply=await retrieveReply(id,guide.title);
+        assert.equal(reply.reliable,true,guide.title);
+        assert.equal(reply.answer,guide.key==="10"?custom:guide.content,guide.title);
+        for(const key of guide.followUpKeys)assert.ok(bcaGuides.some(target=>target.key===key),key);
+        if(guide.key!=="10")for(const question of guide.variants) {
+          const variant=await retrieveReply(id,question);
+          assert.equal(variant.reliable,true,question);
+          assert.equal(variant.answer,guide.content,question);
+        }
+      }
+      const wallets=await retrieveReply(id,bcaGuides[8].title);
+      const deposit=wallets.suggestions.find(item=>item.question===bcaGuides[9].title)!;
+      assert.ok("follow_up_id" in deposit && typeof deposit.follow_up_id==="string");
+      assert.equal((await selectedFollowUp(id,deposit.follow_up_id,deposit.question))?.answer,custom);
+      assert.equal(wallets.suggestions_label,"");
+      const guest={sub:id,clientId:credentials.clientId,externalUserId:"guest:bca-help",scope:["chat:connect"]};
+      const member={...guest,externalUserId:"bca-help-member",scope:["chat:connect","member:verified"]};
+      for(const claims of [guest,member])for(const index of [2,4,9,12,15,19,21,25,26,27]) {
+        const conv=await createConversation(id,claims.externalUserId);
+        assert.equal(await handleIntent(claims,conv,bcaGuides[index].title),null,bcaGuides[index].title);
+      }
+      const privateConv=await createConversation(id,guest.externalUserId);
+      const privateTrigger=config.settings.intents.find(intent=>intent.backend_function==="deposit_status")!.triggers[0];
+      assert.match((await handleIntent(guest,privateConv,privateTrigger))!,/Souhaitez-vous vérifier/);
+      assert.match((await handleIntent(guest,privateConv,"oui"))!,/Connectez-vous/);
+      assert.equal(isBcaHelpQuestion("Vérifie mon dépôt"),false);
+      assert.equal(isBcaHelpQuestion("Quel est mon solde ?"),false);
+      assert.equal(isBcaHelpQuestion("Vérifie la transaction 0000123"),false);
+      const unknown=await retrieveReply(id,"La téléportation quantique intergalactique ?");
+      assert.equal(unknown.reliable,false);
+      assert.ok(unknown.suggestions.every(item=>!/^(bonjour|salut)$/i.test(item.question)));
+      const editable=docs.find((doc:{title:string})=>doc.title===bcaGuides[19].title)!;
+      await saveKnowledge(id,editable.title,"Formation : réponse modifiée par l’administrateur.",editable.id);
+      assert.equal((await retrieveReply(id,editable.title)).answer,"Formation : réponse modifiée par l’administrateur.");
+      await request(app).delete(`${url}/${editable.id}`).set("X-Admin-Key",adminKey).expect(204);
+      // A fresh module has an empty in-memory cache, like a new server process.
+      const cold=await import("./bca-knowledge-install.ts?restart="+randomUUID());
+      assert.equal(await cold.ensureBcaKnowledge(id),false);
+      assert.equal((await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data.length,37);
+      const other=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`isolated-${randomUUID()}`,name:"Autre plateforme",assistant_name:"Sabito",
+          system_prompt:"Instructions personnalisées d’une autre plateforme."}).expect(201);
+      const otherId=other.body.data.project.id;
+      projectIds.push(otherId);
+      assert.equal(await ensureBcaKnowledge(otherId),false);
+      assert.equal((await request(app).get(`/v1/admin/projects/${otherId}/knowledge`)
+        .set("X-Admin-Key",adminKey).expect(200)).body.data.length,0);
     });
     await t.test("BCA financial catalog confirms, collects and dispatches every enabled read operation with isolated identity", async () => {
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
