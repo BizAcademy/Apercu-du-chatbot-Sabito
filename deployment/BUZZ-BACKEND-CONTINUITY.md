@@ -1,4 +1,4 @@
-# Continuité après une vérification Buzz Booster
+# Continuité après une vérification BCA ou Buzz Booster
 
 ## Cause et correction
 
@@ -12,6 +12,30 @@ expliquer, et retombait dans la recherche générale.
 La correction étend **la session d'intention existante**, avec une colonne
 `backend_context_json`. Il n'y a pas de second moteur, ni nouvel appel direct
 vers une route financière de Buzz Booster.
+
+La même continuité fonctionne maintenant avec le catalogue BCA déjà configuré.
+Elle conserve les noms exacts des champs BCA tels que `deposit_number`,
+`withdrawal_number`, `transfer_reference`, `swap_reference`,
+`campaign_reference` et `payment_reference`. Les références retournées ne sont
+jamais rebaptisées ou utilisées comme champs d'entrée.
+
+Pour BCA comme pour Buzz Booster :
+- une demande d'explication reprend l'observation avec sa date et n'interroge
+  pas le backend une seconde fois ;
+- une demande explicite de revérification envoie une nouvelle lecture par le
+  pont authentifié existant, avec l'identité de membre et les champs conservés ;
+- dépôt, retrait, transfert, remboursement, frais, commissions, campagne
+  publicitaire, vente/achat Digital Store, portefeuille et autres opérations
+  gardent leurs identifiants et leur type exacts ;
+- une opération différente sans identifiant compatible retourne au collecteur
+  de champs déjà présent et demande l'information manquante ;
+- les guides d'action ne sont ajoutés que s'ils sont déjà approuvés dans la
+  base de connaissances BCA ; une lecture ne confirme ni ne réalise un
+  paiement, versement, crédit, activation, remboursement ou changement de solde.
+
+Les deux produits partagent ainsi **le même moteur de conversation** et la même
+colonne de contexte. Les profils, règles d'opérations, réponses et références
+approuvées restent propres à chaque plateforme.
 
 Ce contexte contient l'identité propriétaire, le sujet/les opérations, les
 champs réellement envoyés au connecteur, les derniers résultats avec date,

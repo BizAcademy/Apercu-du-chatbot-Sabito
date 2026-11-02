@@ -640,6 +640,23 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
           assert.match(rendered!,/1250/);
         }
         assert.doesNotMatch(rendered!,/ticket a été créé/);
+        const explanation=await handleIntent(claims,conv,"Comment confirmer cette transaction ?");
+        assert.match(explanation!,/consultation BCA du/ ,intent.backend_function);
+        assert.match(explanation!,/Je ne peux pas forcer/ ,intent.backend_function);
+        assert.deepEqual((await poll().expect(200)).body.jobs,[],`An explanation must not call ${intent.backend_function} again`);
+        if(intent.backend_function==="deposit_status") {
+          const reread=handleIntent(claims,conv,"Vérifie encore");
+          let job:{id:string;fields:Record<string,string>}|undefined;
+          for(let attempt=0;attempt<100&&!job;attempt++) {
+            job=(await poll().expect(200)).body.jobs.find((item:{operation:string})=>item.operation==="deposit_status");
+            if(!job)await new Promise(resolve=>setTimeout(resolve,10));
+          }
+          assert.ok(job,"An explicit BCA reread must call the authorized backend");
+          assert.deepEqual(job.fields,{deposit_number:"REF-BCA-123"});
+          await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+            .send({result:{status:"pending",data:{statut:"Encore en attente",reference:"REF-BCA-123"}}}).expect(200);
+          assert.match((await reread)!,/Encore en attente/);
+        }
       }
       const declined=await createConversation(id,claims.externalUserId);
       await handleIntent(claims,declined,"transfert BCA à BCA");
