@@ -21,8 +21,8 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
     const timer=setTimeout(()=>{client.off("message:complete",done);reject(new Error("GUIDANCE_TIMEOUT"));},20000);
     const done=(m:{content:string})=>{clearTimeout(timer);resolve(m);};
     client.once("message:complete",done);
-    client.emit("message:send",{conversationId:conversation,content,idempotencyKey:randomUUID()},(ack:{ok:boolean})=>{
-      if(!ack.ok){clearTimeout(timer);client.off("message:complete",done);reject(new Error("GUIDANCE_REJECTED"));}
+    client.emit("message:send",{conversationId:conversation,content,idempotencyKey:randomUUID()},(ack:{ok:boolean;error?:{code:string}})=>{
+      if(!ack.ok){clearTimeout(timer);client.off("message:complete",done);reject(new Error(`GUIDANCE_REJECTED:${ack.error?.code}`));}
     });
   });
   let answer=(await send(socket,conversationId,"Je veux faire le dépôt au Sénégal")).content;
@@ -120,6 +120,42 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
     .send({result:{status:"not_found"}}).expect(200);
   answer=(await budgetPending).content;
   assert.match(answer,/Aucune offre/);assert.match(answer,/respecte les limites/);
+  // An independent visitor exercises FAQ without exhausting the deliberate
+  // per-member flood limit during this synthetic rapid-fire protocol suite.
+  const faqGuest={...guest,externalUserId:`guest:${randomUUID()}`};
+  const faqSocket=await openSocket(signAccessToken(faqGuest));
+  const faqCases=[
+    ["cmt accder a la platteforme ?","Inscription"],
+    ["Pourquoi choisir Buzz Booster ?","plusieurs catalogues"],
+    ["Quels réseaux sont disponibles ?","exemples possibles"],
+    ["Les vues et les abonnés gagnés ont-ils une expiration ?","Il n’existe pas de durée unique"],
+    ["La plateforme est-elle fiable ?","ne prouve pas la satisfaction"],
+    ["La plateforme est disponible dans quels pays ?","inscription ne prouvent pas"],
+  ];
+  for(const [question,expected]of faqCases){
+    conversationId=await createConversation(id,faqGuest.externalUserId);
+    answer=(await send(faqSocket,conversationId,question)).content;
+    assert.ok(answer.includes(expected),`${question}: ${answer}`);
+    assert.doesNotMatch(answer,/communiquez.*(?:référence|numéro)|vérifier votre transaction/i);
+    assert.equal((answer.match(/\?/g)??[]).length<=1,true,"Only one useful question at a time");
+  }
+  answer=(await send(faqSocket,conversationId,"Sénégal")).content;
+  assert.match(answer,/Quel moyen de paiement/);
+  conversationId=await createConversation(id,faqGuest.externalUserId);
+  await send(faqSocket,conversationId,"Buzz Booster agit sur quelles applications ?");
+  answer=(await send(faqSocket,conversationId,"Instagram")).content;
+  assert.match(answer,/instagram.*quel est votre objectif/i);
+  assert.deepEqual((await poll().expect(200)).body.jobs,[],"General FAQs and guest follow-ups do not dispatch member jobs");
+  const knowledgeUrl=`/v1/admin/projects/${id}/knowledge`;
+  const access=(await request(app).get(knowledgeUrl).set("X-Admin-Key",adminKey).expect(200)).body.data
+    .find((doc:{title:string})=>doc.title==="Comment faire pour accéder à la plateforme ?");
+  assert.ok(access);
+  const customAccess="Ouvrez le site officiel configuré par l’administration : https://example.org/buzz-official . Si vous avez un compte, utilisez Connexion.";
+  await request(app).put(`${knowledgeUrl}/${access.id}`).set("X-Admin-Key",adminKey)
+    .send({title:access.title,content:customAccess,variantes_de_question:access.variantes_de_question}).expect(200);
+  conversationId=await createConversation(id,faqGuest.externalUserId);
+  answer=(await send(faqSocket,conversationId,"Comment accéder à Buzz Booster ?")).content;
+  assert.ok(answer.startsWith(customAccess),"Configured official URL is read from the approved reference, never inferred");
   const generic=(await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
     .send({slug:`other-${randomUUID()}`,name:"Other platform",assistant_name:"Sabito",
       system_prompt:"Utiliser les références approuvées de cette plateforme uniquement."}).expect(201)).body.data;

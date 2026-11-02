@@ -32,6 +32,7 @@ import { contextualBuzzReply } from "./public-help-context";
 import { verifyDirectOrders } from "./tests/buzzbooster-orders";
 import { verifySupportMemory } from "./tests/support-memory";
 import { verifyPublicGuidance } from "./tests/public-guidance";
+import { verifyBcaFaq } from "./tests/bca-faq";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -521,13 +522,13 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const config=await readAssistantSettings(id);
       assert.equal(config.profile,"bca");
       assert.equal(config.settings.greeting_guest,"Bienvenue dans mon espace BCA personnalisé.");
-      assert.equal(bcaGuides.length,38); // 37 guides plus the document's purchase clarification.
-      assert.equal(new Set(bcaGuides.map(guide=>guide.key)).size,38);
+      assert.equal(bcaGuides.length,46); // Original 38 guides and eight owner-approved FAQ entries.
+      assert.equal(new Set(bcaGuides.map(guide=>guide.key)).size,bcaGuides.length);
       assert.equal((await pool.query("SELECT system_prompt FROM sabito_core.projects WHERE id=$1",[id])).rows[0].system_prompt,
         "Instructions BCA personnalisées à conserver.");
       const url=`/v1/admin/projects/${id}/knowledge`;
       const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
-      assert.equal(docs.length,38); // 37 imported references plus the preserved original.
+      assert.equal(docs.length,bcaGuides.length); // Imported references plus the preserved original.
       const marker=await pool.query("SELECT metadata FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",
         [id,"bca.help_pack.installed"]);
       assert.equal(marker.rows.length,1);
@@ -572,7 +573,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       // A fresh module has an empty in-memory cache, like a new server process.
       const cold=await import("./bca-knowledge-install.ts?restart="+randomUUID());
       assert.equal(await cold.ensureBcaKnowledge(id),false);
-      assert.equal((await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data.length,37);
+      assert.equal((await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data.length,bcaGuides.length-1);
       const other=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
         .send({slug:`isolated-${randomUUID()}`,name:"Autre plateforme",assistant_name:"Sabito",
           system_prompt:"Instructions personnalisées d’une autre plateforme."}).expect(201);
@@ -1469,6 +1470,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     });
     await t.test("Direct order verification makes scoped fresh tool calls, retains context and batches safely without confirmations",
       ()=>verifyDirectOrders({app,adminKey,address:localTestAddress,projectIds,sockets,openSocket}));
+    await t.test("BCA public FAQ answers all eight owner questions for guests and members without private jobs",
+      ()=>verifyBcaFaq({app,adminKey,projectIds,openSocket}));
     await t.test("Public Buzz guidance recognizes actions, retains context and only queries a real member catalogue",
       ()=>verifyPublicGuidance({app,adminKey,projectIds,openSocket}));
     await t.test("Support history resumes for 24 hours, scopes deletion, records explicit satisfaction and isolates guest cookies",

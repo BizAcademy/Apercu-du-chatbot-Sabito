@@ -1,10 +1,11 @@
-import { expandQuestion } from "./question-spelling";
+import { buzzFaq,faqLanguage } from "./buzzbooster-faq";
 /** Approved Buzz Booster help supplied by the product owner. Editable copies are
  * installed once per project; dynamic examples below are never live configuration. */
 export type BuzzGuide={key:string;title:string;variants:string[];content:string;match:RegExp};
 const guide=(key:string,title:string,variants:string[],match:RegExp,lines:string[]):BuzzGuide=>
   ({key,title,variants,match,content:lines.join("\n")});
 export const buzzGuides:BuzzGuide[]=[
+  ...buzzFaq,
   guide("overview","Comment fonctionne Buzz Booster ?",[
     "C'est quoi Buzz Booster ?","Quels réseaux sont disponibles ?","Comment ça fonctionne ?","Comment ça marche ?",
     "Je veux savoir comment ça fonctionne","C’est quoi cette plateforme ?","Quels services proposez-vous ?",
@@ -173,8 +174,8 @@ export const buzzGuides:BuzzGuide[]=[
 
 /** Ordered, conservative routing of general guides. Personal cases are not guides. */
 export function buzzGuideFor(text:string):BuzzGuide|undefined {
-  const q=expandQuestion(text).normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().replace(/['’_-]/g," ").replace(/\s+/g," ").trim();
-  const prioritized=["identity","no-withdrawal","no-activation","overview","wave","crypto","order-requests","refunds","order-tracking","service-choice","deposit-references","deposit-bonus","affiliation"];
+  const q=faqLanguage(text).normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().replace(/['’_-]/g," ").replace(/\s+/g," ").trim();
+  const prioritized=["identity","no-withdrawal","no-activation",...buzzFaq.map(g=>g.key),"overview","wave","crypto","order-requests","refunds","order-tracking","service-choice","deposit-references","deposit-bonus","affiliation"];
   const found=[...prioritized.map(key=>buzzGuides.find(guide=>guide.key===key)!),...buzzGuides.filter(guide=>!prioritized.includes(guide.key))]
     .find(guide=>guide.match.test(q));
   if(found&&["affiliation","deposit-bonus"].includes(found.key)&&/\b(mon|ma|mes)\b/.test(q)&&!/^comment\b/.test(q))return undefined;

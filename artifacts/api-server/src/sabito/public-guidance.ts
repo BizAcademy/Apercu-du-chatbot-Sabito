@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { pool } from "./database";
-import { searchState } from "./question-search";
+import { searchState,retrieveReply } from "./question-search";
 import { isVerifiedMember } from "./templates";
 import type { AccessClaims } from "./security";
 import { catalogueFields,parseCatalogueFields } from "./buzzbooster-catalogue";
@@ -10,10 +10,11 @@ import { guidanceLanguage,paymentClues,publicJourney } from "./public-guidance-l
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
 import { guidanceBudget,guidanceBudgetSchema,budgetAdvice,purposeAnswer } from "./guidance-budget";
+import { buzzGuideFor } from "./buzzbooster-guides";
 
 const hash=(s:string)=>createHash("sha256").update(s).digest("hex");
 const contextSchema=z.object({
-  topic:z.enum(["deposit","boost","diagnostic","cancel","purpose"]),
+  topic:z.enum(["deposit","boost","diagnostic","cancel","purpose","faq"]),
   questionId:z.string().uuid(),awaiting:z.enum(["method","network","goal","details","catalogue","currency","funding","usable","quantity"]).optional(),
   budget:guidanceBudgetSchema.optional(),
   country:z.string().max(80).optional(),operator:z.string().max(80).optional(),method:z.string().max(40).optional(),
@@ -42,6 +43,16 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
       AND c.created_at>DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)`,
     [conversationId,claims.sub,claims.externalUserId]);
   if(!rows.rows[0])return null;
+  const faq=buzzGuideFor(text);
+  if(faq?.key.startsWith("faq-")){
+    const reply=await retrieveReply(claims.sub,text);
+    // Reuse the actual editable reference, including an official URL supplied
+    // there by the administrator. Deletion or conflicting answers stay explicit.
+    if(!reply.reliable)return null;
+    const topic=faq.key==="faq-networks"?"boost":faq.key==="faq-countries"?"deposit":"faq";
+    const awaiting=faq.key==="faq-networks"?"network":faq.key==="faq-countries"?"method":undefined;
+    return {answer:reply.answer,context:{topic,awaiting,questionId,filters:{}},continuing:false};
+  }
   const stored=rows.rows[0];
   let previous:Context|undefined;
   if(stored.context_json&&stored.answer_hash===hash(String(stored.content??""))) {
@@ -53,7 +64,7 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
   const explicitCheck=/\b(?:verifi\w*|statut|suivi|suivre|non recu|pas recu|pas arrive|non credite|debite|ma commande|mon depot)\b/.test(q);
   const methodOnly=/^(?:wave|orange(?: money)?|mtn(?: momo)?|moov(?: money)?|mobile money|momo|crypto|cryptomonnaie)$/.test(q);
   const criteriaOnly=Object.keys(parsed).length>0&&q.split(" ").length<=12&&!explicitCheck;
-  const continuing=!journey&&!!previous&&previous.topic!=="cancel"&&previous.awaiting!=="catalogue"&&!explicitCheck&&
+  const continuing=!journey&&!!previous&&!["cancel","faq"].includes(previous.topic)&&previous.awaiting!=="catalogue"&&!explicitCheck&&
     (methodOnly||["boost","purpose"].includes(previous.topic)&&criteriaOnly||!!clues.country||
       ["currency","funding","usable","quantity"].includes(previous.awaiting??"")&&q.length<160&&
         (/\b(?:xaf|xof|usd|eur|portefeuille|frais|solde|disponible|deposer)\b/.test(q)||/^\d[\d ]*$/.test(q))||

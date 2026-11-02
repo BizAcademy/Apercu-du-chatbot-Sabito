@@ -6,7 +6,8 @@ import { normalizeQuestion as normalized } from "./question-normalization";
 import { conversationClosing, isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
 import { expandQuestion, tokenSimilarity, spellingSimilarity, protectedMismatch } from "./question-spelling";
-import { buzzGuideFor } from "./buzzbooster-guides";
+import { buzzGuideFor,buzzGuides } from "./buzzbooster-guides";
+import { bcaFaqFor } from "./bca-faq";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -168,11 +169,14 @@ export async function retrieveReply(projectId:string,question:string) {
     closing_message:"",suggestions_label:"",
   };
   const {settings,matches}=await rankedQuestions(projectId,question);
-  const state=await searchState(projectId),guide=state.profile==="buzzbooster"?buzzGuideFor(question):undefined;
+  const state=await searchState(projectId),guide=state.profile==="buzzbooster"?buzzGuideFor(question):
+    state.profile==="bca"?bcaFaqFor(question):undefined;
   const entry=guide?state.entries.find(entry=>entry.title===guide.title):undefined;
   // Keep exact authored overrides/conflicts authoritative; otherwise a known
   // guide route uses its editable approved document, never generated prose.
-  if(entry && matches[0]?.similarity!==1)return {answer:entry.content,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,closing_message:"",suggestions_label:""};
+  const legacyOverview=guide?.key==="faq-networks"&&matches[0]?.title===buzzGuides.find(g=>g.key==="overview")?.title&&
+    matches[0]?.content===buzzGuides.find(g=>g.key==="overview")?.content;
+  if(entry && (matches[0]?.similarity!==1||legacyOverview))return {answer:entry.content,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,closing_message:"",suggestions_label:""};
   const match=matches[0],reliable=!!match?.directAnswer;
   const exactConflict=!!match && match.similarity===1 && !reliable;
   const tokenize=tokenizer(settings),queryTokens=tokenize(question);

@@ -1,5 +1,9 @@
 # Présentation et conseil budgétaire
 
+La FAQ générale (accès, avantages, réseaux, durée des résultats, fiabilité et pays) s’ajoute une seule fois aux références Buzz Booster lors du chargement de la configuration. Elle n’écrase pas les références de même titre et ne réinstalle pas un guide supprimé après cette installation. Les anciens projets reçoivent ce complément même si leur pack initial est déjà installé.
+
+Pour fournir le lien officiel : modifier la référence « Comment faire pour accéder à la plateforme ? » dans l’administration et y saisir l’URL officielle vérifiée. Aucun lien n’est déduit de l’adresse de Sabito, du Preview ou d’un domaine autorisé du widget. Ce complément n’exige aucune migration ni nouvelle clé.
+
 Les demandes sur le but de Buzz Booster expliquent l’utilité et les limites des prestations avant de proposer le réseau à développer. Les demandes de conseil avec un budget conservent le montant, le réseau et l’objectif, sans être transformées en guides de dépôt.
 
 Avant une comparaison chiffrée : préciser XAF (F/FCFA seul est ambigu), distinguer argent disponible et somme à déposer frais compris, puis demander la quantité nécessaire au filtre budget. Aucun montant étranger ou brut n’est transmis comme budget XAF net. Le montant déclaré n’est jamais présenté comme un solde vérifié.

@@ -1,5 +1,6 @@
 // Owner-approved BCA help, derived from the supplied configuration document.
 // Public guidance only: current prices and personal results remain backend-owned.
+import { bcaFaq } from "./bca-faq";
 export type BcaGuide = {key:string;title:string;variants:string[];content:string;followUpKeys:string[]};
 export const bcaGuides:BcaGuide[] = [
   {
@@ -534,5 +535,6 @@ export const bcaGuides:BcaGuide[] = [
     ],
     "content": "S’agit-il d’une formation du catalogue BCA, d’un achat dans la boutique digitale ou d’une campagne publicitaire BCA Ads ?\nChoisissez le parcours correspondant ci-dessous pour voir les étapes. BCA ne doit pas être confondue avec une plateforme de commandes de boost des réseaux sociaux.",
     "followUpKeys": ["20", "22", "26"]
-  }
+  },
+  ...bcaFaq,
 ];

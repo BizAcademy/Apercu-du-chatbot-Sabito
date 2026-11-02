@@ -1,6 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buzzGuideFor,buzzGuides } from "./buzzbooster-guides";
+test("General FAQ recognizes paraphrases and typos without inventing availability",()=>{
+  const cases:Record<string,string>={
+    "Comment faire pour accéder à la plateforme ?":"faq-access",
+    "cmt accder a la platteforme ?":"faq-access",
+    "Pourquoi choisir Buzz Booster ?":"faq-advantages",
+    "pk choisir cette plateforme":"faq-advantages",
+    "Buzz Booster agit sur quelles applications ?":"faq-networks",
+    "Quels réseaux sont disponibles ?":"faq-networks",
+    "Les vues et les abonnés gagnés ont-ils une expiration ?":"faq-expiry",
+    "Les abonnes expirent ils ?":"faq-expiry",
+    "Les abonnés sont-ils à vie ?":"faq-expiry",
+    "La platteforme est elle fiabble ?":"faq-trust",
+    "La plateforme est disponible dans quels pays ?":"faq-countries",
+  };
+  for(const [question,key]of Object.entries(cases))assert.equal(buzzGuideFor(question)?.key,key,question);
+  const content=(key:string)=>buzzGuides.find(g=>g.key===key)!.content;
+  assert.doesNotMatch(content("faq-access"),/https?:\/\//);
+  assert.match(content("faq-networks"),/exemples possibles.*pas une liste/);
+  assert.match(content("faq-trust"),/ne prouve pas la satisfaction/);
+  assert.match(content("faq-countries"),/inscription ne prouvent pas/);
+});
 import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,buzzOperations } from "./buzzbooster-contract";
 
 test("Public general questions route to approved complete guides, not personal lookups",()=>{
