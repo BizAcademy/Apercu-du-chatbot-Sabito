@@ -8,13 +8,14 @@ const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "
 export function WidgetIntegration({ project }: { project: Platform }) {
   const { headers } = useAdmin();
   const [domains, setDomains] = useState("");
+  const [draggable, setDraggable] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [copied, setCopied] = useState("");
   const q = useQuery({ queryKey: ["sabito-admin", "widget", project.id],
     queryFn: () => getWidgetSettings(project.id, headers()), staleTime: 60_000, refetchOnWindowFocus: false });
-  useEffect(() => { if (q.data && !dirty) setDomains(q.data.origins.join("\n")); }, [q.data, dirty]);
+  useEffect(() => { if (q.data && !dirty) {setDomains(q.data.origins.join("\n"));setDraggable(q.data.draggable??false);} }, [q.data, dirty]);
   const save = useMutation({
-    mutationFn: () => updateWidgetSettings(project.id, { origins: domains.split(/[\n,]/).map(s => s.trim()).filter(Boolean) }, headers()),
+    mutationFn: () => updateWidgetSettings(project.id, { origins: domains.split(/[\n,]/).map(s => s.trim()).filter(Boolean),draggable }, headers()),
     onSuccess: async () => { await q.refetch(); setDirty(false); },
   });
   const origin = window.location.origin;
@@ -41,10 +42,16 @@ export function WidgetIntegration({ project }: { project: Platform }) {
       className="mt-2 min-h-24 w-full rounded-xl border p-3 text-[13px]" placeholder="https://bizconnectacademy.com"
       value={domains} onChange={e => { setDirty(true); setDomains(e.target.value); }} />
     <p className="mt-1 text-[12px] text-[#6c748d]">Sans chemin : https://exemple.com, pas https://exemple.com/dashboard. Ajouter www séparément si nécessaire.</p>
+    <label className="mt-4 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[13px]">
+      <input type="checkbox" role="switch" aria-label="Autoriser le déplacement du widget" data-testid="switch-widget-draggable"
+        checked={draggable} disabled={q.isLoading||Boolean(q.error)||save.isPending}
+        onChange={e=>{setDraggable(e.target.checked);setDirty(true);}} className="h-5 w-5 accent-blue-600"/>
+      <span><strong>Autoriser le déplacement du widget</strong><br/>L’utilisateur peut déplacer le bouton au doigt ou à la souris. Désactivé : position fixe.</span>
+    </label>
     <button data-testid="button-save-widget" disabled={q.isLoading || Boolean(q.error) || save.isPending}
       onClick={() => save.mutate()} className="mt-3 rounded-xl bg-[#3641f5] px-4 py-2 text-[13px] text-white disabled:opacity-50">
-      {save.isPending ? "Enregistrement…" : "Enregistrer les domaines"}</button>
-    {save.isSuccess && !dirty && <p role="status" className="mt-2 text-sm text-green-700">Domaines enregistrés.</p>}
+      {save.isPending ? "Enregistrement…" : "Enregistrer les réglages"}</button>
+    {save.isSuccess && !dirty && <p role="status" className="mt-2 text-sm text-green-700">Réglages enregistrés.</p>}
     {(q.error || save.error) && <p role="alert" className="mt-2 text-sm text-red-700">Impossible de charger ou enregistrer les domaines. Vérifie les origines HTTPS et la migration du widget.</p>}
     {!q.data?.origins.length && <p className="mt-3 text-sm text-amber-700">Le script est généré. Enregistre au moins un domaine pour autoriser son utilisation.</p>}
     <button onClick={copy} data-testid="button-copy-widget" className="mt-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-[13px]"><Copy size={14} />Copier le script</button>

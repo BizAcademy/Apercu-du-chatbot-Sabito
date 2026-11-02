@@ -297,6 +297,12 @@ export interface UnansweredQuestion {
 export interface WidgetSettings {
   /** @maxItems 10 */
   origins: string[];
+  draggable?: boolean;
+}
+
+export interface PublicWidgetConfiguration {
+  project_id: string;
+  draggable: boolean;
 }
 
 export interface WidgetVisitorInput {
@@ -573,6 +579,11 @@ export interface KnowledgeEntry {
   question: string;
   answer: string;
 }
+
+export type GetPublicWidgetConfigurationParams = {
+projectId?: string;
+product?: string;
+};
 
 export type GetConversationHistoryParams = {
 before?: string;

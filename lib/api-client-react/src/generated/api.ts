@@ -34,6 +34,7 @@ import type {
   GetBackendConnectionStatus200,
   GetConversationHistoryParams,
   GetConversationInsightsParams,
+  GetPublicWidgetConfigurationParams,
   HealthStatus,
   KnowledgeEntry,
   KnowledgeInput,
@@ -48,6 +49,7 @@ import type {
   PollBackendJobs200,
   ProjectCreated,
   ProjectList,
+  PublicWidgetConfiguration,
   SabitoChatInput,
   SabitoReply,
   TicketStatusInput,
@@ -82,6 +84,84 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetPublicWidgetConfigurationUrl = (params?: GetPublicWidgetConfigurationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/widget/config?${stringifiedParams}` : `/api/v1/widget/config`
+}
+
+export const getPublicWidgetConfiguration = async (params?: GetPublicWidgetConfigurationParams, options?: Parameters<typeof customFetch>[1]): Promise<PublicWidgetConfiguration> => {
+
+  return customFetch<PublicWidgetConfiguration>(getGetPublicWidgetConfigurationUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicWidgetConfigurationQueryKey = (params?: GetPublicWidgetConfigurationParams,) => {
+    return [
+    `/api/v1/widget/config`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPublicWidgetConfigurationQueryOptions = <TData = Awaited<ReturnType<typeof getPublicWidgetConfiguration>>, TError = ErrorType<unknown>>(params?: GetPublicWidgetConfigurationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicWidgetConfiguration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicWidgetConfigurationQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicWidgetConfiguration>>> = ({ signal }) => getPublicWidgetConfiguration(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicWidgetConfiguration>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicWidgetConfigurationQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicWidgetConfiguration>>>
+export type GetPublicWidgetConfigurationQueryError = ErrorType<unknown>
+
+
+
+export function useGetPublicWidgetConfiguration<TData = Awaited<ReturnType<typeof getPublicWidgetConfiguration>>, TError = ErrorType<unknown>>(
+ params?: GetPublicWidgetConfigurationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicWidgetConfiguration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicWidgetConfigurationQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetAssistantConfigurationUrl = (projectId: string,) => {
 

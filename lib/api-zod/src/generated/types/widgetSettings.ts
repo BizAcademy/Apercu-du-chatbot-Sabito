@@ -9,4 +9,5 @@
 export interface WidgetSettings {
   /** @maxItems 10 */
   origins: string[];
+  draggable?: boolean;
 }

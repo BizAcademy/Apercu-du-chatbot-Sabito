@@ -16,7 +16,12 @@ export function validWidgetOrigin(value: string) {
 }
 export const widgetOriginsSchema = z.object({
   origins: z.array(z.string().refine(validWidgetOrigin, "Origine HTTPS exacte requise")).max(10),
+  draggable: z.boolean().optional(),
 });
+export async function widgetDraggable(projectId: string): Promise<boolean> {
+  const {rows}=await pool.query("SELECT draggable FROM sabito_core.widget_preferences WHERE project_id=$1",[projectId]);
+  return Number(rows[0]?.draggable)===1;
+}
 export async function widgetOrigins(projectId: string): Promise<string[]> {
   const { rows } = await pool.query(
     "SELECT origins_json FROM sabito_core.widget_settings WHERE project_id=$1", [projectId]);
@@ -24,6 +29,23 @@ export async function widgetOrigins(projectId: string): Promise<string[]> {
 }
 export const widgetPublicRoutes = Router();
 widgetPublicRoutes.use(rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false }));
+// Public presentation settings only. Product selectors never establish member identity.
+widgetPublicRoutes.get("/config",async(req,res)=>{
+  res.setHeader("Cache-Control","no-store");
+  const origin=req.header("origin");
+  const id=req.query.projectId,product=req.query.product;
+  if(!origin||!validWidgetOrigin(origin)||
+    (id!==undefined&&(typeof id!=="string"||!z.string().uuid().safeParse(id).success))||
+    (product!==undefined&&(typeof product!=="string"||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(product)))||
+    (!id&&!product)){res.status(403).json({error:"WIDGET_ORIGIN_DENIED"});return;}
+  const {rows}=await pool.query(`SELECT id,slug FROM sabito_core.projects WHERE status='active' AND ${id?"id=$1":"slug=$1"}`,[id||product]);
+  const project=rows[0];
+  if(!project||(product&&project.slug!==product)||!(await widgetOrigins(project.id)).includes(origin)){
+    res.status(403).json({error:"WIDGET_ORIGIN_DENIED"});return;
+  }
+  res.setHeader("Access-Control-Allow-Origin",origin);res.setHeader("Vary","Origin");
+  res.json({project_id:project.id,draggable:await widgetDraggable(project.id)});
+});
 widgetPublicRoutes.use("/:projectId/session", async (req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   const id = z.string().uuid().safeParse(req.params.projectId);

@@ -10,7 +10,7 @@ import { saveKnowledge } from "./knowledge";
 import { getConversationMessages } from "./conversations";
 import { ownedRecentConversation,conversationHistoryPage } from "./conversation-history";
 import { revokeProjectSockets } from "./socket";
-import { widgetOrigins, widgetOriginsSchema } from "./widget";
+import { widgetOrigins, widgetOriginsSchema, widgetDraggable } from "./widget";
 import { supportAdminRoutes } from "./support-admin";
 import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
 import { normalizedText } from "./semantic";
@@ -55,16 +55,20 @@ coreRoutes.get("/v1/admin/projects",async (_req,res) => {res.json({success:true,
 coreRoutes.get("/v1/admin/projects/:projectId/widget", async (req, res) => {
   const id = idSchema.safeParse(req.params.projectId);
   if (!id.success || !await getProject(id.data)) { res.sendStatus(404); return; }
-  res.json({ origins: await widgetOrigins(id.data) });
+  res.json({ origins: await widgetOrigins(id.data), draggable: await widgetDraggable(id.data) });
 });
 coreRoutes.put("/v1/admin/projects/:projectId/widget", async (req, res) => {
   const id = idSchema.safeParse(req.params.projectId), body = widgetOriginsSchema.safeParse(req.body);
   if (!id.success || !body.success) { res.status(422).json({ message: "Saisis les origines HTTPS exactes, sans chemin." }); return; }
   if (!await getProject(id.data)) { res.sendStatus(404); return; }
+  const previousOrigins=await widgetOrigins(id.data);
   await pool.query("INSERT INTO sabito_core.widget_settings (project_id,origins_json) VALUES ($1,$2) ON DUPLICATE KEY UPDATE origins_json=VALUES(origins_json)",
     [id.data, JSON.stringify([...new Set(body.data.origins)])]);
-  revokeProjectSockets(id.data);
-  res.json({ origins: body.data.origins });
+  if(body.data.draggable!==undefined)await pool.query(
+    "INSERT INTO sabito_core.widget_preferences (project_id,draggable) VALUES ($1,$2) ON DUPLICATE KEY UPDATE draggable=VALUES(draggable)",
+    [id.data,body.data.draggable?1:0]);
+  if(JSON.stringify([...previousOrigins].sort())!==JSON.stringify([...new Set(body.data.origins)].sort()))revokeProjectSockets(id.data);
+  res.json({ origins: body.data.origins, draggable: await widgetDraggable(id.data) });
 });
 coreRoutes.post("/v1/admin/projects",async (req,res) => {
   const parsed = CreateSabitoProjectBody.safeParse(req.body);

@@ -43,6 +43,8 @@ export function WidgetChat() {
   const embedded = window.parent !== window;
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState("");
+  const [canVisit,setCanVisit]=useState(false);
+  const [visiting,setVisiting]=useState(false);
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -164,11 +166,12 @@ export function WidgetChat() {
     });
   }, [renewSoon]);
 
-  const onSession = useCallback((sess: Session) => {
+  const onSession = useCallback((sess: Session & {visitor?:boolean}) => {
     if (loggedOutRef.current || !validSession(sess)) return;
     if (userRef.current && userRef.current !== sess.external_user_id) teardown(); // identity replaced
     const fresh = !socketRef.current;
     tokenRef.current = sess.access_token;
+    setVisiting(sess.visitor===true);setCanVisit(false);
     userRef.current = sess.external_user_id;
     setPhase("ready"); setError("");
     window.clearTimeout(expiryTimer.current);
@@ -182,7 +185,7 @@ export function WidgetChat() {
     if (!embedded || !cfg.parentOrigin || !cfg.channel) { setPhase("error"); setError("Ce chat doit être intégré via le script Sabito officiel."); return; }
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== cfg.parentOrigin || e.source !== window.parent) return;
-      const d = e.data as { type?: string; channel?: string; session?: Session; code?: string; message?: string } | null;
+      const d = e.data as { type?: string; channel?: string; session?: Session; code?: string; message?: string; canVisit?:boolean } | null;
       if (!d || typeof d !== "object" || d.channel !== cfg.channel) return;
       switch (d.type) {
         case "sabito:session": {
@@ -192,6 +195,7 @@ export function WidgetChat() {
           break;
         }
         case "sabito:error":
+          setCanVisit(d.code==="member_session_missing"&&d.canVisit===true);
           if (d.code === "unauthenticated" || d.code === "logged_out") { teardown(); setPhase("logged_out"); }
           else { teardown(); setPhase("error"); setError(d.message || "Session indisponible."); } // fail closed
           break;
@@ -264,6 +268,7 @@ export function WidgetChat() {
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-[#7ee2a8]" : "bg-[#f2b84b]"}`} />
             {phase === "logged_out" ? "Déconnecté" : connected ? "En ligne" : phase === "loading" ? "Connexion…" : "Hors ligne"}
             {cfg.product && <span className="opacity-80">· {cfg.product}</span>}
+            {visiting && <span>· Visiteur</span>}
           </p>
           </div>
         </div>
@@ -287,6 +292,14 @@ export function WidgetChat() {
         {phase === "error" && (
           <div role="alert" className="mt-10 rounded-[20px] border border-[#ecd0c4] bg-[#fdf5f1] p-6 text-center text-[13px] text-[#8a3417]">
             <p>{error || "Une erreur est survenue."}</p>
+            {canVisit&&<div className="mt-3">
+              <p>Vous pouvez consulter les guides publics en mode visiteur, sans accès à vos données personnelles.</p>
+              <button type="button" data-testid="button-widget-visitor"
+                className="mt-2 rounded-xl bg-blue-700 px-3 py-2 text-white"
+                onClick={()=>{setCanVisit(false);setVisiting(true);setPhase("loading");post({type:"sabito:visitor-request"});}}>
+                Consulter les guides en visiteur
+              </button>
+            </div>}
             {embedded && cfg.parentOrigin && <button onClick={retry} className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-medium text-[#fbfaf6]" style={{ background: accent }} data-testid="button-widget-retry"><RotateCw size={13} />Réessayer</button>}
           </div>
         )}

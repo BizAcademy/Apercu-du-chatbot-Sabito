@@ -690,6 +690,25 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).post(url).set("Origin", "https://approved.example").send({}).expect(403);
       await request(app).put(config).set(admin).send({ origins: ["https://approved.example/path"] }).expect(422);
       await request(app).put(config).set(admin).send({ origins: ["https://approved.example"] }).expect(200);
+      const preferences=await request(app).get(config).set(admin).expect(200);
+      assert.equal(preferences.body.draggable,false);
+      await request(app).put(config).set(admin).send({origins:["https://approved.example"],draggable:"yes"}).expect(422);
+      await request(app).put(config).set(admin).send({origins:["https://approved.example"],draggable:true}).expect(200);
+      // Legacy clients updating only origins must not reset the movement preference.
+      await request(app).put(config).set(admin).send({origins:["https://approved.example"]}).expect(200);
+      const publicPreferences=await request(app).get("/v1/widget/config").query({product:slug})
+        .set("Origin","https://approved.example").expect(200);
+      assert.deepEqual(publicPreferences.body,{project_id:first.project.id,draggable:true});
+      assert.equal(publicPreferences.headers["access-control-allow-origin"],"https://approved.example");
+      await request(app).get("/v1/widget/config").query({projectId:first.project.id,product:"mismatch"})
+        .set("Origin","https://approved.example").expect(403);
+      await request(app).get("/v1/widget/config").query({projectId:first.project.id})
+        .set("Origin","https://evil.example").expect(403);
+      await request(app).get("/v1/widget/config").query({projectId:first.project.id}).expect(403);
+      await request(app).put(config).set(admin).send({origins:["https://approved.example"],draggable:false}).expect(200);
+      const disabled=await request(app).get("/v1/widget/config").query({projectId:first.project.id})
+        .set("Origin","https://approved.example").expect(200);
+      assert.equal(disabled.body.draggable,false);
       await request(app).options(url).set("Origin", "https://approved.example").expect(204);
       await request(app).post(url).set("Origin", "https://evil.example").send({}).expect(403);
       await request(app).post(url).send({}).expect(403);

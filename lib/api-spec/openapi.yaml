@@ -11,6 +11,18 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /v1/widget/config:
+    get:
+      operationId: getPublicWidgetConfiguration
+      parameters:
+        - {name: projectId, in: query, schema: {type: string}}
+        - {name: product, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: Origin-authorized presentation settings, not member authentication
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicWidgetConfiguration"}
   /v1/admin/projects/{projectId}/assistant-settings:
     get:
       operationId: getAssistantConfiguration
@@ -653,6 +665,13 @@ components:
       required: [origins]
       properties:
         origins: {type: array, maxItems: 10, items: {type: string}}
+        draggable: {type: boolean}
+    PublicWidgetConfiguration:
+      type: object
+      required: [project_id, draggable]
+      properties:
+        project_id: {type: string}
+        draggable: {type: boolean}
     WidgetVisitorInput:
       type: object
       properties:

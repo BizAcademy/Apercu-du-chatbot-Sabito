@@ -8,6 +8,17 @@
 import * as zod from 'zod';
 
 
+export const GetPublicWidgetConfigurationQueryParams = zod.object({
+  "projectId": zod.coerce.string().optional(),
+  "product": zod.coerce.string().optional()
+})
+
+export const GetPublicWidgetConfigurationResponse = zod.object({
+  "project_id": zod.string(),
+  "draggable": zod.boolean()
+})
+
+
 export const GetAssistantConfigurationParams = zod.object({
   "projectId": zod.coerce.string()
 })
@@ -474,7 +485,8 @@ export const getWidgetSettingsResponseOriginsMax = 10;
 
 
 export const GetWidgetSettingsResponse = zod.object({
-  "origins": zod.array(zod.string()).max(getWidgetSettingsResponseOriginsMax)
+  "origins": zod.array(zod.string()).max(getWidgetSettingsResponseOriginsMax),
+  "draggable": zod.boolean().optional()
 })
 
 
@@ -487,7 +499,8 @@ export const updateWidgetSettingsBodyOriginsMax = 10;
 
 
 export const UpdateWidgetSettingsBody = zod.object({
-  "origins": zod.array(zod.string()).max(updateWidgetSettingsBodyOriginsMax)
+  "origins": zod.array(zod.string()).max(updateWidgetSettingsBodyOriginsMax),
+  "draggable": zod.boolean().optional()
 })
 
 export const updateWidgetSettingsResponseOriginsMax = 10;
@@ -495,7 +508,8 @@ export const updateWidgetSettingsResponseOriginsMax = 10;
 
 
 export const UpdateWidgetSettingsResponse = zod.object({
-  "origins": zod.array(zod.string()).max(updateWidgetSettingsResponseOriginsMax)
+  "origins": zod.array(zod.string()).max(updateWidgetSettingsResponseOriginsMax),
+  "draggable": zod.boolean().optional()
 })
 
 
