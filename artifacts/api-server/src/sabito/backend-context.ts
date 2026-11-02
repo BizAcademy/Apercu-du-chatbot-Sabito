@@ -31,6 +31,11 @@ export function continuationFields(operation:string,fields:Record<string,string>
 }
 const targetKey=(entry:BackendObservation)=>JSON.stringify(Object.entries(entry.fields).sort(([a],[b])=>a.localeCompare(b)));
 const family=(operation:string)=>operation.startsWith("deposit_")?"deposit":
+  operation.startsWith("withdrawal_")?"withdrawal":
+  operation.startsWith("transfer_")?"transfer":
+  ["ads_campaign_status","ads_refund_status"].includes(operation)?"campaign":
+  ["digital_store_fee_status","digital_store_fee_refund_status"].includes(operation)?"store_fee":
+  ["digital_purchase_status","formation_payment_status","refund_status"].includes(operation)?"purchase":
   operation.startsWith("order_")?"order":operation.includes("referral")||operation==="referee_bonus_status"?"referral":
   ["wallet_balance","wallet_movement_status","admin_adjustment_status"].includes(operation)?"wallet":operation;
 export function parseBackendContext(raw:unknown,owner:string,now=Date.now()):BackendContext|null {
@@ -54,13 +59,13 @@ export function rememberBackendObservation(previous:BackendContext|null,owner:st
     // of several independently supplied references merely because it is newer.
     selected:same&&previous!.entries.some(item=>targetKey(item)===targetKey(entry))?previous?.selected:undefined};
 }
-export function backendContinuation(text:string,context:BackendContext|null):Continuation {
+export function backendContinuation(text:string,context:BackendContext|null,profile:"bca"|"buzzbooster"="buzzbooster"):Continuation {
   if(!context?.active||!context.entries.length)return {kind:"none"};
   if(greetingReply(text))return {kind:"none"};
   const q=normalizeQuestion(text);
   // Preserve the existing explicit order/batch grammar (including "celle-ci").
   // The generic "vérifie encore" remains subject to multi-target clarification.
-  if(context.activeOperation==="order_status"&&!context.awaiting&&
+  if(profile==="buzzbooster"&&context.activeOperation==="order_status"&&!context.awaiting&&
     (orderReferences(text,true).length||orderRecheck(text)||orderContinue(text)))return {kind:"none"};
   if(/^(?:changeons de sujet|autre (?:sujet|question)|nouvelle question|parlons d autre chose)\b/.test(q))return {kind:"change"};
   if(/\b(?:otp|mot de passe|code secret|cle privee|phrase de recuperation)\b/.test(q))return {kind:"none"};
@@ -73,7 +78,24 @@ export function backendContinuation(text:string,context:BackendContext|null):Con
     /\b(?:credit du portefeuille|attribution d un bonus|confirmation du paiement)\b/.test(q);
   const related=/^(?:et |qu en est il|mon bonus|le bonus|son remboursement)/.test(q);
   let operation:string|undefined;
-  if(/\bbonus (?:du |de mon )?filleul\b/.test(q))operation="referee_bonus_status";
+  const currentFamily=family(context.activeOperation??context.entries[0].operation);
+  if(profile==="bca") {
+    if(/\bremboursement\b/.test(q)) {
+      operation=currentFamily==="withdrawal"?"withdrawal_refund_status":
+        currentFamily==="campaign"?"ads_refund_status":currentFamily==="store_fee"?"digital_store_fee_refund_status":
+        currentFamily==="purchase"?"refund_status":undefined;
+    } else if(/\bfrais\b/.test(q)) {
+      operation=currentFamily==="deposit"?"deposit_fee_status":currentFamily==="transfer"?"transfer_fee_status":
+        currentFamily==="store_fee"?"digital_store_fee_status":undefined;
+    } else if(/\b(?:commission|commissions)\b/.test(q)&&/\bparrainage\b/.test(q))operation="referral_commission_status";
+    else if(/\bcode (?:de )?parrainage\b/.test(q))operation="referral_code";
+    else if(/\bsolde\b/.test(q)&&!explain)operation="wallet_balance";
+    else if(/\bajustement\b/.test(q))operation="admin_adjustment_status";
+    else if(/\bmouvement\b/.test(q))operation="wallet_movement_status";
+    // A new personal subject uses its own existing intent/consent collector.
+    if(!operation&&related&&/\b(?:bonus|remboursement|frais|activation|retrait|transfert|commission|conversion)\b/.test(q)&&
+      !explain)return {kind:"none"};
+  } else if(/\bbonus (?:du |de mon )?filleul\b/.test(q))operation="referee_bonus_status";
   else if(/\bremboursement\b/.test(q))operation="order_refund_status";
   else if(/\bbonus\b/.test(q)&&!explain&&context.entries.some(e=>family(e.operation)==="deposit"))operation="deposit_bonus_status";
   else if(/\b(?:commission|recompense de parrainage)\b/.test(q))operation="referral_reward_status";
@@ -84,11 +106,13 @@ export function backendContinuation(text:string,context:BackendContext|null):Con
   const mode=read||related&&operation?"read":action?"action":"explain";
   if(!read&&!action&&!explain&&!related&&!context.awaiting)return {kind:"none"};
   if(explain&&!action&&!read&&!operation&&!context.awaiting&&
-    !/\b(?:depot|paiement|transaction|commande|remboursement|bonus|parrainage|mouvement|portefeuille|credit|statut|attente|confirmation|resultat|cette reponse|ce resultat|cela|ca)\b/.test(q)&&
+    !/\b(?:depot|paiement|transaction|commande|retrait|transfert|conversion|remboursement|frais|bonus|parrainage|mouvement|portefeuille|credit|statut|attente|confirmation|resultat|cette reponse|ce resultat|cela|ca)\b/.test(q)&&
     !/^(?:explique(?: moi)?|expliquez(?: moi)?|pourquoi|plus de details)$/.test(q))return {kind:"change"};
   // A general how-to question on another subject must use approved public help.
   const activeFamily=family(context.entries[0].operation);
-  if(!context.awaiting&&/\b(?:formation|digital store|catalogue|inscription|nouvelle commande|acheter|nouveau depot|cette plateforme|la plateforme|buzz booster fonctionne|fonctionne buzz booster)\b/.test(q))return {kind:"change"};
+  if(!context.awaiting&&/\b(?:formation|digital store|catalogue|inscription|nouvelle commande|acheter|nouveau depot|cette plateforme|la plateforme|buzz booster fonctionne|fonctionne buzz booster)\b/.test(q)&&
+    !(profile==="bca"&&(operation||/\b(?:ce|cette|mon|ma|statut|paiement|remboursement)\b/.test(q)&&
+      ["purchase","store_fee","digital_sale_status","digital_subscription_status"].includes(currentFamily))))return {kind:"change"};
   if(!context.awaiting&&(/\bcommande\b/.test(q)&&activeFamily!=="order"||
     /\bdepot\b/.test(q)&&activeFamily!=="deposit"))return {kind:"none"};
   const intendedOperation=operation??context.awaiting?.operation??context.activeOperation;

@@ -4,6 +4,8 @@ import { isVerifiedMember } from "./templates";
 import { activeCredential } from "./projects";
 import { requestBackend,type BackendResult } from "./backend-bridge";
 import { searchState } from "./question-search";
+import { retrieveReply } from "./question-search";
+import { bcaBackendAnswer,bcaContinuationFields,explainBcaObservation } from "./bca-backend-context";
 import { buzzBackendFields,buzzResultAnswer } from "./buzzbooster-contract";
 import { backendContinuation,continuationFields,explainBackendObservation,observationKey,parseBackendContext,
   rememberBackendObservation,type BackendContext,type BackendObservation } from "./backend-context";
@@ -46,11 +48,13 @@ export async function deactivateBackendConversation(claims:AccessClaims,conversa
   }
 }
 export async function continueBackendConversation(claims:AccessClaims,conversationId:string,text:string):Promise<string|null> {
-  if(!currentMember(claims)||(await searchState(claims.sub)).profile!=="buzzbooster")return null;
+  if(!currentMember(claims))return null;
+  const {settings,profile}=await searchState(claims.sub);
+  if(profile!=="buzzbooster"&&profile!=="bca")return null;
   const row=await contextRow(claims,conversationId);
   if(!row||row.status!=="complete")return null; // Never consume field collection or consent.
   const context=parseBackendContext(row.backend_context_json,claims.externalUserId);
-  const plan=backendContinuation(text,context);
+  const plan=backendContinuation(text,context,profile);
   if(!context||plan.kind==="none")return null;
   if(plan.kind==="change") {context.active=false;delete context.awaiting;await save(claims,conversationId,context);return null;}
   if(!await activeCredential(claims.sub,claims.clientId))return "Reconnectez-vous à votre compte pour reprendre cette vérification.";
@@ -58,12 +62,22 @@ export async function continueBackendConversation(claims:AccessClaims,conversati
     context.awaiting={operation:plan.operation,mode:plan.mode};
     await save(claims,conversationId,context);
     const references=[...new Set(plan.candidates.flatMap(entry=>Object.values(entry.fields)))].join(", ");
-    return `Plusieurs opérations sont possibles. Quel dépôt, numéro de commande ou mouvement souhaitez-vous reprendre ?${references?` Références déjà fournies : ${references}.`:""} Je ne choisis pas automatiquement la plus récente.`;
+    return `Plusieurs opérations sont possibles. ${profile==="bca"?"Quelle transaction BCA souhaitez-vous reprendre ?":"Quel dépôt, numéro de commande ou mouvement souhaitez-vous reprendre ?"}${references?` Références déjà fournies : ${references}.`:""} Je ne choisis pas automatiquement la plus récente.`;
   }
   if(context.awaiting)context.selected=observationKey(plan.observation);
   delete context.awaiting;
   await save(claims,conversationId,context);
   if(plan.kind==="explain"||plan.kind==="action") {
+    if(profile==="bca") {
+      const definition=settings.intents.find(intent=>intent.enabled&&intent.backend_function===plan.observation.operation);
+      let answer=explainBcaObservation(plan.observation,definition,claims);
+      if(plan.kind==="action") {
+        const approved=await retrieveReply(claims.sub,text);
+        answer+=approved.reliable?`\n\nGuide BCA approuvé :\n${approved.answer}`:
+          "\n\nJe n’ai pas de procédure BCA approuvée adaptée à cette demande. Consultez les instructions de l’opération ou contactez le support BCA.";
+      }
+      return answer;
+    }
     let answer=explainBackendObservation(plan.observation,text);
     // Only this explicitly approved reference can provide operator-specific
     // steps. User quotations cannot install or replace approved instructions.
@@ -78,14 +92,23 @@ export async function continueBackendConversation(claims:AccessClaims,conversati
     }
     return answer;
   }
-  const {settings}=await searchState(claims.sub);
-  if(!settings.intents.some(intent=>intent.enabled&&intent.backend_function===plan.operation))
+  const definition=settings.intents.find(intent=>intent.enabled&&intent.backend_function===plan.operation);
+  if(!definition)
     return "Cette consultation n’est pas activée pour cette plateforme. Aucun contrôle supplémentaire n’a été effectué.";
   let fields:Record<string,string>;
-  try {fields=buzzBackendFields(plan.operation,continuationFields(plan.operation,plan.observation.fields));}
+  try {fields=profile==="bca"?bcaContinuationFields(definition,plan.observation.fields):
+    buzzBackendFields(plan.operation,continuationFields(plan.operation,plan.observation.fields));}
   catch {return "Les informations conservées ne permettent pas cette consultation. Précisez le numéro de l’opération à vérifier.";}
   // A change of operation cannot turn an unrelated field into a reference.
-  if(plan.operation.startsWith("deposit_")&&!["deposit_number","transaction_id","phone_number"].some(key=>fields[key])||
+  if(profile==="bca") {
+    const missing=definition.fields.find(field=>!fields[field.name]);
+    if(missing) {
+      await pool.query(`UPDATE sabito_core.intent_sessions SET intent=$1,collected_json=$2,status='collecting',
+        original_question=$3,updated_at=CURRENT_TIMESTAMP(6) WHERE conversation_id=$4 AND project_id=$5`,
+        [definition.id,JSON.stringify(fields),text,conversationId,claims.sub]);
+      return `La référence déjà fournie ne suffit pas pour cette consultation BCA. ${missing.prompt}`;
+    }
+  } else if(plan.operation.startsWith("deposit_")&&!["deposit_number","transaction_id","phone_number"].some(key=>fields[key])||
     plan.operation.startsWith("order_")&&!fields.order_number||
     ["wallet_movement_status","admin_adjustment_status"].includes(plan.operation)&&!fields.movement_number)
     return "Précisez le numéro de l’opération à vérifier ; aucune référence compatible n’est disponible.";
@@ -94,7 +117,7 @@ export async function continueBackendConversation(claims:AccessClaims,conversati
     if(!currentMember(claims)||!await activeCredential(claims.sub,claims.clientId))
       return "La session a expiré. Reconnectez-vous avant de reprendre la vérification.";
     await rememberBackendResult(claims,conversationId,plan.operation,fields,result,text);
-    const answer=buzzResultAnswer(plan.operation,result);
+    const answer=profile==="bca"?bcaBackendAnswer(definition,result,claims):buzzResultAnswer(plan.operation,result);
     if(answer)return answer;
     if(["not_found","invalid_input"].includes(result.status)) {
       const definition=settings.intents.find(intent=>intent.enabled&&intent.backend_function===plan.operation)!;

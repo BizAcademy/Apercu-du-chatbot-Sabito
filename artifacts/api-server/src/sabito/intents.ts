@@ -46,9 +46,11 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   const normalized=normalizeQuestion(text);
   const {settings,profile}=await searchState(claims.sub);
   const buzz=profile==="buzzbooster",guide=buzz?buzzGuideFor(text):undefined;
-  if(buzz) {
-    const continuation=continuationChecked?null:await continueBackendConversation(claims,conversationId,text);
+  if((buzz||profile==="bca")&&!continuationChecked) {
+    const continuation=await continueBackendConversation(claims,conversationId,text);
     if(continuation!==null)return continuation;
+  }
+  if(buzz) {
     const orders=await directBuzzOrders(claims,conversationId,text,settings,
       ()=>ticket(claims.sub,conversationId,claims,"order_status","BACKEND_UNAVAILABLE"));
     if(orders!==null)return orders;
@@ -224,7 +226,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const definition=intentRegistry[intent!];
     const exactFields=buzz?buzzBackendFields(definition.backendOperation,fields!):fields!;
     const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,exactFields);
-    if(buzz)await rememberBackendResult(claims,conversationId,definition.backendOperation,exactFields,response,originalQuestion);
+    if(buzz||profile==="bca")await rememberBackendResult(claims,conversationId,definition.backendOperation,exactFields,response,originalQuestion);
     if(buzz&&response.status==="forbidden")return "Je ne suis pas autorisé à consulter cette opération. Reconnectez-vous à votre compte ou contactez Support. Aucune information sur une opération d’un autre membre ne peut être divulguée.";
     const ambiguous=buzz&&response.status!=="error"&&(response.data?.ambiguous===true||typeof response.data?.match_count==="number"&&response.data.match_count>1);
     if(ambiguous) {
@@ -275,8 +277,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";
   } catch (error) {
-    if(buzz)await rememberBackendResult(claims,conversationId,intentRegistry[intent!].backendOperation,
-      buzzBackendFields(intentRegistry[intent!].backendOperation,fields!),undefined,originalQuestion);
+    if(buzz||profile==="bca")await rememberBackendResult(claims,conversationId,intentRegistry[intent!].backendOperation,
+      buzz?buzzBackendFields(intentRegistry[intent!].backendOperation,fields!):fields!,undefined,originalQuestion);
     const code=error instanceof Error ? error.message : "";
     if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT"].includes(code)) reason=code;
   } finally {
