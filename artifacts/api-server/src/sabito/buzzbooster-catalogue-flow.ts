@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { pool } from "./database";
+import { deactivateBackendConversation } from "./backend-conversation";
 import { requestBackend } from "./backend-bridge";
 import type { AssistantSettings } from "./assistant-settings";
 import type { AccessClaims } from "./security";
@@ -117,6 +118,7 @@ export async function handleBuzzCatalogue(claims:AccessClaims,conversationId:str
     delete fields.__next_page;
     answer="Je ne peux pas consulter le catalogue de façon fiable pour le moment. Aucune offre ni statistique n’a été inventée. Vous pouvez écrire « réessayer » ou consulter Nouvelle commande dans Buzz Booster.";
   }
+  await deactivateBackendConversation(claims,conversationId);
   fields.__answer_hash=hash(answer);
   await pool.query(`UPDATE sabito_core.intent_sessions SET status=$1,collected_json=$2,updated_at=CURRENT_TIMESTAMP(6)
     WHERE conversation_id=$3 AND project_id=$4 AND intent=$5 AND status='checking'`,

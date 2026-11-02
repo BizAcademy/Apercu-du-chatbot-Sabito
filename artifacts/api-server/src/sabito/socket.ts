@@ -12,6 +12,7 @@ import { conversationGreeting,initialGreeting } from "./welcome";
 import { isVerifiedMember } from "./templates";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
+import { continueBackendConversation } from "./backend-conversation";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { suggestedReply } from "./suggestion-replies";
 import { contextualBuzzReply } from "./public-help-context";
@@ -140,13 +141,15 @@ export function attachSocketServer(httpServer: HttpServer) {
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
         const proposalAnswer = parsed.data.follow_up_id||memory.answer ? null :
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
-        const guidance=parsed.data.follow_up_id||proposalAnswer||memory.answer?null:
+        const backendAnswer=parsed.data.follow_up_id||proposalAnswer||memory.answer?null:
+          await continueBackendConversation(claims,conversationId,question);
+        const guidance=parsed.data.follow_up_id||proposalAnswer||memory.answer||backendAnswer?null:
           await publicGuidance(claims,conversationId,question,userMessageId);
-        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance ? null :
+        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance || backendAnswer ? null :
           await contextualBuzzReply(claims,conversationId,question);
         const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply&&!guidance?.continuing
           ?await trackSupportQuestion(claims.sub,conversationId,userMessageId,parsed.data.content):false;
-        const intentAnswer = guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question));
+        const intentAnswer = backendAnswer??guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question,true));
         const reply = parsed.data.follow_up_id||memory.answer
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             suggestions_label:"",closing_message:""}

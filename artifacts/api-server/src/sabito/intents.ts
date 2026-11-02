@@ -14,6 +14,7 @@ import { buzzBackendFields,buzzDepositIdentifier,buzzResultAnswer,optionalBuzzFi
 import { handleBuzzCatalogue } from "./buzzbooster-catalogue-flow";
 import { directBuzzOrders } from "./buzzbooster-order-flow";
 import { explicitOrderRead,orderContext } from "./buzzbooster-orders";
+import { continueBackendConversation,rememberBackendResult } from "./backend-conversation";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -38,7 +39,7 @@ async function ticket(projectId:string,conversationId:string,claims:AccessClaims
     [projectId,conversationId,intent]);
   return String(result.rows[0].id);
 }
-export async function handleIntent(claims:AccessClaims, conversationId:string, text:string):Promise<string|null> {
+export async function handleIntent(claims:AccessClaims, conversationId:string, text:string,continuationChecked=false):Promise<string|null> {
   // A social greeting is never a transaction number, confirmation or backend trigger.
   // Leave any in-progress verification intact.
   if(greetingReply(text)) return null;
@@ -46,6 +47,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   const {settings,profile}=await searchState(claims.sub);
   const buzz=profile==="buzzbooster",guide=buzz?buzzGuideFor(text):undefined;
   if(buzz) {
+    const continuation=continuationChecked?null:await continueBackendConversation(claims,conversationId,text);
+    if(continuation!==null)return continuation;
     const orders=await directBuzzOrders(claims,conversationId,text,settings,
       ()=>ticket(claims.sub,conversationId,claims,"order_status","BACKEND_UNAVAILABLE"));
     if(orders!==null)return orders;
@@ -219,7 +222,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   try {
     if (!isVerifiedMember(claims)) {reason="MEMBER_AUTH_REQUIRED";throw new Error(reason);}
     const definition=intentRegistry[intent!];
-    const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,buzz?buzzBackendFields(definition.backendOperation,fields!):fields!);
+    const exactFields=buzz?buzzBackendFields(definition.backendOperation,fields!):fields!;
+    const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,exactFields);
+    if(buzz)await rememberBackendResult(claims,conversationId,definition.backendOperation,exactFields,response,originalQuestion);
     if(buzz&&response.status==="forbidden")return "Je ne suis pas autorisé à consulter cette opération. Reconnectez-vous à votre compte ou contactez Support. Aucune information sur une opération d’un autre membre ne peut être divulguée.";
     const ambiguous=buzz&&response.status!=="error"&&(response.data?.ambiguous===true||typeof response.data?.match_count==="number"&&response.data.match_count>1);
     if(ambiguous) {
@@ -270,6 +275,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";
   } catch (error) {
+    if(buzz)await rememberBackendResult(claims,conversationId,intentRegistry[intent!].backendOperation,
+      buzzBackendFields(intentRegistry[intent!].backendOperation,fields!),undefined,originalQuestion);
     const code=error instanceof Error ? error.message : "";
     if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT"].includes(code)) reason=code;
   } finally {

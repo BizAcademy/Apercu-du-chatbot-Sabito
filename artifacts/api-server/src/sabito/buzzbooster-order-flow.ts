@@ -5,6 +5,7 @@ import type { AssistantSettings } from "./assistant-settings";
 import type { AccessClaims } from "./security";
 import { isVerifiedMember } from "./templates";
 import { normalizeQuestion } from "./question-normalization";
+import { rememberBackendResult } from "./backend-conversation";
 import { orderAnswerHash,orderBatchSize,orderConcurrency,orderContext,orderContinue,orderOutcomeAnswer,
   orderRecheck,orderReferences,explicitOrderRead,type OrderOutcome } from "./buzzbooster-orders";
 
@@ -90,6 +91,8 @@ export async function directBuzzOrders(claims:AccessClaims,conversationId:string
       }
     }
   }));
+  for(const outcome of outcomes)await rememberBackendResult(claims,conversationId,"order_status",
+    {order_number:outcome.number},outcome.result,original);
   const answer=[...outcomes.map(orderOutcomeAnswer),
     remaining.length?`Ce lot concerne ${numbers.length} commandes, avec au maximum ${orderConcurrency} consultations simultanées. Il reste ${remaining.length} numéro(s) non encore vérifié(s). Écrivez « suite » pour traiter le lot suivant, jusqu’à ${orderBatchSize} commandes.`:"",
   ].filter(Boolean).join("\n\n");

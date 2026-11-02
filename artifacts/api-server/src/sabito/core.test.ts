@@ -30,6 +30,7 @@ import { semanticSimilarity } from "./semantic";
 import { buzzGuides } from "./buzzbooster-guides";
 import { contextualBuzzReply } from "./public-help-context";
 import { verifyDirectOrders } from "./tests/buzzbooster-orders";
+import { verifyBackendConversation } from "./tests/backend-conversation";
 import { verifySupportMemory } from "./tests/support-memory";
 import { verifyPublicGuidance } from "./tests/public-guidance";
 import { verifyBcaFaq } from "./tests/bca-faq";
@@ -264,6 +265,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
       assert.deepEqual(config.settings.intents,[]);
+    });
+    await t.test("Buzz Booster backend verification continuity preserves exact fields, consent, explanations and member isolation",async()=>{
+      await verifyBackendConversation(app,adminKey,projectIds,openSocket);
     });
     await t.test("Buzz Booster approved guides, native editing and ten-operation connector routing respect the supplied business contract",async()=>{
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
@@ -1496,7 +1500,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
     await t.test("Support history resumes for 24 hours, scopes deletion, records explicit satisfaction and isolates guest cookies",
       ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
-      const disconnected = socketOnce(sockets[0],"disconnect");
+      // The first socket may belong to a separate earlier regression fixture.
+      const rotationSocket=await openSocket(token);
+      const disconnected = socketOnce(rotationSocket,"disconnect");
       const replacement = await request(app).post(`/v1/admin/projects/${first.project.id}/credentials/rotate`).set("X-Admin-Key",adminKey).expect(200);
       await disconnected;
       const oldAuth=`Basic ${Buffer.from(`${first.credentials.clientId}:${first.credentials.clientSecret}`).toString("base64")}`;
