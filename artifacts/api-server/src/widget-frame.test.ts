@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { contentSecurityPolicy } from "./http-security";
 import { after, test } from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -23,13 +24,13 @@ test("Widget document admits only configured exact parent origins", async () => 
   assert.equal(res.headers["cache-control"], "no-store");
   assert.equal(res.headers["referrer-policy"], "no-referrer");
   assert.equal(res.headers["content-security-policy"],
-    "frame-ancestors 'self' https://sabito.example https://bca.example https://buzz.example");
+    contentSecurityPolicy("'self' https://sabito.example https://bca.example https://buzz.example"));
 });
 test("Widget document rejects absent, lookalike and unconfigured parent origins", async () => {
   for (const parentOrigin of ["", "null", "https://bca.example.evil.test", "https://evil.test", "https://bad.example"]) {
     const res = await request(app).get("/widget/chat").query({ parentOrigin });
     assert.equal(res.status, 403);
-    assert.equal(res.headers["content-security-policy"], "frame-ancestors 'none'");
+    assert.equal(res.headers["content-security-policy"], contentSecurityPolicy());
     assert.ok(!res.text.includes("Sabito fixture"));
   }
 });
@@ -45,7 +46,7 @@ test("Member product resolves the same project origins as visitor projectId, bef
       const res=await request(app).get("/widget/chat").query({...selector,parentOrigin:"https://member.buzz.example"});
       assert.equal(res.status,200);
       assert.match(res.text,/Sabito fixture/);
-      assert.equal(res.headers["content-security-policy"],"frame-ancestors 'self' https://member.buzz.example");
+      assert.equal(res.headers["content-security-policy"],contentSecurityPolicy("'self' https://member.buzz.example"));
       assert.equal(res.headers["cache-control"],"no-store");
     }
     const before=database.mock.callCount();
@@ -55,7 +56,7 @@ test("Member product resolves the same project origins as visitor projectId, bef
       // Even a globally allowed origin cannot rescue an invalid project selector.
       const res=await request(app).get("/widget/chat").query({...selector,parentOrigin:"https://bca.example"});
       assert.equal(res.status,403);
-      assert.equal(res.headers["content-security-policy"],"frame-ancestors 'none'");
+      assert.equal(res.headers["content-security-policy"],contentSecurityPolicy());
       assert.ok(!res.text.includes("Sabito fixture"));
     }
     assert.ok(database.mock.callCount()>before);

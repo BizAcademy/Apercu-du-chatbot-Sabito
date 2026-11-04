@@ -121,6 +121,9 @@ export function createMysqlAdapter(): DatabasePool {
     },
     async query(sql, values) {
       const connection = await adapter.connect();
+      // This calls our DatabaseConnection wrapper above, whose execute() binds
+      // every runtime value separately. It is not mysql2's raw query() API.
+      // nosemgrep: javascript.express.db.mysql-express.mysql-express
       try { return await connection.query(sql, values); }
       finally { connection.release(); }
     },

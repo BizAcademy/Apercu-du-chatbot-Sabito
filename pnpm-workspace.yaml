@@ -4,34 +4,37 @@ packages:
   - lib/integrations/*
   - scripts
 
-autoInstallPeers: false
+allowBuilds:
+  '@swc/core': true
+  esbuild@0.28.2: true
+  msw: true
+  unrs-resolver: true
 
-# Plesk runs the precompiled migration commands without installing the workspace.
-verifyDepsBeforeRun: false
+autoInstallPeers: false
 
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.21
-  '@replit/vite-plugin-dev-banner': ^0.1.1
+  '@replit/vite-plugin-dev-banner': ^0.1.2
   '@replit/vite-plugin-runtime-error-modal': ^0.0.6
-  '@tailwindcss/vite': ^4.1.14
-  '@tanstack/react-query': ^5.90.21
-  '@types/node': ^25.3.3
-  '@types/react': ^19.2.0
-  '@types/react-dom': ^19.2.0
-  '@vitejs/plugin-react': ^5.0.4
+  '@tailwindcss/vite': ^4.3.4
+  '@tanstack/react-query': ^5.105.3
+  '@types/node': ^25.9.9
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.3.0
+  '@vitejs/plugin-react': ^5.2.0
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
-  drizzle-orm: ^0.45.2
-  framer-motion: ^12.23.24
+  drizzle-orm: ^0.45.4
+  framer-motion: ^12.43.0
   lucide-react: ^0.545.0
   react: 19.1.0
   react-dom: 19.1.0
-  tailwind-merge: ^3.3.1
-  tailwindcss: ^4.1.14
+  tailwind-merge: ^3.7.0
+  tailwindcss: ^4.3.4
   tsx: 4.23.13
-  vite: ^7.3.2
+  vite: ^7.3.7
   wouter: ^3.3.5
-  zod: 3.25.76
+  zod: ^4.6.7
 
 minimumReleaseAge: 1440
 
@@ -39,14 +42,9 @@ minimumReleaseAgeExclude:
   - '@replit/*'
   - stripe-replit-sync
 
-# Supported by pnpm 10.26+ and pnpm 11/12; unlisted scripts stay blocked.
-allowBuilds:
-  '@swc/core': true
-  'esbuild@0.28.2': true
-  msw: true
-  unrs-resolver: true
-
 overrides:
+  # typography 0.5.20 (latest compatible parent) pins vulnerable 6.0.10.
+  '@tailwindcss/typography>postcss-selector-parser': ^6.1.5
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
@@ -129,3 +127,5 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
+
+verifyDepsBeforeRun: false
