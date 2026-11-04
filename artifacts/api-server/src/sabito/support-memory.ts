@@ -3,11 +3,12 @@ import { pool } from "./database";
 import { normalizeQuestion } from "./unanswered";
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
+import { opaqueConversationInput } from "./conversation-input";
 import { recordVariantCandidate } from "./variant-candidates";
 
 export function substantialQuestion(text:string) {
   const q=normalizeQuestion(text);
-  return !greetingReply(text)&&!isClosingAcknowledgement(text)&&q.split(" ").length>=2&&
+  return !opaqueConversationInput(text)&&!greetingReply(text)&&!isClosingAcknowledgement(text)&&q.split(" ").length>=2&&
     !/^(oui|non|ok|suite|page suivante|reverifie celle ci|aidez moi a nouveau|aide moi a nouveau)$/.test(q)&&
     !/^(et |celle |maintenant |voici |le bon numero|mon otp|mon code|code otp)/.test(q)&&
     !/^[\d\s]+$/.test(q);

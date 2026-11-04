@@ -15,7 +15,7 @@ import { buzzGuideFor } from "./buzzbooster-guides";
 const hash=(s:string)=>createHash("sha256").update(s).digest("hex");
 const contextSchema=z.object({
   topic:z.enum(["deposit","boost","diagnostic","cancel","purpose","faq"]),
-  questionId:z.string().uuid(),awaiting:z.enum(["method","network","goal","details","catalogue","currency","funding","usable","quantity"]).optional(),
+  questionId:z.string().uuid(),awaiting:z.enum(["method","network","goal","whatsapp","details","catalogue","currency","funding","usable","quantity"]).optional(),
   budget:guidanceBudgetSchema.optional(),
   country:z.string().max(80).optional(),operator:z.string().max(80).optional(),method:z.string().max(40).optional(),
   filters:z.record(z.string(),z.string().max(160)).refine(fields=>Object.keys(fields).every(key=>
@@ -65,7 +65,8 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
   const methodOnly=/^(?:wave|orange(?: money)?|mtn(?: momo)?|moov(?: money)?|mobile money|momo|crypto|cryptomonnaie)$/.test(q);
   const criteriaOnly=Object.keys(parsed).length>0&&q.split(" ").length<=12&&!explicitCheck;
   const continuing=!journey&&!!previous&&!["cancel","faq"].includes(previous.topic)&&previous.awaiting!=="catalogue"&&!explicitCheck&&
-    (methodOnly||["boost","purpose"].includes(previous.topic)&&criteriaOnly||!!clues.country||
+    (isVerifiedMember(claims)&&/^je suis connecte(?:r)?$/.test(q)||
+      methodOnly||["boost","purpose"].includes(previous.topic)&&criteriaOnly||!!clues.country||
       ["currency","funding","usable","quantity"].includes(previous.awaiting??"")&&q.length<160&&
         (/\b(?:xaf|xof|usd|eur|portefeuille|frais|solde|disponible|deposer)\b/.test(q)||/^\d[\d ]*$/.test(q))||
       previous.awaiting==="details"&&q.length<240&&!/^(?:comment|pourquoi|quel|quels|quelle|quelles|c est quoi|je veux|je souhaite)\b/.test(q));
@@ -115,7 +116,10 @@ export async function publicGuidance(claims:AccessClaims,conversationId:string,t
       ?`Je peux vous aider à choisir selon votre budget${context.budget.amount?` de ${context.budget.amount}${context.budget.currency==="XAF"?" XAF":""}`:""}. Ce montant déclaré n’est pas une vérification du solde réel. Aucune offre n’a encore été confirmée comme finançable.\n${budgetAdvice}\n\n`
       :orderSteps+"\n\n";
     if(!network){answer=intro+"Quel réseau social souhaitez-vous booster ?";context.awaiting="network";}
-    else if(!goal){answer=intro+`Pour ${network}, quel est votre objectif : abonnés, vues, likes, commentaires ou partages ?`;context.awaiting="goal";}
+    else if(!goal){answer=intro+`Pour ${network}, quel est votre objectif : ${network.toLowerCase()==="whatsapp"?"une chaîne, des abonnés ou des vues de statuts":"abonnés, vues, likes, commentaires ou partages"} ?`;context.awaiting="goal";}
+    else if(network.toLowerCase()==="whatsapp"&&goal==="vues"&&!/\b(?:statuts|chaine)\b/.test(guidanceLanguage(context.filters.query??""))){
+      answer=intro+"Souhaitez-vous des vues de statuts WhatsApp ou des vues pour une chaîne ? Je ne remplace pas l’un par l’autre.";context.awaiting="whatsapp";
+    }
     else if(context.budget&&context.budget.currency!=="XAF"){
       answer=intro+"Pour comparer un budget, il faut un montant en XAF internes. « F » ou « FCFA » seul ne distingue pas XAF et XOF ; je ne convertis pas automatiquement les devises. Quel budget souhaitez-vous utiliser en XAF ?";context.awaiting="currency";
     } else if(context.budget&&context.budget.funding==="unknown"){

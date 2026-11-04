@@ -9,6 +9,7 @@ import { expandQuestion, tokenSimilarity, spellingSimilarity, protectedMismatch 
 import { buzzGuideFor,buzzGuides } from "./buzzbooster-guides";
 import { bcaFaqFor } from "./bca-faq";
 import { defaultRetrievalSettings } from "./retrieval-settings";
+import { buzzCorpus } from "./buzzbooster-corpus";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -180,10 +181,14 @@ export function rankSearchState(state:State,query:string):{settings:AssistantSet
 }
 export async function retrieveReply(projectId:string,question:string) {
   const greeting = greetingReply(question);
-  if(greeting) return {
-    answer:greeting,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
+  if(greeting) {
+    const state=await searchState(projectId);
+    const title=buzzCorpus.find(item=>item.key==="salutations")!.title;
+    const approved=state.profile==="buzzbooster"?state.entries.find(item=>item.title===title):undefined;
+    return {
+    answer:approved?.content??greeting,documentId:approved?.documentId,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
     closing_message:"",suggestions_label:"",
-  };
+  };}
   if(isClosingAcknowledgement(question)) return {
     answer:conversationClosing,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,
     closing_message:"",suggestions_label:"",

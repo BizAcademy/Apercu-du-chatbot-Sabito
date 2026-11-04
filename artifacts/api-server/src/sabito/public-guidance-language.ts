@@ -34,7 +34,7 @@ export function publicJourney(text:string):PublicJourney|undefined {
   if(/\b(?:verifi\w*|statut|suivre|suivi|non recu|pas recu|pas arrive|non credite|debite|ma commande|mon depot|mes commandes)\b/.test(q)&&
     !/^(?:comment|je veux faire|je souhaite faire)\b/.test(q))return undefined;
   const want=/\b(?:je veux|j veux|je souhaite|je voudrais|j aimerais|comment|faire|effectuer|recharger|deposer)\b/.test(q);
-  if(deposit&&want)return "deposit";
+  if(deposit&&(want||/^depot$/.test(q)))return "deposit";
   if((want||/^(?:booster|promouvoir)\b/.test(q))&&
     (/\b(?:booster|promouvoir|augmenter|commander)\b/.test(q)||!!parseCatalogueFields(q).goal))return "boost";
   return undefined;
@@ -42,7 +42,7 @@ export function publicJourney(text:string):PublicJourney|undefined {
 
 export function paymentClues(text:string) {
   const q=guidanceLanguage(text),result:{country?:string;operator?:string;method?:string}={};
-  const country=/\b(cameroun|senegal|cote d ivoire|benin|togo|burkina faso|mali|gabon|congo)\b/.exec(q)?.[1];
+  const country=/\b(congo kinshasa|congo brazzaville|republique democratique du congo|rdc|cameroun|senegal|cote d ivoire|benin|togo|burkina faso|mali|gabon|guinee|congo)\b/.exec(q)?.[1];
   if(country)result.country=country;
   const operator=/\b(wave|orange(?: money)?|mtn(?: momo)?|moov(?: money)?)\b/.exec(q)?.[1];
   if(operator){result.operator=operator;result.method="Mobile Money";}

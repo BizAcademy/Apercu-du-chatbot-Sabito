@@ -18,7 +18,7 @@ export const cataloguePrompts:Record<string,string>={
   category:"Quelle catégorie souhaitez-vous rechercher ?",
 };
 const goals:Record<string,string>={abonne:"abonnés",abonnes:"abonnés",followers:"abonnés",members:"abonnés",
-  vue:"vues",vues:"vues",views:"vues",like:"likes",likes:"likes",commentaire:"commentaires",commentaires:"commentaires",
+  vue:"vues",vues:"vues",views:"vues",statuts:"vues",like:"likes",likes:"likes",commentaire:"commentaires",commentaires:"commentaires",
   comments:"commentaires",partage:"partages",partages:"partages",shares:"partages"};
 export function catalogueGoal(value:string):string|undefined {
   return normalizeQuestion(value).split(" ").map(word=>goals[word]).find(Boolean);
@@ -33,6 +33,11 @@ export function parseCatalogueFields(text:string):CatalogueFields & {foreignCurr
   }
   const network=/\b(instagram|tiktok|tik tok|facebook|youtube|twitter|telegram|snapchat|linkedin|twitch|whatsapp)\b/.exec(q)?.[1];
   if(!fields.network&&network)fields.network=network==="tik tok"?"TikTok":network;
+  // Preserve the requested product subtype instead of silently replacing a
+  // WhatsApp status with a channel, or a Facebook page with a profile.
+  if(!fields.query&&/\bstatuts\b/.test(q))fields.query="statuts";
+  else if(!fields.query&&/\bchaines?\b/.test(q))fields.query="chaîne";
+  else if(!fields.query&&fields.network==="facebook"&&/\bpage\b/.test(q))fields.query="page";
   fields.goal=catalogueGoal(fields.goal??q)??fields.goal;
   const quantity=/(?<![\d-])([-+]?\d[\d ]*(?:[.,]\d+)?\s*k?)\s*(?:abonnes?|followers|membres?|vues?|views|likes?|commentaires?|comments|partages?|shares)\b/.exec(raw)?.[1]
     ??/\bquantite\s*(?::|=|de)?\s*([-+]?\d[\d ]*(?:[.,]\d+)?\s*k?)\b/.exec(raw)?.[1];
@@ -101,13 +106,18 @@ export function catalogueAnswer(result:BackendResult,fields:CatalogueFields,oper
   const metadata=Object.entries(result.data??{}).filter(([key])=>!/^service_/.test(key)&&!privateKey.test(key)&&
     /periode|period|date|page|couverture|coverage|incomplet|partial|indisponible|unavailable|inaccessible|limite|limit|correspond|total|count|tri|sort|fournisseur/.test(key))
     .map(([key,value])=>`${literal(key.replaceAll("_"," "))} : ${literal(value)}`);
-  if(result.status==="not_found")return ["Aucune offre ne correspond à ces critères. Vous pouvez changer de réseau ou d’objectif. Une quantité inférieure n’est une alternative que si elle respecte les limites d’une offre vérifiée ; je ne suppose pas qu’elle est achetable et ne vous pousse pas à augmenter votre budget. Ce résultat ne signifie pas que le service est en panne.",
+  if(result.status==="not_found")return ["Aucun service correspondant n’a été trouvé dans le catalogue consulté. Vous pouvez changer de réseau ou d’objectif. Une quantité inférieure n’est une alternative que si elle respecte les limites d’une offre vérifiée ; je ne suppose pas qu’elle est achetable et ne vous pousse pas à augmenter votre budget. Ce résultat ne signifie pas que tous les services de ce réseau sont inexistants ou que le service est en panne.",
     ...metadata,"Si des fournisseurs sont signalés inaccessibles, cette recherche est partielle."].join("\n");
   if(!["ok","success"].includes(result.status))throw new Error("BACKEND_UNVERIFIED_RESULT");
   const data=result.data??{},offers:string[]=[];
   for(let n=1;n<=3;n++) {
     const prefix=`service_${n}_`,name=data[`${prefix}nom`],id=data[`${prefix}id`],provider=data[`${prefix}fournisseur`];
     if(name===undefined&&id===undefined&&provider===undefined)continue;
+    const subtype=normalizeQuestion([name,data[`${prefix}categorie`],data[`${prefix}description`]].filter(Boolean).join(" "));
+    if(fields.query==="statuts"&&!/\bstatuts?\b/.test(subtype)||
+      fields.query==="chaîne"&&!/\bchaines?\b/.test(subtype)||
+      fields.network?.toLowerCase()==="facebook"&&fields.query==="page"&&
+        (!/\bpages?\b/.test(subtype)||/\bprofils?\b/.test(subtype)))continue;
     const conditions=jsonFacts(data[`${prefix}conditions`]),price=jsonFacts(data[`${prefix}prix`]),statistics=jsonFacts(data[`${prefix}statistiques`]);
     if(!name||!id||provider===undefined||conditions===null||price===null||statistics===null)throw new Error("BACKEND_UNVERIFIED_RESULT");
     offers.push([`${n}. ${literal(name)}`,`Fournisseur : ${literal(provider)} — ID du service : ${literal(id)}`,
@@ -120,6 +130,7 @@ export function catalogueAnswer(result:BackendResult,fields:CatalogueFields,oper
     ].filter(Boolean).join("\n"));
   }
   if(!offers.length) {
+    if(["statuts","chaîne","page"].includes(fields.query??""))return "Aucun service correspondant au type demandé n’a pu être confirmé dans le catalogue consulté. Une offre de chaîne ne remplace pas des vues de statuts et un profil ne remplace pas une page. Cela ne prouve pas que tous les services de ce réseau sont inexistants.";
     // An explicit zero is different from an incomplete or malformed response.
     const zero=Object.entries(data).some(([key,value])=>/^(?:total|total_matches|correspondances|nombre_resultats|count)$/.test(key)&&(value===0||value==="0"));
     if(!zero)throw new Error("BACKEND_UNVERIFIED_RESULT");

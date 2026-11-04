@@ -37,6 +37,7 @@ jobs:
           pnpm --filter @workspace/sabito-web run typecheck
           pnpm --filter @workspace/api-server run test:security
           pnpm --filter @workspace/api-server run test:retrieval
+          pnpm --filter @workspace/api-server run test:corpus
           pnpm --filter @workspace/api-server run test:database-config
           pnpm run test:plesk-deploy
       - name: Compiler le serveur et le dashboard

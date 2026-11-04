@@ -2,13 +2,33 @@ import { pool } from "./database";
 import { normalizeQuestion } from "./question-normalization";
 import { retrieveReply,searchState } from "./question-search";
 import type { AccessClaims } from "./security";
+import { corpusClarificationKey } from "./conversation-input";
+import { buzzCorpus } from "./buzzbooster-corpus";
+
+/** Read a clarification from the SAME approved index. Pending proposals never
+ * supply a public answer. Existing field collectors always have precedence. */
+export async function approvedCorpusClarification(claims:AccessClaims,conversationId:string,text:string,early=false) {
+  const key=corpusClarificationKey(text,early);
+  if(!key)return null;
+  const state=await searchState(claims.sub);
+  if(state.profile!=="buzzbooster")return null;
+  const owner=await pool.query(`SELECT s.status FROM sabito_core.conversations c
+    LEFT JOIN sabito_core.intent_sessions s ON s.conversation_id=c.id AND s.project_id=c.project_id
+    WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
+    [conversationId,claims.sub,claims.externalUserId]);
+  if(!owner.rows.length||["collecting","checking"].includes(String(owner.rows[0].status)))return null;
+  const topic=buzzCorpus.find(item=>item.key===key)!;
+  const entry=state.entries.find(item=>item.title===topic.title);
+  return {answer:entry?entry.content.split("\n")[0]:state.settings.no_answer_message,
+    reliable:!!entry,documentId:entry?.documentId,suggestions:[],suggestions_label:"",closing_message:""};
+}
 
 /** Reuse only the immediately preceding approved public answer. Never turn a
  * backend result, an older topic, or another member's history into public help. */
 export async function contextualBuzzReply(claims:AccessClaims,conversationId:string,text:string) {
   const question=normalizeQuestion(text).replace(/[?.!]+$/g,"").trim();
   const explain=/^(?:(?:je veux|je voudrais) savoir )?comment (?:ca|cela) (?:fonctionne|marche)$/.test(question)
-    || /^(?:explique moi|expliquez moi|peux tu m expliquer)$/.test(question);
+    || /^(?:explique moi|expliquez moi|peux tu m expliquer|pourquoi|comment faire alors)$/.test(question);
   const detail=/^(?:plus de details|donne moi plus de details|pouvez vous donner plus de details|peux tu m en dire plus)$/.test(question);
   if(!explain&&!detail)return null;
   if((await searchState(claims.sub)).profile!=="buzzbooster")return null;

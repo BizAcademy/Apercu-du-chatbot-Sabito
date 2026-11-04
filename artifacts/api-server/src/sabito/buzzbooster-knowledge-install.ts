@@ -3,6 +3,8 @@ import { saveKnowledge } from "./knowledge";
 import { buzzGuides } from "./buzzbooster-guides";
 import { buzzFaq } from "./buzzbooster-faq";
 import { supervisedBuzzKnowledge, supervisedBuzzSource } from "./buzzbooster-supervised-pack";
+import { buzzCorpus,buzzCorpusSource } from "./buzzbooster-corpus";
+import { normalizeQuestion } from "./question-normalization";
 
 const installed=new Set<string>();
 const action="buzzbooster.help_pack.installed";
@@ -50,6 +52,27 @@ export async function ensureBuzzBoosterKnowledge(projectId:string):Promise<boole
       await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
         VALUES($1,'system',$2,$3)`,[projectId,draftAction,JSON.stringify({count:supervisedBuzzKnowledge.length,status:"pending"})]);
       changed=true;
+    }
+    const corpusAction="buzzbooster.corpus97.proposed";
+    const corpusMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",[projectId,corpusAction]);
+    if(!corpusMarker.rows.length) {
+      const existing=await connection.query("SELECT id,title,status FROM sabito_core.knowledge_documents WHERE project_id=$1",[projectId]);
+      const byTitle=new Map(existing.rows.map(row=>[normalizeQuestion(String(row.title)),row]));
+      const proposals=[];
+      for(const item of buzzCorpus) {
+        // Never replace an approved answer, an administrator's draft or a deleted
+        // proposal. The pack marker makes subsequent reads/restarts idempotent.
+        const found=byTitle.get(normalizeQuestion(item.title));
+        let documentId=found?String(found.id):undefined;
+        if(!found){
+          const saved=await saveKnowledge(projectId,item.title,item.content,undefined,connection,item.variants,[],
+            {category:item.category,keywords:item.keywords,source:`${buzzCorpusSource} Groupe : ${item.key}. Repères : ${item.questions.map(n=>`Q${n}`).join(", ")}.`});
+          documentId=saved?.documentId;changed=true;
+        }
+        proposals.push({key:item.key,questions:item.questions,documentId,preserved:!!found});
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,corpusAction,JSON.stringify({source:"owner-supplied-corpus-analysis",proposals})]);
     }
     await connection.query("COMMIT");
     if(installed.size>=10000)installed.delete(installed.values().next().value!);

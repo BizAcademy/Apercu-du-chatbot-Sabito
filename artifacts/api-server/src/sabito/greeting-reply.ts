@@ -1,7 +1,7 @@
 import { normalizeQuestion } from "./question-normalization";
 
 const greeting = /^(?:bonjour|bonsoir|salut|coucou|hello|hi|hey|bjr|bsr|slt|bon matin)(?: |$)/;
-const wellbeing = /^(?:comment (?:tu vas|vas tu|va tu|allez vous|vous allez|ca va)|ca va(?: bien)?|tu vas bien|vous allez bien|j espere que (?:tu vas|vous allez) bien)$/;
+const wellbeing = /^(?:cv|comment (?:tu vas|vas tu|va tu|allez vous|vous allez|ca va)|ca va(?: bien)?|tu vas bien|vous allez bien|j espere que (?:tu vas|vous allez) bien)$/;
 
 /** Whole social message only. A greeting before a real request must not hide that request. */
 export function greetingReply(text: string): string | null {
@@ -12,7 +12,7 @@ export function greetingReply(text: string): string | null {
     rest = rest.replace(greeting, "");
     greeted = true;
   }
-  if (greeted) rest = rest.replace(/^(?:sabito(?: ai)?|a tous|a toutes|tout le monde)(?: |$)/, "");
+  if (greeted) rest = rest.replace(/^(?:boss|sabito(?: ai)?|a tous|a toutes|tout le monde)(?: |$)/, "");
   const asksWellbeing = wellbeing.test(rest);
   if ((!greeted && !asksWellbeing) || (rest && !asksWellbeing)) return null;
   const salutation = /^bonsoir(?: |$)/.test(normalized) ? "Bonsoir" :

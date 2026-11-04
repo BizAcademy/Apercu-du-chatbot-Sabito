@@ -7,6 +7,7 @@ import { searchState,detectIntent,retrieveReply } from "./question-search";
 import { isVerifiedMember,renderTemplate } from "./templates";
 import type { IntentDefinition } from "./assistant-settings";
 import { conversationClosing,isClosingAcknowledgement } from "./conversation-closing";
+import { opaqueConversationInput } from "./conversation-input";
 import { greetingReply } from "./greeting-reply";
 import { buzzGuideFor } from "./buzzbooster-guides";
 import { isBcaHelpQuestion } from "./bca-knowledge-install";
@@ -70,7 +71,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
   }]));
   let detected=refundQuestion?settings.intents.find(intent=>intent.enabled&&intent.backend_function==="order_refund_status")?.id:detectIntent(text,settings);
-  const suppliedDeposit=buzz?buzzDepositIdentifier(text):undefined;
+  // A format alone is not evidence that a reference belongs to a deposit.
+  // Awaited references still use collectedValue below with their exact spelling.
+  const suppliedDeposit=buzz&&!opaqueConversationInput(text)?buzzDepositIdentifier(text):undefined;
   if(!detected) {
     const owner=await pool.query(`SELECT c.id,s.status FROM sabito_core.conversations c LEFT JOIN sabito_core.intent_sessions s
       ON s.conversation_id=c.id AND s.project_id=c.project_id WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,

@@ -36,6 +36,7 @@ export async function verifyBackendConversation(app:Express,adminKey:string,proj
   };
   await poll().expect(200);
   const conv=await createConversation(id,claims.externalUserId);
+  await handleIntent(claims,conv,"Mon dépôt n’est pas arrivé.");
   const initial=handleIntent(claims,conv,"PIM001");
   await complete("deposit_status",{status:"pending",data:{reference:"RETURNED-NOT-AN-INPUT",statut:"pending",
     moyen_paiement:"Mobile Money",montant:null}},{transaction_id:"PIM001"});

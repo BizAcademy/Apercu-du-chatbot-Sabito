@@ -45,7 +45,7 @@ test("Flat catalogue JSON is decoded as untrusted facts, not guarantees or finan
   assert.doesNotMatch(answer,/PRIVATE_|<b>|https:\/\//);
   assert.equal(catalogueNextPage({status:"ok",data},1),2);
   assert.equal(catalogueNextPage({status:"ok",data:{has_more:true}},100),undefined);
-  assert.match(catalogueAnswer({status:"not_found"},{network:"Instagram"},"service_catalog"),/Aucune offre/);
+  assert.match(catalogueAnswer({status:"not_found"},{network:"Instagram"},"service_catalog"),/Aucun service correspondant.*catalogue consulté/);
   assert.match(catalogueAnswer({status:"ok",data:{correspondances:0}},{network:"Instagram"},"service_catalog"),/Aucune offre/);
   assert.throws(()=>catalogueAnswer({status:"error",data},{network:"Instagram"},"service_catalog"),/UNVERIFIED/);
   assert.throws(()=>catalogueAnswer({status:"ok",data:{...data,service_1_prix:"INVALID JSON"}},{},"service_catalog"),/UNVERIFIED/);

@@ -73,7 +73,7 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
   await request(app).post(`/v1/backend/jobs/${found.id}/result`).auth(credentials.clientId,credentials.clientSecret)
     .send({result:{status:"not_found"}}).expect(200);
   answer=(await pending).content;
-  assert.match(answer,/Nouvelle commande/);assert.match(answer,/Aucune offre/);
+  assert.match(answer,/Nouvelle commande/);assert.match(answer,/Aucun service correspondant.*catalogue consulté/);
   assert.doesNotMatch(answer,/Quel réseau|Quel est votre objectif|Quelle quantité|Quel est votre budget/i);
   // A stale help topic cannot reinterpret arbitrary numbers or other questions.
   assert.equal(await publicGuidance(member,conversationId,"162717",randomUUID()),null);
@@ -119,7 +119,26 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
   await request(app).post(`/v1/backend/jobs/${found.id}/result`).auth(credentials.clientId,credentials.clientSecret)
     .send({result:{status:"not_found"}}).expect(200);
   answer=(await budgetPending).content;
-  assert.match(answer,/Aucune offre/);assert.match(answer,/respecte les limites/);
+  assert.match(answer,/Aucun service correspondant.*catalogue consulté/);assert.match(answer,/respecte les limites/);
+  const whatsappMember={...member,externalUserId:`whatsapp-${randomUUID()}`};
+  const whatsappSocket=await openSocket(signAccessToken(whatsappMember));
+  const whatsappConversation=await createConversation(id,whatsappMember.externalUserId);
+  answer=(await send(whatsappSocket,whatsappConversation,"Je veux des vues WhatsApp")).content;
+  assert.match(answer,/statuts WhatsApp.*chaîne/);
+  answer=(await send(whatsappSocket,whatsappConversation,"je suis connecté")).content;
+  assert.match(answer,/statuts WhatsApp.*chaîne/);
+  assert.deepEqual((await poll().expect(200)).body.jobs,[],"WhatsApp subtype must be clarified before a lookup");
+  const whatsappPending=send(whatsappSocket,whatsappConversation,"statuts");
+  found=undefined;
+  for(let i=0;i<100&&!found;i++){
+    found=(await poll().expect(200)).body.jobs[0];
+    if(!found)await new Promise(r=>setTimeout(r,20));
+  }
+  assert.ok(found);assert.equal(found.fields.query,"statuts");
+  assert.equal(found.external_user_id,whatsappMember.externalUserId);
+  await request(app).post(`/v1/backend/jobs/${found.id}/result`).auth(credentials.clientId,credentials.clientSecret)
+    .send({result:{status:"not_found"}}).expect(200);
+  assert.match((await whatsappPending).content,/Aucun service correspondant.*catalogue consulté/);
   // An independent visitor exercises FAQ without exhausting the deliberate
   // per-member flood limit during this synthetic rapid-fire protocol suite.
   const faqGuest={...guest,externalUserId:`guest:${randomUUID()}`};

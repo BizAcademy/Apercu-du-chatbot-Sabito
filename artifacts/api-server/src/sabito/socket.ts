@@ -15,7 +15,8 @@ import { handleIntent } from "./intents";
 import { continueBackendConversation } from "./backend-conversation";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { suggestedReply } from "./suggestion-replies";
-import { contextualBuzzReply } from "./public-help-context";
+import { contextualBuzzReply,approvedCorpusClarification } from "./public-help-context";
+import { opaqueConversationInput } from "./conversation-input";
 import { ownedRecentConversation,conversationHistoryPage } from "./conversation-history";
 import { supportMemoryTurn,trackSupportQuestion,appendPreviousSatisfaction } from "./support-memory";
 import { createHash } from "node:crypto";
@@ -143,17 +144,21 @@ export function attachSocketServer(httpServer: HttpServer) {
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
         const backendAnswer=parsed.data.follow_up_id||proposalAnswer||memory.answer?null:
           await continueBackendConversation(claims,conversationId,question);
-        const guidance=parsed.data.follow_up_id||proposalAnswer||memory.answer||backendAnswer?null:
+        const earlyClarification=parsed.data.follow_up_id||proposalAnswer||memory.answer||backendAnswer?null:
+          await approvedCorpusClarification(claims,conversationId,question,true);
+        const guidance=parsed.data.follow_up_id||proposalAnswer||memory.answer||backendAnswer||earlyClarification?null:
           await publicGuidance(claims,conversationId,question,userMessageId);
-        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance || backendAnswer ? null :
+        const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance || backendAnswer || earlyClarification ? null :
           await contextualBuzzReply(claims,conversationId,question);
         const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply&&!guidance?.continuing
           ?await trackSupportQuestion(claims.sub,conversationId,userMessageId,parsed.data.content):false;
-        const intentAnswer = backendAnswer??guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer ? null : await handleIntent(claims,conversationId,question,true));
+        const intentAnswer = backendAnswer??guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer || earlyClarification ? null : await handleIntent(claims,conversationId,question,true));
+        const lateClarification=parsed.data.follow_up_id||proposalAnswer||memory.answer||earlyClarification||contextReply||intentAnswer?null:
+          await approvedCorpusClarification(claims,conversationId,question);
         const reply = parsed.data.follow_up_id||memory.answer
           ? {answer:"",reliable:true,suggestions:[] as Awaited<ReturnType<typeof retrieveReply>>["suggestions"],
             suggestions_label:"",closing_message:""}
-          : contextReply ?? await retrieveReply(claims.sub,question);
+          : earlyClarification ?? lateClarification ?? contextReply ?? await retrieveReply(claims.sub,question);
         if(memory.answer){reply.answer=memory.answer;reply.reliable=true;}
         else if(parsed.data.follow_up_id) {
           reply.answer=followUp?.answer??"Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
@@ -167,7 +172,7 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         // Only an unrecognized question with a relevant search proposal gets a clarification title.
         reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
-        if (!reply.reliable) await recordUnanswered(claims.sub, parsed.data.content,
+        if (!reply.reliable&&!opaqueConversationInput(parsed.data.content)) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = guidance?.context.awaiting?reply.answer:
           (tracked||guidance)?await appendPreviousSatisfaction(claims.sub,conversationId,guidance?.context.questionId??userMessageId,assistantId,reply.answer):reply.answer;

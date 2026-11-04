@@ -34,6 +34,9 @@ import { verifyBackendConversation } from "./tests/backend-conversation";
 import { verifySupportMemory } from "./tests/support-memory";
 import { verifyPublicGuidance } from "./tests/public-guidance";
 import { verifyBcaFaq } from "./tests/bca-faq";
+import { buzzCorpus } from "./buzzbooster-corpus";
+import { ensureBuzzBoosterKnowledge } from "./buzzbooster-knowledge-install";
+import { approvedCorpusClarification } from "./public-help-context";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -843,6 +846,54 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const done = await request(app).get(`${url}?status=traite`).set("X-Admin-Key",adminKey).expect(200);
       assert.ok(done.body.data.some((q:{id:string;document_id:string}) => q.id === item.id && q.document_id));
     });
+    await t.test("Corpus proposals are pending, idempotent, preserve approved knowledge and never guess reference ownership",async()=>{
+      const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+        .send({slug:`corpus-${randomUUID()}`,name:"Buzz Booster",assistant_name:"Sabito",
+          system_prompt:"Utiliser uniquement les réponses approuvées et préserver les données privées."}).expect(201);
+      const id=created.body.data.project.id;projectIds.push(id);
+      await readAssistantSettings(id);
+      await recordUnanswered(id,"Question originale à conserver");
+      await recordUnanswered(id,"Question originale à conserver");
+      const readyBefore=await pool.query("SELECT id,content FROM sabito_core.knowledge_documents WHERE project_id=$1 AND status='ready' ORDER BY id",[id]);
+      const listUrl=`/v1/admin/projects/${id}/knowledge-review`;
+      const reviews=(await request(app).get(listUrl).set("X-Admin-Key",adminKey).expect(200)).body.data;
+      const corpusDocs=reviews.filter((r:{source:string})=>r.source.includes("Analyse du corpus de 97 questions"));
+      assert.equal(corpusDocs.length,32);
+      assert.ok(corpusDocs.every((r:{status:string})=>r.status==="pending"));
+      await ensureBuzzBoosterKnowledge(id);await readAssistantSettings(id);
+      const again=(await request(app).get(listUrl).set("X-Admin-Key",adminKey).expect(200)).body.data;
+      assert.deepEqual(again.filter((r:{source:string})=>r.source.includes("Analyse du corpus de 97 questions"))
+        .map((r:{id:string})=>r.id).sort(),corpusDocs.map((r:{id:string})=>r.id).sort());
+      const unchanged=await pool.query("SELECT id,content FROM sabito_core.knowledge_documents WHERE project_id=$1 AND status='ready' ORDER BY id",[id]);
+      assert.deepEqual(unchanged.rows,readyBefore.rows);
+      const original=await pool.query("SELECT statut,nombre_de_fois_posee FROM questions_sans_reponse WHERE plateforme=$1",[id]);
+      assert.equal(original.rows[0].statut,"a_traiter");assert.equal(Number(original.rows[0].nombre_de_fois_posee),2);
+      const claims={sub:id,clientId:created.body.data.credentials.clientId,externalUserId:"corpus-member",scope:["chat:connect","member:verified"]};
+      const conversation=await createConversation(id,claims.externalUserId);
+      assert.equal((await approvedCorpusClarification(claims,conversation,"depot recue",true))?.reliable,false);
+      for(const key of ["depot-attente","reference","consentement","lien","acces","incomplet","fonctionnement","annuler","salutations"]){
+        const title=buzzCorpus.find(t=>t.key===key)!.title;
+        const doc=corpusDocs.find((r:{title:string})=>r.title===title);
+        await request(app).post(`${listUrl}/${doc.id}/decision`).set("X-Admin-Key",adminKey).send({decision:"approve"}).expect(200);
+      }
+      assert.equal((await retrieveReply(id,"salut boss")).answer,buzzCorpus.find(t=>t.key==="salutations")!.content);
+      assert.match((await approvedCorpusClarification(claims,conversation,"depot recue",true))!.answer,/arrivé.*manque/);
+      assert.match((await approvedCorpusClarification(claims,conversation,"fonctionnement de BCA",true))!.answer,/Buzz Booster ou de BCA/);
+      assert.equal(await approvedCorpusClarification({...claims,externalUserId:"other-member"},conversation,"oui"),null);
+      for(const text of ["123456","#123456","BB-AbC_001","PIM000123","BUZZ_MixedCase"]){
+        assert.equal(await handleIntent(claims,conversation,text),null,"A bare reference must not create a financial lookup");
+        assert.match((await approvedCorpusClarification(claims,conversation,text))!.answer,/dépôt ou de commande/);
+      }
+      const guest={...claims,scope:["chat:connect"]};
+      assert.match((await approvedCorpusClarification(guest,conversation,"je suis connecté"))!.answer,/compte.*site.*page/);
+      assert.match((await handleIntent(guest,conversation,"Mon dépôt n’est pas arrivé."))!,/connect|membre/i);
+      const active=await createConversation(id,claims.externalUserId);
+      await handleIntent(claims,active,"Mon dépôt n’est pas arrivé.");
+      assert.equal(await approvedCorpusClarification(claims,active,"PIM000123"),null,"An awaited reference stays in the authorized collector");
+      const jobs=(await request(app).post("/v1/backend/jobs/poll").auth(created.body.data.credentials.clientId,created.body.data.credentials.clientSecret)
+        .send({operations:["deposit_status","order_status"]}).expect(200)).body.jobs;
+      assert.deepEqual(jobs,[],"No format, claimed login or draft causes a backend call");
+    });
     await t.test("Unanswered CSV exports all pages, respects filters, scopes platforms and requires administration",async()=>{
       const ids:string[]=[];
       for(const name of ["Buzz Booster","Biz Connect Academy"]){
@@ -1551,7 +1602,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.match(displayed,/pour 1000 : 1500/);assert.match(displayed,/completed : 12/);
       assert.match(displayed,/couverture incomplete : true/);assert.match(displayed,/page suivante/);
       const empty=await finish(send("page suivante"),"service_catalog",{...filters,page:"2"},{status:"not_found"});
-      assert.match(empty,/Aucune offre/);assert.doesNotMatch(empty,/ticket|panne du service/);
+      assert.match(empty,/Aucun service correspondant.*catalogue consulté/);assert.doesNotMatch(empty,/ticket|panne du service/);
       const currency=await send("Je veux 1000 abonnés Instagram avec un budget de 20 USD");
       assert.match(currency.content,/XAF/);assert.match(currency.content,/ne convertis pas/);
       assert.deepEqual((await poll().expect(200)).body.jobs,[]);
