@@ -10,6 +10,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { installRelease } from "../../deployment/deploy-plesk.mjs";
 import { getDeploymentSourceFiles } from "./plesk-fingerprint.mjs";
+import { assertFramePolicy } from "./security-policy-check.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const builtDir = path.join(root, "generated-artifacts/sabito-cybrancee");
@@ -117,12 +118,12 @@ try {
   for (const selector of [`product=${slug}`,`projectId=${projectId}`]) {
     const frame=await fetch(`${origin}/widget/chat?${selector}&parentOrigin=${encodeURIComponent(memberOrigin)}`);
     assert.equal(frame.status,200);
-    assert.equal(frame.headers.get("content-security-policy"),`frame-ancestors 'self' ${memberOrigin}`);
+    assertFramePolicy(frame.headers.get("content-security-policy"), ["'self'", memberOrigin]);
   }
   for (const selector of [`product=unknown-project`,`product=${slug}&projectId=invalid`]) {
     const denied=await fetch(`${origin}/widget/chat?${selector}&parentOrigin=${encodeURIComponent(origin)}`);
     assert.equal(denied.status,403);
-    assert.equal(denied.headers.get("content-security-policy"),"frame-ancestors 'none'");
+    assertFramePolicy(denied.headers.get("content-security-policy"), ["'none'"]);
   }
   // An origin approved for this project does not authorize a different project.
   assert.equal((await fetch(`${origin}/widget/chat?product=${slug}&parentOrigin=https://evil.example`)).status,403);
