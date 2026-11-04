@@ -3,6 +3,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { answerUnansweredQuestion, deleteUnansweredQuestion, exportUnansweredQuestions, listUnansweredQuestions, type UnansweredQuestion } from "@workspace/api-client-react";
 import { ChevronLeft, ChevronRight, CircleHelp, Download, MessageSquarePlus, RefreshCw, Trash2, TriangleAlert, X } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
+import { BulkConfirm } from "./BulkConfirm";
+import { collectAllPages } from "./bulk-actions";
 
 type Filter = "a_traiter" | "traite" | "all";
 const PAGE_SIZE = 50;
@@ -30,9 +32,10 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
   const [page, setPage] = useState(0);
   const [answering, setAnswering] = useState<UnansweredQuestion | null>(null);
   const [deleting, setDeleting] = useState<UnansweredQuestion | null>(null);
+  const [bulkFilter, setBulkFilter] = useState<Filter | null>(null);
   const qc = useQueryClient();
   const { onLogout } = useAdmin();
-  useEffect(() => onLogout(() => { exportController.current?.abort(); setDeleting(null); setAnswering(null); }), [onLogout]);
+  useEffect(() => onLogout(() => { exportController.current?.abort(); setDeleting(null); setAnswering(null); setBulkFilter(null); }), [onLogout]);
   useEffect(()=>()=>{exportController.current?.abort();},[projectId]);
   const q = useQuery({
     queryKey: [...unansweredKey(projectId), status, page],
@@ -79,6 +82,11 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
           {q.data && <span className="rounded-full bg-[#eef0ff] px-2 py-0.5 text-[11px] font-semibold text-[#3641f5]" data-testid="text-unanswered-total">{total}</span>}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-[#f0d3c8] px-3 py-2 text-[12px] font-semibold text-[#9a3817] hover:bg-[#fff6f6] disabled:opacity-40"
+            disabled={!total || q.isPlaceholderData || q.isFetching || bulkFilter !== null} onClick={() => setBulkFilter(status)}
+            data-testid="button-delete-unanswered-bulk" title="Supprimer toutes les questions du filtre sélectionné, sur toutes les pages">
+            <Trash2 size={14}/>Supprimer en masse
+          </button>
           <button type="button" className={ghost} disabled={download.isPending}
             onClick={()=>download.mutate({projectId,status})} data-testid="button-export-unanswered"
             title="Télécharger toutes les pages du filtre sélectionné">
@@ -135,6 +143,21 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
         </div>
       )}
       {deleting && <ConfirmDelete testid="delete-unanswered" title="Supprimer cette question ?" body={`« ${deleting.question.length > 160 ? deleting.question.slice(0, 160) + "…" : deleting.question} » sera retirée définitivement de la liste. Action irréversible. Les conversations et les références validées ne sont pas supprimées.`} pending={del.isPending} error={del.error} onConfirm={() => del.mutate(deleting.id)} close={() => setDeleting(null)} />}
+      {bulkFilter && <BulkConfirm key={`${projectId}-${bulkFilter}`} title="Supprimer les questions de ce filtre ?" word="SUPPRIMER"
+        warning="Suppression définitive des questions de cette plateforme sur toutes les pages du filtre choisi. Les conversations, références validées et autres plateformes restent intactes. Téléchargez le CSV avant si vous souhaitez conserver une copie. Les nouvelles questions arrivées après l’ouverture de cette fenêtre ne sont pas incluses."
+        load={async(signal)=>{
+          const first=await listUnansweredQuestions(projectId,{status:bulkFilter,page:0},{...headers(),signal});
+          const found=await collectAllPages(first,(page)=>
+            listUnansweredQuestions(projectId,{status:bulkFilter,page},{...headers(),signal}),signal,PAGE_SIZE);
+          return found.map(r=>({id:r.id,label:r.question}));
+        }}
+        action={(item,signal)=>deleteUnansweredQuestion(projectId,item.id,{...headers(),signal})}
+        onChange={()=>{
+          setPage(0);
+          void qc.invalidateQueries({queryKey:unansweredKey(projectId)});
+          void qc.invalidateQueries({queryKey:["sabito-admin","insights",projectId]});
+        }}
+        close={()=>setBulkFilter(null)} />}
       {answering && <AnswerDialog projectId={projectId} question={answering} close={() => setAnswering(null)} />}
     </section>
   );

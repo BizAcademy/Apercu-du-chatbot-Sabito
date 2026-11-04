@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { Check, ChevronDown, ClipboardCheck, RefreshCw, Save, ShieldCheck, X } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
+import { BulkConfirm } from "./BulkConfirm";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 const input = "w-full rounded-[12px] border border-[#dfe2ef] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#9da5ff] disabled:bg-[#f7f8fc]";
@@ -88,14 +89,24 @@ export function KnowledgeReviewPanel({ projectId }: { projectId: string }) {
 type Q<T> = { data?: { data: T[] }; isLoading: boolean; error: unknown; refetch: () => unknown };
 
 function RefsTab({ projectId, q }: { projectId: string; q: Q<KnowledgeReview> }) {
+  const {headers}=useAdmin();
+  const invalidate=useInvalidate(projectId);
   const [filter, setFilter] = useState<RefFilter>("pending");
   const [open, setOpen] = useState<string | null>(null);
+  const [bulk, setBulk] = useState(false);
   const all = q.data?.data ?? [];
   const rows = filter === "all" ? all : all.filter((r) => r.status === filter);
   const count = (f: RefFilter) => f === "all" ? all.length : all.filter((r) => r.status === f).length;
   return (
     <div>
-      <Filters value={filter} set={(v) => setFilter(v)} items={[["pending", "À vérifier"], ["ready", "Validées"], ["rejected", "Refusées"], ["all", "Toutes"]] as [RefFilter, string][]} count={count} />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Filters value={filter} set={(v) => setFilter(v)} items={[["pending", "À vérifier"], ["ready", "Validées"], ["rejected", "Refusées"], ["all", "Toutes"]] as [RefFilter, string][]} count={count} />
+        <button type="button" disabled={count("pending")===0 || q.isLoading || !!q.error || bulk}
+          onClick={()=>setBulk(true)} data-testid="button-approve-references-bulk"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#3641f5] px-3 py-2 text-[12px] font-semibold text-white disabled:bg-[#c8cbea]">
+          <Check size={14}/>Valider les références en attente en masse
+        </button>
+      </div>
       {q.isLoading && <Skeleton />}
       {q.error ? <Err msg={errMsg(q.error)} retry={() => void q.refetch()} /> : null}
       {!q.isLoading && !q.error && rows.length === 0 && <p className="rounded-xl bg-[#f6f7ff] p-4 text-[12px] text-[#6c748d]" data-testid="text-refs-empty">{filter === "pending" ? "Aucune référence en attente. Tout a été vérifié." : "Aucune référence dans cette catégorie."}</p>}
@@ -116,6 +127,16 @@ function RefsTab({ projectId, q }: { projectId: string; q: Q<KnowledgeReview> })
           </div>
         ))}
       </div>
+      {bulk && <BulkConfirm key={projectId} title="Publier toutes les références en attente ?" word="VALIDER"
+        concurrency={1}
+        warning="Ces réponses et leurs variantes deviendront publiques pour cette plateforme. Vérifiez leurs sources, l’absence de données personnelles et leur exactitude avant de confirmer. La validation est individuelle côté serveur : les éléments invalides resteront en attente et seront signalés. Les références déjà validées ou refusées ne sont pas incluses."
+        load={async(signal)=>{
+          const result=await listKnowledgeReviews(projectId,{...headers(),signal});
+          return result.data.filter(r=>r.status==="pending").map(r=>({id:r.id,label:r.title}));
+        }}
+        action={(item,signal)=>decideKnowledgeReview(projectId,item.id,{decision:"approve"},{...headers(),signal})}
+        onChange={invalidate}
+        close={()=>setBulk(false)} />}
     </div>
   );
 }

@@ -35,6 +35,7 @@ jobs:
           pnpm run typecheck:libs
           pnpm --filter @workspace/api-server run typecheck
           pnpm --filter @workspace/sabito-web run typecheck
+          pnpm --filter @workspace/sabito-web run test:bulk
           pnpm --filter @workspace/api-server run test:security
           pnpm --filter @workspace/api-server run test:retrieval
           pnpm --filter @workspace/api-server run test:corpus
