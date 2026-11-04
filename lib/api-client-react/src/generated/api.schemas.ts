@@ -719,6 +719,19 @@ export const GetConversationInsightsDays = {
   NUMBER_90: 90,
 } as const;
 
+export type ExportUnansweredQuestionsParams = {
+  status?: ExportUnansweredQuestionsStatus;
+};
+
+export type ExportUnansweredQuestionsStatus = typeof ExportUnansweredQuestionsStatus[keyof typeof ExportUnansweredQuestionsStatus];
+
+
+export const ExportUnansweredQuestionsStatus = {
+  a_traiter: 'a_traiter',
+  traite: 'traite',
+  all: 'all',
+} as const;
+
 export type ListUnansweredQuestionsParams = {
   status?: ListUnansweredQuestionsStatus;
   /** @minimum 0 */

@@ -31,6 +31,7 @@ import type {
   DocumentInput,
   DocumentList,
   DocumentResult,
+  ExportUnansweredQuestionsParams,
   GetBackendConnectionStatus200,
   GetConversationHistoryParams,
   GetConversationInsightsParams,
@@ -2399,6 +2400,89 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteUnansweredQuestionMutationOptions(options));
     }
+
+export const getExportUnansweredQuestionsUrl = (projectId: string,
+    params?: ExportUnansweredQuestionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/projects/${projectId}/unanswered/export?${stringifiedParams}` : `/api/v1/admin/projects/${projectId}/unanswered/export`
+}
+
+export const exportUnansweredQuestions = async (projectId: string,
+    params?: ExportUnansweredQuestionsParams, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getExportUnansweredQuestionsUrl(projectId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportUnansweredQuestionsQueryKey = (projectId: string,
+    params?: ExportUnansweredQuestionsParams,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/unanswered/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportUnansweredQuestionsQueryOptions = <TData = Awaited<ReturnType<typeof exportUnansweredQuestions>>, TError = ErrorType<void>>(projectId: string,
+    params?: ExportUnansweredQuestionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportUnansweredQuestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportUnansweredQuestionsQueryKey(projectId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUnansweredQuestions>>> = ({ signal }) => exportUnansweredQuestions(projectId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportUnansweredQuestions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportUnansweredQuestionsQueryResult = NonNullable<Awaited<ReturnType<typeof exportUnansweredQuestions>>>
+export type ExportUnansweredQuestionsQueryError = ErrorType<void>
+
+
+
+export function useExportUnansweredQuestions<TData = Awaited<ReturnType<typeof exportUnansweredQuestions>>, TError = ErrorType<void>>(
+ projectId: string,
+    params?: ExportUnansweredQuestionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportUnansweredQuestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportUnansweredQuestionsQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListUnansweredQuestionsUrl = (projectId: string,
     params?: ListUnansweredQuestionsParams,) => {

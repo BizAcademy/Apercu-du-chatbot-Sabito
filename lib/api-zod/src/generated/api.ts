@@ -1060,6 +1060,19 @@ export const DeleteUnansweredQuestionParams = zod.object({
 export const DeleteUnansweredQuestionResponse = zod.void()
 
 
+export const ExportUnansweredQuestionsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const exportUnansweredQuestionsQueryStatusDefault = `a_traiter`;
+
+export const ExportUnansweredQuestionsQueryParams = zod.object({
+  "status": zod.enum(['a_traiter', 'traite', 'all']).default(exportUnansweredQuestionsQueryStatusDefault)
+})
+
+export const ExportUnansweredQuestionsResponse = zod.unknown()
+
+
 export const ListUnansweredQuestionsParams = zod.object({
   "projectId": zod.coerce.string()
 })

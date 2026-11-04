@@ -843,6 +843,45 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const done = await request(app).get(`${url}?status=traite`).set("X-Admin-Key",adminKey).expect(200);
       assert.ok(done.body.data.some((q:{id:string;document_id:string}) => q.id === item.id && q.document_id));
     });
+    await t.test("Unanswered CSV exports all pages, respects filters, scopes platforms and requires administration",async()=>{
+      const ids:string[]=[];
+      for(const name of ["Buzz Booster","Biz Connect Academy"]){
+        const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
+          .send({slug:`csv-export-${randomUUID()}`,name,assistant_name:"Sabito",
+            system_prompt:"Répondre uniquement avec les connaissances approuvées."}).expect(201);
+        ids.push(created.body.data.project.id);projectIds.push(created.body.data.project.id);
+      }
+      const [id,other]=ids;
+      await Promise.all(Array.from({length:57},(_,i)=>recordUnanswered(id,`Question export numéro ${i}`,"PRIVATE_MEMBER_ID")));
+      await recordUnanswered(other,"QUESTION_AUTRE_PLATEFORME","OTHER_PRIVATE_MEMBER");
+      const url=`/v1/admin/projects/${id}/unanswered`;
+      await request(app).get(`${url}/export`).expect(401);
+      await request(app).get(`${url}/export?status=invalid`).set("X-Admin-Key",adminKey).expect(422);
+      await request(app).get(`/v1/admin/projects/${randomUUID()}/unanswered/export`)
+        .set("X-Admin-Key",adminKey).expect(404);
+      await pool.query("UPDATE questions_sans_reponse SET statut='traite' WHERE plateforme=$1 AND question=$2",
+        [id,"Question export numéro 0"]);
+      const page=await request(app).get(url).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(page.body.data.length,50);assert.equal(page.body.total,56);
+      const download=await request(app).get(`${url}/export`).set("X-Admin-Key",adminKey).expect(200);
+      assert.match(download.headers["content-type"],/text\/csv.*utf-8/);
+      assert.match(download.headers["content-disposition"],/attachment; filename="questions-sans-reponse-/);
+      assert.match(download.headers["cache-control"],/no-store/);
+      assert.equal(download.text.trim().split("\r\n").length,57,"56 pending questions plus headers, not just 50 rows");
+      assert.ok(download.text.includes('"Question export numéro 56"'));
+      assert.ok(!download.text.includes('"Question export numéro 0"'));
+      assert.doesNotMatch(download.text,/PRIVATE_MEMBER_ID|QUESTION_AUTRE_PLATEFORME/);
+      const treated=await request(app).get(`${url}/export?status=traite`).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(treated.text.trim().split("\r\n").length,2);
+      const all=await request(app).get(`${url}/export?status=all`).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(all.text.trim().split("\r\n").length,58);
+      const second=await request(app).get(`/v1/admin/projects/${other}/unanswered/export`)
+        .set("X-Admin-Key",adminKey).expect(200);
+      assert.match(second.text,/QUESTION_AUTRE_PLATEFORME/);
+      assert.doesNotMatch(second.text,/Question export numéro|OTHER_PRIVATE_MEMBER/);
+      const after=await request(app).get(`${url}?status=all`).set("X-Admin-Key",adminKey).expect(200);
+      assert.equal(after.body.total,57,"Downloading never updates or deletes questions");
+    });
     await t.test("Uncertain questions refuse an exact answer and propose at most three approved references",async () => {
       const reply = knowledgeReply("Le montant du solde bancaire intergalactique ?", [
         {title:"Solde pédagogique",content:"Le solde pédagogique figure dans le menu des formations."},

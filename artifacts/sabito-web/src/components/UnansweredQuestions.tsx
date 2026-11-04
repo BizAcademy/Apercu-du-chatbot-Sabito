@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { answerUnansweredQuestion, deleteUnansweredQuestion, listUnansweredQuestions, type UnansweredQuestion } from "@workspace/api-client-react";
-import { ChevronLeft, ChevronRight, CircleHelp, MessageSquarePlus, RefreshCw, Trash2, TriangleAlert, X } from "lucide-react";
+import { answerUnansweredQuestion, deleteUnansweredQuestion, exportUnansweredQuestions, listUnansweredQuestions, type UnansweredQuestion } from "@workspace/api-client-react";
+import { ChevronLeft, ChevronRight, CircleHelp, Download, MessageSquarePlus, RefreshCw, Trash2, TriangleAlert, X } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 
 type Filter = "a_traiter" | "traite" | "all";
@@ -25,13 +25,15 @@ function Err({ msg, retry }: { msg: string; retry?: () => void }) {
 
 export function UnansweredQuestions({ projectId }: { projectId: string }) {
   const { headers } = useAdmin();
+  const exportController=useRef<AbortController | null>(null);
   const [status, setStatus] = useState<Filter>("a_traiter");
   const [page, setPage] = useState(0);
   const [answering, setAnswering] = useState<UnansweredQuestion | null>(null);
   const [deleting, setDeleting] = useState<UnansweredQuestion | null>(null);
   const qc = useQueryClient();
   const { onLogout } = useAdmin();
-  useEffect(() => onLogout(() => { setDeleting(null); setAnswering(null); }), [onLogout]);
+  useEffect(() => onLogout(() => { exportController.current?.abort(); setDeleting(null); setAnswering(null); }), [onLogout]);
+  useEffect(()=>()=>{exportController.current?.abort();},[projectId]);
   const q = useQuery({
     queryKey: [...unansweredKey(projectId), status, page],
     queryFn: () => listUnansweredQuestions(projectId, { status, page }, headers()),
@@ -40,6 +42,26 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
   const rows = q.data?.data ?? [];
   const total = q.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const download=useMutation({
+    mutationFn:async(selection:{projectId:string;status:Filter})=>{
+      const controller=new AbortController();
+      exportController.current=controller;
+      const csv=await exportUnansweredQuestions(selection.projectId,{status:selection.status},
+        {...headers(),signal:controller.signal});
+      if(controller.signal.aborted)throw new Error("Téléchargement annulé.");
+      return {...selection,csv};
+    },
+    onSuccess:({csv,projectId:exportProject,status:exportStatus})=>{
+      const content=csv.startsWith("\uFEFF")?csv:"\uFEFF"+csv;
+      const url=URL.createObjectURL(new Blob([content],{type:"text/csv;charset=utf-8"}));
+      const link=document.createElement("a");
+      link.href=url;
+      link.download=`questions-sans-reponse-${exportProject}-${exportStatus}-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(link);
+      link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60_000);
+    },
+  });
   const del = useMutation({
     mutationFn: (id: string) => deleteUnansweredQuestion(projectId, id, headers()),
     onSuccess: () => {
@@ -56,7 +78,12 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
         <h2 className="flex items-center gap-2 text-[15px] font-bold"><CircleHelp size={16} />Questions sans réponse
           {q.data && <span className="rounded-full bg-[#eef0ff] px-2 py-0.5 text-[11px] font-semibold text-[#3641f5]" data-testid="text-unanswered-total">{total}</span>}
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={ghost} disabled={download.isPending}
+            onClick={()=>download.mutate({projectId,status})} data-testid="button-export-unanswered"
+            title="Télécharger toutes les pages du filtre sélectionné">
+            <Download size={14}/>{download.isPending?"Téléchargement…":"Télécharger (CSV)"}
+          </button>
           <div className="flex rounded-[12px] border border-[#e3e6f8] p-0.5">
             {FILTERS.map(([v, l]) => (
               <button key={v} onClick={() => { setStatus(v); setPage(0); }} className={`rounded-[10px] px-3 py-1.5 text-[12px] font-medium transition ${status === v ? "bg-[#eef0ff] text-[#3641f5]" : "text-[#48506a] hover:text-[#3641f5]"}`} data-testid={`button-filter-${v}`}>{l}</button>
@@ -66,6 +93,8 @@ export function UnansweredQuestions({ projectId }: { projectId: string }) {
         </div>
       </div>
       <p className="-mt-2 mb-3 text-[12px] text-[#6c748d]">Questions auxquelles Sabito n'a pas su répondre, triées par fréquence. Une réponse ajoutée devient une référence publique validée : ne publie aucune donnée personnelle ni aucun statut de transaction individuel. Utilise les tickets pour ces demandes.</p>
+      <p className="mb-3 text-[12px] text-[#6c748d]">Le CSV contient toutes les pages du filtre sélectionné, sans identifiants membres. Vérifiez les données personnelles éventuellement présentes dans les questions avant de le partager.</p>
+      {download.error&&<Err msg={errMsg(download.error)} retry={()=>download.mutate({projectId,status})}/>}
       {q.isLoading && <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-[#f1f3ff]" />)}</div>}
       {q.error && <Err msg={errMsg(q.error)} retry={() => void q.refetch()} />}
       {!q.isLoading && !q.error && rows.length === 0 && (

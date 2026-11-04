@@ -423,6 +423,24 @@ paths:
           description: Entrée supprimée, sans supprimer la référence approuvée ni la conversation
         "404":
           description: Question introuvable dans cette plateforme
+  /v1/admin/projects/{projectId}/unanswered/export:
+    get:
+      operationId: exportUnansweredQuestions
+      parameters:
+        - {name: projectId, in: path, required: true, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [a_traiter, traite, all], default: a_traiter}}
+      responses:
+        "200":
+          description: Export CSV UTF-8 de toutes les pages du filtre choisi, sans identifiant membre
+          content:
+            text/csv:
+              schema: {type: string}
+        "401":
+          description: Authentification administrateur requise
+        "404":
+          description: Plateforme introuvable
+        "422":
+          description: Filtre invalide
   /v1/admin/projects/{projectId}/unanswered:
     get:
       operationId: listUnansweredQuestions

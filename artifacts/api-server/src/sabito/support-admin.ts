@@ -6,6 +6,7 @@ import { answerUnanswered } from "./unanswered";
 import { backendStatus } from "./backend-bridge";
 import { getConversationMessages } from "./conversations";
 import { conversationInsights } from "./support-insights";
+import { unansweredCsv } from "./unanswered-export";
 
 // Mounted after the existing /v1/admin authentication middleware.
 export const supportAdminRoutes = Router();
@@ -32,6 +33,24 @@ supportAdminRoutes.use("/v1/admin/projects/:projectId/unanswered", async (req, r
     res.status(404).json({ message: "Plateforme introuvable." }); return;
   }
   next();
+});
+supportAdminRoutes.get("/v1/admin/projects/:projectId/unanswered/export", async (req, res) => {
+  const status=z.enum(["a_traiter","traite","all"]).safeParse(req.query.status??"a_traiter");
+  if(!status.success){res.status(422).json({message:"Filtre invalide."});return;}
+  const args:unknown[]=[req.params.projectId];
+  const filter=status.data==="all"?"":" AND statut=$2";
+  if(filter)args.push(status.data);
+  const {rows}=await pool.query(`SELECT id,question,statut,nombre_de_fois_posee,date_creation,derniere_date
+    FROM questions_sans_reponse WHERE plateforme=$1${filter}
+    ORDER BY nombre_de_fois_posee DESC,derniere_date DESC,id`,args);
+  const filename=`questions-sans-reponse-${req.params.projectId}-${status.data}-${new Date().toISOString().slice(0,10)}.csv`;
+  res.setHeader("Cache-Control","private, no-store");
+  res.setHeader("Content-Disposition",`attachment; filename="${filename}"`);
+  res.type("text/csv; charset=utf-8").send(unansweredCsv(rows.map(row=>({
+    id:String(row.id),question:String(row.question),statut:String(row.statut),
+    nombre_de_fois_posee:Number(row.nombre_de_fois_posee),
+    date_creation:row.date_creation,derniere_date:row.derniere_date,
+  }))));
 });
 supportAdminRoutes.get("/v1/admin/projects/:projectId/unanswered", async (req, res) => {
   const status = z.enum(["a_traiter", "traite", "all"]).safeParse(req.query.status ?? "a_traiter");

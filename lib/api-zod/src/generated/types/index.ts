@@ -27,6 +27,8 @@ export * from './documentInput';
 export * from './documentList';
 export * from './documentResult';
 export * from './documentResultData';
+export * from './exportUnansweredQuestionsParams';
+export * from './exportUnansweredQuestionsStatus';
 export * from './frequentQuestion';
 export * from './getBackendConnectionStatus200';
 export * from './getConversationHistoryParams';
