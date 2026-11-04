@@ -4,6 +4,7 @@ import { pool } from "./database";
 import { getProject } from "./projects";
 import { adaptBuzzBooster, buzzBoosterIntents, isBuzzBooster } from "./buzzbooster-settings";
 import { adaptBca, bcaIntents } from "./bca-settings";
+import { retrievalSettingsSchema, defaultRetrievalSettings } from "./retrieval-settings";
 
 export const identifier=z.string().regex(/^[a-z][a-z0-9_]{1,63}$/).refine(s=>!["constructor","prototype"].includes(s));
 const text=z.string().trim().min(1).max(4000);
@@ -20,6 +21,7 @@ export const intentDefinition=z.object({
 }).strict().refine(v=>new Set(v.fields.map(f=>f.name)).size===v.fields.length);
 export const settingsSchema=z.object({
   confidence_threshold:z.number().min(0.35).max(1),
+  retrieval:retrievalSettingsSchema.optional(),
   synonyms:z.array(z.array(z.string().trim().min(2).max(80)).min(2).max(20)).max(100),
   greeting_member:text,greeting_guest:text,greeting_member_no_name:text,
   closing_message:z.string().max(4000),no_answer_message:text,suggestions_label:text,
@@ -37,14 +39,14 @@ const fields:IntentDefinition["fields"]=[
 export function defaultSettings(bca=true):AssistantSettings {
   const guide=bca ? "Connectez-vous à votre compte Biz Connect Academy, cliquez sur les trois traits en haut à gauche, cliquez sur Mes gains, vous verrez votre code parrain."
     : "Connectez-vous à votre compte sur cette plateforme pour accéder à votre code parrain. Si vous ne le trouvez pas, contactez l’équipe.";
-  return {confidence_threshold:0.72,synonyms:[
+  return {confidence_threshold:0.72,retrieval:defaultRetrievalSettings,synonyms:[
     ["dépôt","recharge","versement"],["voir","accéder","consulter","retrouver","afficher"],
     ["cours","formation","leçon","module"],["prix","tarif","coût"],["connexion","connecter","login"],
     ["parrain","parrainage","affiliation"],["paiement","payer","règlement"],["aide","assistance","support"],
   ],greeting_member:"Bonjour {nom_utilisateur} 👋, comment puis-je vous aider ?",
     greeting_guest:"Bonjour, comment puis-je vous aider ? Connectez-vous pour les demandes liées à votre compte.",
     greeting_member_no_name:"Bonjour, comment puis-je vous aider ?",
-    closing_message:"À la prochaine ! N'hésitez pas à revenir si vous avez un souci.",
+    closing_message:"À la prochaine ! N’hésitez pas à revenir si vous avez un souci.",
     no_answer_message:"Je n’ai pas de réponse exacte à cette question dans les références approuvées.",
     suggestions_label:"Voulez-vous dire :",privacy_message:"Ne communiquez jamais de mot de passe ni de code de paiement. Vous pouvez écrire « annuler ».",
     invalid_field_message:"Cette information n’a pas le format attendu.",cancelled_message:"La vérification est annulée. Comment puis-je vous aider ?",

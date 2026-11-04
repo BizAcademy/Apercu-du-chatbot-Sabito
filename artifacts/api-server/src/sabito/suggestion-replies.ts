@@ -4,6 +4,7 @@ import { selectedKnowledgeReply, type retrieveReply } from "./question-search";
 import { normalizeQuestion as normalize } from "./question-normalization";
 import { isClosingAcknowledgement } from "./conversation-closing";
 import { greetingReply } from "./greeting-reply";
+import { recordVariantCandidate } from "./variant-candidates";
 
 type Suggestion = Awaited<ReturnType<typeof retrieveReply>>["suggestions"][number];
 const staleAnswer = "Cette question proposée a été modifiée ou supprimée. Posez à nouveau votre question.";
@@ -14,8 +15,9 @@ const staleAnswer = "Cette question proposée a été modifiée ou supprimée. P
  */
 export async function suggestedReply(projectId:string,externalUserId:string,conversationId:string,text:string) {
   if(isClosingAcknowledgement(text) || greetingReply(text)) return null;
-  const {rows} = await pool.query(`SELECT p.suggestions_json FROM sabito_core.messages m
+  const {rows} = await pool.query(`SELECT p.suggestions_json,q.content AS original_question FROM sabito_core.messages m
     JOIN sabito_core.conversations c ON c.id=m.conversation_id
+    LEFT JOIN sabito_core.messages q ON q.id=m.reply_to_message_id AND q.project_id=m.project_id
     LEFT JOIN sabito_core.message_presentations p ON p.message_id=m.id
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3
       AND m.role='assistant' AND m.status='completed'
@@ -40,7 +42,10 @@ export async function suggestedReply(projectId:string,externalUserId:string,conv
     answer=(await selectedFollowUp(projectId,chosen.follow_up_id,chosen.question))?.answer??staleAnswer;
   } else {
     const selected=await selectedKnowledgeReply(projectId,chosen.document_id,chosen.question);
-    if(selected)return selected;
+    if(selected){
+      await recordVariantCandidate(projectId,chosen.document_id,String(rows[0]?.original_question??""),"selection");
+      return selected;
+    }
   }
   return {answer,reliable:true,suggestions:[] as Suggestion[],closing_message:""};
 }

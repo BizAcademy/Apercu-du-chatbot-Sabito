@@ -2,6 +2,7 @@ import { pool } from "./database";
 import { saveKnowledge } from "./knowledge";
 import { buzzGuides } from "./buzzbooster-guides";
 import { buzzFaq } from "./buzzbooster-faq";
+import { supervisedBuzzKnowledge, supervisedBuzzSource } from "./buzzbooster-supervised-pack";
 
 const installed=new Set<string>();
 const action="buzzbooster.help_pack.installed";
@@ -38,6 +39,17 @@ export async function ensureBuzzBoosterKnowledge(projectId:string):Promise<boole
       await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
         VALUES ($1,'system',$2,$3)`,[projectId,pack.action,JSON.stringify({source:"owner-approved-buzzbooster-help",documentIds:ids})]);
       changed=changed||ids.length>0;
+    }
+    const draftAction="buzzbooster.supervised_drafts.prepared";
+    const seeded=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",[projectId,draftAction]);
+    if(!seeded.rows.length) {
+      for(const draft of supervisedBuzzKnowledge) {
+        await saveKnowledge(projectId,draft.title,draft.content,undefined,connection,draft.variants,[],
+          {category:draft.category,keywords:draft.keywords,source:supervisedBuzzSource});
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,draftAction,JSON.stringify({count:supervisedBuzzKnowledge.length,status:"pending"})]);
+      changed=true;
     }
     await connection.query("COMMIT");
     if(installed.size>=10000)installed.delete(installed.values().next().value!);

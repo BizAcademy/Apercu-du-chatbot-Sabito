@@ -3,6 +3,7 @@ import { pool } from "./database";
 import { normalizeQuestion } from "./unanswered";
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
+import { recordVariantCandidate } from "./variant-candidates";
 
 export function substantialQuestion(text:string) {
   const q=normalizeQuestion(text);
@@ -33,6 +34,11 @@ export async function supportMemoryTurn(projectId:string,conversationId:string,t
       answered_at=CURRENT_TIMESTAMP(6),asked_after_message_id=$3 WHERE id=$4 AND project_id=$5 AND status='asked'`,
       [good?"satisfied":"unsatisfied",!good,assistantId,row.id,projectId]);
     if(!changed.rowCount)return {};
+    if(good&&row.answer_message_id) {
+      const linked=await pool.query("SELECT document_id FROM sabito_core.knowledge_answer_links WHERE message_id=$1 AND project_id=$2",
+        [row.answer_message_id,projectId]);
+      if(linked.rows[0])await recordVariantCandidate(projectId,String(linked.rows[0].document_id),String(row.question),"positive_feedback");
+    }
     return {feedbackOnly:true,answer:good?"Excellent ! Heureux d’avoir pu vous aider.":
       `D’accord. À quel niveau avez-vous besoin d’aide pour votre question « ${short(row.question)} » ? Précisez ce qui bloque, ou dites « aidez-moi à nouveau » pour que nous reprenions ensemble.`};
   }

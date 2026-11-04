@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { IntentDefinition } from './intentDefinition';
+import type { RetrievalSettings } from './retrievalSettings';
 
 export interface AssistantSettings {
   /**
@@ -13,6 +14,7 @@ export interface AssistantSettings {
      * @maximum 1
      */
   confidence_threshold: number;
+  retrieval?: RetrievalSettings;
   /**
      * @maxItems 100
      * @items.minItems 2

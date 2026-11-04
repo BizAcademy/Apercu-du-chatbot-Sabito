@@ -7,6 +7,6 @@
  */
 
 export type GetPublicWidgetConfigurationParams = {
-projectId?: string;
-product?: string;
+  projectId?: string;
+  product?: string;
 };

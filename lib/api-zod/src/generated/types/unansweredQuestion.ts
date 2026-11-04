@@ -11,10 +11,12 @@ export interface UnansweredQuestion {
   id: string;
   question: string;
   plateforme: string;
+  /** @nullable */
   utilisateur_id?: string | null;
   statut: UnansweredQuestionStatut;
   nombre_de_fois_posee: number;
   date_creation: string;
   derniere_date: string;
+  /** @nullable */
   document_id?: string | null;
 }

@@ -5,6 +5,7 @@ import { Plus, RefreshCw, Save, Settings2, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { MessagesEditor } from "./MessagesEditor";
 import { SynonymsEditor } from "./SynonymsEditor";
+import { RetrievalEditor } from "./RetrievalEditor";
 import { IntentEditor } from "./IntentEditor";
 import { blankIntent, depositIntent, withdrawalIntent, orderIntent, referralRewardIntent, settingsWarnings, validateSettings } from "./validate";
 import { btn, card, ghost, hint, label } from "./styles";
@@ -21,6 +22,7 @@ export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { proje
   const [revision, setRevision] = useState<number | null>(null);
   const [conflict, setConflict] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [retrievalValid, setRetrievalValid] = useState(true);
   const [tab, setTab] = useState<Tab>("intents");
   const [templateId, setTemplateId] = useState("");
   const baseline = useRef("");
@@ -81,11 +83,12 @@ export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { proje
       {tab === "retrieval" && (
         <div className="space-y-5">
           <div>
-            <label className={label} htmlFor="confidence">Seuil de confiance : <span className="font-mono text-[#3641f5]" data-testid="text-confidence">{draft.confidence_threshold.toFixed(2)}</span></label>
+            <label className={label} htmlFor="confidence">Score minimal pour une réponse directe : <span className="font-mono text-[#3641f5]" data-testid="text-confidence">{draft.confidence_threshold.toFixed(2)}</span></label>
             <input id="confidence" type="range" min={0.35} max={1} step={0.01} value={draft.confidence_threshold} onChange={(e) => patch({ confidence_threshold: Number(e.target.value) })} className="mt-2 w-full accent-[#3641f5]" data-testid="input-confidence" />
-            <p className={hint}>Score minimal de correspondance (mots-clés, BM25, trigrammes, synonymes) pour répondre avec une référence. En dessous, le message « aucune réponse » est affiché et la question est enregistrée pour traitement.</p>
+            <p className={hint}>Score de recherche, pas une probabilité. Une réponse directe exige aussi un écart suffisant avec le résultat suivant. Sinon, jusqu’à trois questions pertinentes sont proposées pour clarification ; une question non résolue est enregistrée pour traitement.</p>
           </div>
           <div><div className={label}>Synonymes</div><SynonymsEditor value={draft.synonyms} onChange={(synonyms) => patch({ synonyms })} /></div>
+          <RetrievalEditor value={draft.retrieval ?? {minimum_score:0.35,ambiguity_margin:0.06,abbreviations:{},corrections:{}}} onChange={(retrieval)=>patch({retrieval})} onValidityChange={setRetrievalValid} />
         </div>
       )}
       {tab === "messages" && <MessagesEditor value={draft} onChange={patch} />}
@@ -168,7 +171,7 @@ export function AssistantSettingsPanel({ projectId, buzzBooster=false }: { proje
       <div className="sticky bottom-3 mt-5 flex flex-wrap items-center justify-end gap-2 rounded-[14px] bg-white/90 py-1 backdrop-blur">
         <span className="mr-auto text-[11px] text-[#8b92a8]" data-testid="text-settings-state">{saved ? "Enregistré." : dirty ? "Modifications non enregistrées" : "À jour"}</span>
         <button type="button" className={ghost} disabled={!dirty || save.isPending} onClick={() => { setDraft(JSON.parse(baseline.current)); save.reset(); }} data-testid="button-discard-settings">Annuler les modifications</button>
-        <button type="button" className={btn} disabled={!dirty || errors.length > 0 || save.isPending || conflict} onClick={() => save.mutate(draft)} data-testid="button-save-settings"><Save size={14} />{save.isPending ? "Enregistrement…" : "Enregistrer"}</button>
+        <button type="button" className={btn} disabled={!dirty || errors.length > 0 || !retrievalValid || save.isPending || conflict} onClick={() => save.mutate(draft)} data-testid="button-save-settings"><Save size={14} />{save.isPending ? "Enregistrement…" : "Valider et appliquer"}</button>
       </div>
     </section>
   );

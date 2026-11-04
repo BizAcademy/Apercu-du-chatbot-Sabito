@@ -1,7 +1,7 @@
 import { normalizeQuestion } from "./question-normalization";
 
 // Only unambiguous conversational abbreviations; never expand account/transaction IDs.
-const abbreviations: Record<string, string> = {
+export const defaultAbbreviations: Record<string, string> = {
   cmt: "comment", comnt: "comment", comen: "comment", commen: "comment", coment: "comment",
   commant: "comment", comant: "comment", cmb: "combien", cb: "combien",
   combient: "combien", conbien: "combien",
@@ -12,11 +12,26 @@ const abbreviations: Record<string, string> = {
   qq: "quelques", qqn: "quelqu un", qd: "quand", num: "numero",
   txn: "transaction", txns: "transactions", nn: "non",
   mdp: "mot de passe", pb: "probleme", prblm: "probleme",
+  pa: "pas", depo: "depot", dep: "depot", recu: "recu",
 };
-export function expandQuestion(text: string) {
-  return normalizeQuestion(text).split(" ").map(word => abbreviations[word] ?? word).join(" ");
+export type LanguageDictionary = { abbreviations: Record<string,string>; corrections: Record<string,string> };
+export function expandQuestion(text: string, dictionary?:LanguageDictionary) {
+  // This is a separate search representation. Callers must always extract
+  // backend fields from the original message, never from this return value.
+  return normalizeQuestion(text).split(" ").map(raw => {
+    const word=/^\p{L}+$/u.test(raw)?raw.replace(/(\p{L})\1{2,}/gu,"$1"):raw;
+    return dictionary?.corrections[word] ??
+      (dictionary ? dictionary.abbreviations[word] : defaultAbbreviations[word]) ?? word;
+  }).join(" ");
 }
 
+/** Conservative French sound key, never for identifiers or short words. */
+export function frenchSoundKey(word:string) {
+  if(!/^[a-z]{5,32}$/.test(word))return "";
+  return word.replace(/ph/g,"f").replace(/eau|au/g,"o").replace(/qu/g,"k")
+    .replace(/ch/g,"x").replace(/ou/g,"u").replace(/(?:ain|ein)/g,"in")
+    .replace(/(?:er|ez|et)$/,"e").replace(/([a-z])\1/g,"$1");
+}
 const edits = new Map<string, number>();
 /** Bounded Damerau-Levenshtein: insertion, deletion, substitution and adjacent swaps. */
 export function tokenSimilarity(a: string, b: string): number {
@@ -40,7 +55,9 @@ export function tokenSimilarity(a: string, b: string): number {
     previous = next;
   }
   const distance = previous[b.length], length = Math.max(a.length, b.length);
-  const value = distance <= (length <= 5 ? 1 : 2) ? Math.max(0, 1 - distance / length) : 0;
+  const phonetic=frenchSoundKey(a);
+  const value = Math.max(distance <= (length <= 5 ? 1 : 2) ? Math.max(0, 1 - distance / length) : 0,
+    phonetic && phonetic===frenchSoundKey(b) && a.slice(0,2)===b.slice(0,2) ? 0.78 : 0);
   if (edits.size > 20000) edits.clear();
   edits.set(key, value);
   return value;
@@ -49,7 +66,8 @@ export function tokenSimilarity(a: string, b: string): number {
 /** Numbers and negation are meaning, not spelling mistakes. */
 export function protectedMismatch(a: string[], b: string[]) {
   const protectedTokens = (tokens: string[]) => [...new Set(tokens.filter(t =>
-    (/\d/.test(t) && !/^syn\d+$/.test(t)) || ["pas", "non", "jamais", "sans", "aucun", "aucune"].includes(t)))].sort().join("|");
+    (/\d/.test(t) && !/^syn\d+$/.test(t)) || ["pas", "non", "jamais", "sans", "aucun", "aucune"].includes(t))
+    .map(t=>t==="non"?"pas":t))].sort().join("|");
   return protectedTokens(a) !== protectedTokens(b);
 }
 

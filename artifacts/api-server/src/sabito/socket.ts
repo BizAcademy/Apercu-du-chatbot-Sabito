@@ -183,6 +183,11 @@ export function attachSocketServer(httpServer: HttpServer) {
         for (const delta of streamParts(answer)) socket.emit("message:delta",{conversationId,messageId:assistantId,delta});
         await saveMessagePresentation(assistantId,reply);
         await finishMessage(assistantId,answer);
+        if(reply.reliable&&!intentAnswer&&!memory.answer&&!memory.feedbackOnly&&"documentId" in reply&&reply.documentId) {
+          await pool.query(`INSERT INTO sabito_core.knowledge_answer_links(message_id,project_id,document_id)
+            SELECT $1,$2,id FROM sabito_core.knowledge_documents WHERE id=$3 AND project_id=$2 AND status='ready'`,
+            [assistantId,claims.sub,reply.documentId]);
+        }
         await finishMessage(userMessageId);
         socket.emit("message:complete",{conversationId,messageId:assistantId,content:answer,
           suggestions:reply.suggestions,suggestions_label:reply.suggestions_label,closing_message:reply.closing_message});

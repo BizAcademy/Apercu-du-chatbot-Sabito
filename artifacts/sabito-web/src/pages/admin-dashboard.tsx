@@ -12,6 +12,7 @@ import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
 import { UnansweredQuestions } from "@/components/UnansweredQuestions";
+import { KnowledgeReviewPanel } from "@/components/KnowledgeReviewPanel";
 import { SupportTickets } from "@/components/SupportTickets";
 import { ConversationInsights } from "@/components/ConversationInsights";
 import { BackendConnection } from "@/components/BackendConnection";
@@ -158,6 +159,7 @@ io(SABITO_URL, { path: "/socket.io", auth: { token: access_token } })`;
       <ConversationInsights projectId={p.id} />
       <SupportTickets projectId={p.id} />
       <UnansweredQuestions projectId={p.id} />
+      <KnowledgeReviewPanel projectId={p.id} />
       <Knowledge projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />
       <WidgetIntegration project={p} />
       <BackendConnection projectId={p.id} buzzBooster={[p.slug,p.name].some(value=>/^(sabito)?buzzbooster$/.test(value.toLowerCase().replace(/[^a-z0-9]/g,"")))} />

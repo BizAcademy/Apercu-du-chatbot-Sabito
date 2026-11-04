@@ -11,6 +11,7 @@ export interface SupportTicket {
   id: string;
   project_id: string;
   conversation_id: string;
+  /** @nullable */
   external_user_id?: string | null;
   intent: string;
   reason: string;

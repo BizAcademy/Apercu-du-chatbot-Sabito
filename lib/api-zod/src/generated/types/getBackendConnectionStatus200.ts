@@ -8,5 +8,6 @@
 
 export type GetBackendConnectionStatus200 = {
   connected: boolean;
+  /** @nullable */
   last_seen: string | null;
 };

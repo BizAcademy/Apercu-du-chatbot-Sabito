@@ -8,9 +8,7 @@
 import type { ListSupportTicketsStatus } from './listSupportTicketsStatus';
 
 export type ListSupportTicketsParams = {
-status?: ListSupportTicketsStatus;
-/**
- * @minimum 0
- */
-page?: number;
+  status?: ListSupportTicketsStatus;
+  /** @minimum 0 */
+  page?: number;
 };

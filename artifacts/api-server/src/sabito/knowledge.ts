@@ -25,7 +25,8 @@ export function chunkText(text: string, maximumLength = 1400, overlap = 150): st
 }
 export async function saveKnowledge(projectId: string, title: string, content: string, existingId?: string,
   transaction?: Awaited<ReturnType<typeof pool.connect>>, variants?:string[],
-  followUps?:{question:string;answer:string}[]) {
+  followUps?:{question:string;answer:string}[],
+  review?:{category:string;keywords:string[];source:string}) {
   const documentId = existingId ?? randomUUID(), chunks = chunkText(content);
   const connection = transaction ?? await pool.connect();
   try {
@@ -55,6 +56,14 @@ export async function saveKnowledge(projectId: string, title: string, content: s
       await connection.query(`INSERT INTO sabito_core.knowledge_follow_ups(document_id,project_id,questions_json)
         VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE questions_json=VALUES(questions_json)`,
         [documentId,projectId,JSON.stringify(followUps.map(item=>({question:item.question.trim(),answer:item.answer.trim()})))]);
+    }
+    if(review) {
+      await connection.query("UPDATE sabito_core.knowledge_documents SET status='pending' WHERE id=$1 AND project_id=$2",
+        [documentId,projectId]);
+      await connection.query(`INSERT INTO sabito_core.knowledge_reviews(document_id,project_id,category,keywords_json,source)
+        VALUES($1,$2,$3,$4,$5) ON DUPLICATE KEY UPDATE category=VALUES(category),
+        keywords_json=VALUES(keywords_json),source=VALUES(source),reviewed_at=NULL`,
+        [documentId,projectId,review.category,JSON.stringify(review.keywords),review.source]);
     }
     await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
       VALUES ($1,'admin',$2,$3)`,

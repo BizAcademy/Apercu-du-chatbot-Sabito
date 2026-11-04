@@ -5,6 +5,111 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type ReviewDecisionDecision = typeof ReviewDecisionDecision[keyof typeof ReviewDecisionDecision];
+
+
+export const ReviewDecisionDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface ReviewDecision {
+  decision: ReviewDecisionDecision;
+}
+
+export interface KnowledgeReviewInput {
+  /**
+     * @minLength 2
+     * @maxLength 500
+     */
+  title: string;
+  /**
+     * @minLength 20
+     * @maxLength 20000
+     */
+  content: string;
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  category: string;
+  /**
+     * @minLength 10
+     * @maxLength 4000
+     */
+  source: string;
+  /**
+     * @minItems 1
+     * @maxItems 30
+     */
+  keywords: string[];
+  /**
+     * @minItems 5
+     * @maxItems 10
+     */
+  variants: string[];
+}
+
+export type KnowledgeReviewStatus = typeof KnowledgeReviewStatus[keyof typeof KnowledgeReviewStatus];
+
+
+export const KnowledgeReviewStatus = {
+  pending: 'pending',
+  ready: 'ready',
+  rejected: 'rejected',
+} as const;
+
+export type KnowledgeReview = KnowledgeReviewInput & {
+  id: string;
+  status: KnowledgeReviewStatus;
+};
+
+export type VariantCandidateStatus = typeof VariantCandidateStatus[keyof typeof VariantCandidateStatus];
+
+
+export const VariantCandidateStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type VariantCandidateReason = typeof VariantCandidateReason[keyof typeof VariantCandidateReason];
+
+
+export const VariantCandidateReason = {
+  selection: 'selection',
+  positive_feedback: 'positive_feedback',
+} as const;
+
+export interface VariantCandidate {
+  id: string;
+  document_id: string;
+  formulation: string;
+  status: VariantCandidateStatus;
+  reason: VariantCandidateReason;
+  occurrences: number;
+  title: string;
+}
+
+export type RetrievalSettingsAbbreviations = {[key: string]: string};
+
+export type RetrievalSettingsCorrections = {[key: string]: string};
+
+export interface RetrievalSettings {
+  /**
+     * @minimum 0.25
+     * @maximum 0.9
+     */
+  minimum_score: number;
+  /**
+     * @minimum 0.03
+     * @maximum 0.3
+     */
+  ambiguity_margin: number;
+  abbreviations: RetrievalSettingsAbbreviations;
+  corrections: RetrievalSettingsCorrections;
+}
+
 export interface ChatSuggestion {
   document_id: string;
   question: string;
@@ -107,6 +212,7 @@ export interface AssistantSettings {
      * @maximum 1
      */
   confidence_threshold: number;
+  retrieval?: RetrievalSettings;
   /**
      * @maxItems 100
      * @items.minItems 2
@@ -266,6 +372,7 @@ export interface SupportTicket {
   id: string;
   project_id: string;
   conversation_id: string;
+  /** @nullable */
   external_user_id?: string | null;
   intent: string;
   reason: string;
@@ -286,11 +393,13 @@ export interface UnansweredQuestion {
   id: string;
   question: string;
   plateforme: string;
+  /** @nullable */
   utilisateur_id?: string | null;
   statut: UnansweredQuestionStatut;
   nombre_de_fois_posee: number;
   date_creation: string;
   derniere_date: string;
+  /** @nullable */
   document_id?: string | null;
 }
 
@@ -580,17 +689,25 @@ export interface KnowledgeEntry {
   answer: string;
 }
 
+export type ListKnowledgeReviews200 = {
+  data: KnowledgeReview[];
+};
+
+export type ListVariantCandidates200 = {
+  data: VariantCandidate[];
+};
+
 export type GetPublicWidgetConfigurationParams = {
-projectId?: string;
-product?: string;
+  projectId?: string;
+  product?: string;
 };
 
 export type GetConversationHistoryParams = {
-before?: string;
+  before?: string;
 };
 
 export type GetConversationInsightsParams = {
-days?: GetConversationInsightsDays;
+  days?: GetConversationInsightsDays;
 };
 
 export type GetConversationInsightsDays = typeof GetConversationInsightsDays[keyof typeof GetConversationInsightsDays];
@@ -603,11 +720,9 @@ export const GetConversationInsightsDays = {
 } as const;
 
 export type ListUnansweredQuestionsParams = {
-status?: ListUnansweredQuestionsStatus;
-/**
- * @minimum 0
- */
-page?: number;
+  status?: ListUnansweredQuestionsStatus;
+  /** @minimum 0 */
+  page?: number;
 };
 
 export type ListUnansweredQuestionsStatus = typeof ListUnansweredQuestionsStatus[keyof typeof ListUnansweredQuestionsStatus];
@@ -635,15 +750,14 @@ export type AnswerUnansweredQuestionBody = {
 
 export type GetBackendConnectionStatus200 = {
   connected: boolean;
+  /** @nullable */
   last_seen: string | null;
 };
 
 export type ListSupportTicketsParams = {
-status?: ListSupportTicketsStatus;
-/**
- * @minimum 0
- */
-page?: number;
+  status?: ListSupportTicketsStatus;
+  /** @minimum 0 */
+  page?: number;
 };
 
 export type ListSupportTicketsStatus = typeof ListSupportTicketsStatus[keyof typeof ListSupportTicketsStatus];

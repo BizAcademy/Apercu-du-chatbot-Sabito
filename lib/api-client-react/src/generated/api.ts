@@ -38,10 +38,13 @@ import type {
   HealthStatus,
   KnowledgeEntry,
   KnowledgeInput,
+  KnowledgeReviewInput,
+  ListKnowledgeReviews200,
   ListSupportTickets200,
   ListSupportTicketsParams,
   ListUnansweredQuestions200,
   ListUnansweredQuestionsParams,
+  ListVariantCandidates200,
   MessageList,
   PlatformIdentity,
   PlatformInput,
@@ -50,6 +53,7 @@ import type {
   ProjectCreated,
   ProjectList,
   PublicWidgetConfiguration,
+  ReviewDecision,
   SabitoChatInput,
   SabitoReply,
   TicketStatusInput,
@@ -84,6 +88,403 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListKnowledgeReviewsUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge-review`
+}
+
+export const listKnowledgeReviews = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<ListKnowledgeReviews200> => {
+
+  return customFetch<ListKnowledgeReviews200>(getListKnowledgeReviewsUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListKnowledgeReviewsQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/knowledge-review`
+    ] as const;
+    }
+
+
+export const getListKnowledgeReviewsQueryOptions = <TData = Awaited<ReturnType<typeof listKnowledgeReviews>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listKnowledgeReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListKnowledgeReviewsQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listKnowledgeReviews>>> = ({ signal }) => listKnowledgeReviews(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listKnowledgeReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListKnowledgeReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listKnowledgeReviews>>>
+export type ListKnowledgeReviewsQueryError = ErrorType<unknown>
+
+
+
+export function useListKnowledgeReviews<TData = Awaited<ReturnType<typeof listKnowledgeReviews>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listKnowledgeReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListKnowledgeReviewsQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateKnowledgeReviewUrl = (projectId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge-review/${documentId}`
+}
+
+export const updateKnowledgeReview = async (projectId: string,
+    documentId: string,
+    knowledgeReviewInput: KnowledgeReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getUpdateKnowledgeReviewUrl(projectId,documentId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(knowledgeReviewInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateKnowledgeReviewMutationKey = () => ['updateKnowledgeReview'] as const;
+
+export const getUpdateKnowledgeReviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKnowledgeReview>>, TError,UpdateKnowledgeReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateKnowledgeReview>>, TError,UpdateKnowledgeReviewMutationVariables, TContext> => {
+
+const mutationKey = getUpdateKnowledgeReviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateKnowledgeReview>>, UpdateKnowledgeReviewMutationVariables> = (props) => {
+          const {projectId,documentId,data} = props ?? {};
+
+          return  updateKnowledgeReview(projectId,documentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateKnowledgeReviewMutationResult = NonNullable<Awaited<ReturnType<typeof updateKnowledgeReview>>>
+    export type UpdateKnowledgeReviewMutationBody = BodyType<KnowledgeReviewInput>
+    export type UpdateKnowledgeReviewMutationError = ErrorType<unknown>
+    export type UpdateKnowledgeReviewMutationVariables = {projectId: string;documentId: string;data: BodyType<KnowledgeReviewInput>}
+
+    export const useUpdateKnowledgeReview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKnowledgeReview>>, TError,UpdateKnowledgeReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateKnowledgeReview>>,
+        TError,
+        UpdateKnowledgeReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateKnowledgeReviewMutationOptions(options));
+    }
+
+export const getDecideKnowledgeReviewUrl = (projectId: string,
+    documentId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/knowledge-review/${documentId}/decision`
+}
+
+export const decideKnowledgeReview = async (projectId: string,
+    documentId: string,
+    reviewDecision: ReviewDecision, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getDecideKnowledgeReviewUrl(projectId,documentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reviewDecision)
+  }
+);}
+
+
+
+
+
+export const getDecideKnowledgeReviewMutationKey = () => ['decideKnowledgeReview'] as const;
+
+export const getDecideKnowledgeReviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideKnowledgeReview>>, TError,DecideKnowledgeReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideKnowledgeReview>>, TError,DecideKnowledgeReviewMutationVariables, TContext> => {
+
+const mutationKey = getDecideKnowledgeReviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideKnowledgeReview>>, DecideKnowledgeReviewMutationVariables> = (props) => {
+          const {projectId,documentId,data} = props ?? {};
+
+          return  decideKnowledgeReview(projectId,documentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideKnowledgeReviewMutationResult = NonNullable<Awaited<ReturnType<typeof decideKnowledgeReview>>>
+    export type DecideKnowledgeReviewMutationBody = BodyType<ReviewDecision>
+    export type DecideKnowledgeReviewMutationError = ErrorType<unknown>
+    export type DecideKnowledgeReviewMutationVariables = {projectId: string;documentId: string;data: BodyType<ReviewDecision>}
+
+    export const useDecideKnowledgeReview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideKnowledgeReview>>, TError,DecideKnowledgeReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideKnowledgeReview>>,
+        TError,
+        DecideKnowledgeReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDecideKnowledgeReviewMutationOptions(options));
+    }
+
+export const getListVariantCandidatesUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/variant-candidates`
+}
+
+export const listVariantCandidates = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<ListVariantCandidates200> => {
+
+  return customFetch<ListVariantCandidates200>(getListVariantCandidatesUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVariantCandidatesQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/admin/projects/${projectId}/variant-candidates`
+    ] as const;
+    }
+
+
+export const getListVariantCandidatesQueryOptions = <TData = Awaited<ReturnType<typeof listVariantCandidates>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVariantCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVariantCandidatesQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVariantCandidates>>> = ({ signal }) => listVariantCandidates(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVariantCandidates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVariantCandidatesQueryResult = NonNullable<Awaited<ReturnType<typeof listVariantCandidates>>>
+export type ListVariantCandidatesQueryError = ErrorType<unknown>
+
+
+
+export function useListVariantCandidates<TData = Awaited<ReturnType<typeof listVariantCandidates>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVariantCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVariantCandidatesQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideVariantCandidateUrl = (projectId: string,
+    candidateId: string,) => {
+
+
+
+
+  return `/api/v1/admin/projects/${projectId}/variant-candidates/${candidateId}/decision`
+}
+
+export const decideVariantCandidate = async (projectId: string,
+    candidateId: string,
+    reviewDecision: ReviewDecision, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getDecideVariantCandidateUrl(projectId,candidateId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reviewDecision)
+  }
+);}
+
+
+
+
+
+export const getDecideVariantCandidateMutationKey = () => ['decideVariantCandidate'] as const;
+
+export const getDecideVariantCandidateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideVariantCandidate>>, TError,DecideVariantCandidateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideVariantCandidate>>, TError,DecideVariantCandidateMutationVariables, TContext> => {
+
+const mutationKey = getDecideVariantCandidateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideVariantCandidate>>, DecideVariantCandidateMutationVariables> = (props) => {
+          const {projectId,candidateId,data} = props ?? {};
+
+          return  decideVariantCandidate(projectId,candidateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideVariantCandidateMutationResult = NonNullable<Awaited<ReturnType<typeof decideVariantCandidate>>>
+    export type DecideVariantCandidateMutationBody = BodyType<ReviewDecision>
+    export type DecideVariantCandidateMutationError = ErrorType<unknown>
+    export type DecideVariantCandidateMutationVariables = {projectId: string;candidateId: string;data: BodyType<ReviewDecision>}
+
+    export const useDecideVariantCandidate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideVariantCandidate>>, TError,DecideVariantCandidateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideVariantCandidate>>,
+        TError,
+        DecideVariantCandidateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDecideVariantCandidateMutationOptions(options));
+    }
 
 export const getGetPublicWidgetConfigurationUrl = (params?: GetPublicWidgetConfigurationParams,) => {
   const normalizedParams = new URLSearchParams();

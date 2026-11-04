@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { pool } from "./database";
 import { saveKnowledge } from "./knowledge";
+import { getProject } from "./projects";
+import { isBuzzBooster } from "./buzzbooster-settings";
+import { safeVariant } from "./variant-privacy";
 
 export function normalizeQuestion(question: string) {
   return question.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()
@@ -19,6 +22,8 @@ export async function recordUnanswered(projectId: string, question: string, user
 }
 
 export async function answerUnanswered(projectId: string, id: string, content: string) {
+  const project=await getProject(projectId);
+  const buzz=project&&isBuzzBooster(project.slug,project.name);
   const connection = await pool.connect();
   try {
     await connection.query("BEGIN");
@@ -28,8 +33,10 @@ export async function answerUnanswered(projectId: string, id: string, content: s
       await connection.query("ROLLBACK");
       return null;
     }
-    const document = await saveKnowledge(projectId, String(rows[0].question), content, undefined, connection,
-      [String(rows[0].question)]);
+    const question=buzz?(safeVariant(String(rows[0].question))??"Question à reformuler sans données privées"):String(rows[0].question);
+    const document = await saveKnowledge(projectId, question, content, undefined, connection,
+      [question],undefined,
+      buzz?{category:"Questions sans réponse",keywords:[],source:"Réponse rédigée par l’administrateur ; source à documenter."}:undefined);
     await connection.query(
       "UPDATE questions_sans_reponse SET statut='traite',document_id=$1 WHERE id=$2 AND plateforme=$3",
       [document!.documentId, id, projectId]);

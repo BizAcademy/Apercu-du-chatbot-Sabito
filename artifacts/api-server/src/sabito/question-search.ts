@@ -8,6 +8,7 @@ import { greetingReply } from "./greeting-reply";
 import { expandQuestion, tokenSimilarity, spellingSimilarity, protectedMismatch } from "./question-spelling";
 import { buzzGuideFor,buzzGuides } from "./buzzbooster-guides";
 import { bcaFaqFor } from "./bca-faq";
+import { defaultRetrievalSettings } from "./retrieval-settings";
 export function normalizeTokens(text:string) {
   const stop=new Set("le la les un une des du de d l au aux et ou je tu il elle nous vous ils elles mon ma mes ton ta tes son sa ses notre votre leur a est sont ce cet cette ces c comment quel quelle quels quelles que qui pour dans sur avec en me m moi puis peux souhaiter souhaite voudrais svp merci".split(" "));
   return (text.normalize("NFKD").replace(/\p{M}/gu,"").toLowerCase().match(/[\p{L}\p{N}]+/gu)??[])
@@ -28,13 +29,14 @@ function wordSimilarity(settings:AssistantSettings) {
 }
 function tokenizer(settings:AssistantSettings) {
   const phrases=settings.synonyms.flatMap((group,i)=>group.map(word=>({word:normalized(word),replacement:`syn${i}`})))
+    .filter(phrase=>!phrase.word.split(" ").some(word=>["pas","non","jamais","sans","aucun","aucune","annule","annulee","debite","debitee","rembourse","remboursee"].includes(word)))
     .sort((a,b)=>b.word.length-a.word.length);
   const singles=new Map<string,string>();
   for(const phrase of phrases) {
     const tokens=normalizeTokens(phrase.word);if(tokens.length===1)singles.set(tokens[0],phrase.replacement);
   }
   return (text:string)=>{
-    let value=` ${expandQuestion(text)} `;
+    let value=` ${expandQuestion(text,settings.retrieval)} `;
     for(const phrase of phrases) if(phrase.word.includes(" "))
       value=value.replaceAll(` ${phrase.word} `,` ${phrase.replacement} `);
     return normalizeTokens(value).map(t=>singles.get(t)??t);
@@ -60,8 +62,37 @@ export function detectIntent(text:string,settings:AssistantSettings):string|unde
   const fuzzy=candidates.filter(i=>i.score>=settings.confidence_threshold).sort((a,b)=>b.score-a.score);
   return fuzzy[0]&&(!fuzzy[1]||fuzzy[0].score-fuzzy[1].score>=0.06)?fuzzy[0].id:undefined;
 }
-type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>;followUps:FollowUp[];exactPriority:number};
-type State={settings:AssistantSettings;revision:number;profile:"bca"|"buzzbooster"|"generic";entries:Entry[];df:Map<string,number>;average:number;checked:number};
+export type Entry={documentId:string;title:string;content:string;question:string;tokens:string[];canonical:string;grams:Set<string>;followUps:FollowUp[];exactPriority:number};
+export type State={settings:AssistantSettings;revision:number;profile:"bca"|"buzzbooster"|"generic";entries:Entry[];df:Map<string,number>;average:number;checked:number};
+export type SearchDocument={id:string;title:string;content:string;status:string;
+  variants?:string[];followUps?:FollowUp[];keywords?:string[]};
+/** Same index construction for persisted knowledge and offline evaluation. */
+export function indexSearchDocuments(settings:AssistantSettings,documents:SearchDocument[]) {
+  const tokenize=tokenizer(settings),entries:Entry[]=[];let bytes=0;
+  for(const document of documents) {
+    if(document.status!=="ready")continue;
+    bytes+=Buffer.byteLength(document.content);if(bytes>32*1024*1024)throw new Error("KNOWLEDGE_INDEX_TOO_LARGE");
+    const followUps=document.followUps??[];
+    const questions=[
+      {question:document.title,content:document.content,exactPriority:3,followUps},
+      ...(document.variants??[]).map(question=>({question,content:document.content,exactPriority:2,followUps})),
+      ...followUps.map(item=>({question:item.question,content:item.answer,exactPriority:1,followUps:[] as FollowUp[]})),
+    ];
+    for(const {question,content,exactPriority,followUps:nextQuestions} of questions) {
+      const tokens=tokenize(question);
+      entries.push({documentId:document.id,title:document.title,content,question,exactPriority,followUps:nextQuestions,
+        tokens,canonical:normalized(question),grams:grams(tokens.join(" "))});
+    }
+    if(document.keywords?.length) {
+      const tokens=tokenize(document.keywords.join(" "));
+      entries.push({documentId:document.id,title:document.title,content:document.content,question:document.title,
+        exactPriority:0,followUps,tokens,canonical:"",grams:grams(tokens.join(" "))});
+    }
+  }
+  const df=new Map<string,number>();
+  for(const entry of entries)for(const token of new Set(entry.tokens))df.set(token,(df.get(token)??0)+1);
+  return {entries,df,average:entries.reduce((total,entry)=>total+entry.tokens.length,0)/Math.max(entries.length,1)};
+}
 const cache=new Map<string,State>(),loading=new Map<string,Promise<State>>(),generations=new Map<string,number>();
 onAssistantChange(id=>{cache.delete(id);loading.delete(id);generations.set(id,(generations.get(id)??0)+1);});
 export async function searchState(projectId:string):Promise<State> {
@@ -72,31 +103,17 @@ export async function searchState(projectId:string):Promise<State> {
   const task=(async()=>{
     const data=await readAssistantSettings(projectId);
     if(previous && previous.revision===data.revision) {previous.checked=Date.now();return previous;}
-    const tokenize=tokenizer(data.settings);
-    const rows=await pool.query(`SELECT d.id,d.title,d.content,v.variantes_de_question,f.questions_json FROM sabito_core.knowledge_documents d
+    const rows=await pool.query(`SELECT d.id,d.title,d.content,d.status,v.variantes_de_question,f.questions_json,r.keywords_json FROM sabito_core.knowledge_documents d
       LEFT JOIN sabito_core.knowledge_question_variants v ON v.document_id=d.id AND v.project_id=d.project_id
       LEFT JOIN sabito_core.knowledge_follow_ups f ON f.document_id=d.id AND f.project_id=d.project_id
+      LEFT JOIN sabito_core.knowledge_reviews r ON r.document_id=d.id AND r.project_id=d.project_id
       WHERE d.project_id=$1 AND d.status='ready' ORDER BY d.id`,[projectId]);
-    const entries:Entry[]=[];let bytes=0;
-    for(const row of rows.rows) {
-      bytes+=Buffer.byteLength(String(row.content));if(bytes>32*1024*1024) throw new Error("KNOWLEDGE_INDEX_TOO_LARGE");
-      const followUps:FollowUp[]=JSON.parse(String(row.questions_json??"[]"));
-      const questions=[
-        {question:String(row.title),content:String(row.content),exactPriority:3,followUps},
-        ...(JSON.parse(String(row.variantes_de_question??"[]")) as string[])
-          .map(question=>({question,content:String(row.content),exactPriority:2,followUps})),
-        ...followUps.map(item=>({question:item.question,content:item.answer,exactPriority:1,followUps:[] as FollowUp[]})),
-      ];
-      for(const {question,content,exactPriority,followUps:nextQuestions} of questions) {
-        const tokens=tokenize(question);
-        entries.push({documentId:String(row.id),title:String(row.title),content,question,exactPriority,
-          followUps:nextQuestions,
-          tokens,canonical:normalized(question),grams:grams(tokens.join(" "))});
-      }
-    }
-    const df=new Map<string,number>();
-    for(const e of entries) for(const token of new Set(e.tokens)) df.set(token,(df.get(token)??0)+1);
-    const state={...data,entries,df,average:entries.reduce((a,e)=>a+e.tokens.length,0)/Math.max(entries.length,1),checked:Date.now()};
+    const index=indexSearchDocuments(data.settings,rows.rows.map(row=>({
+      id:String(row.id),title:String(row.title),content:String(row.content),status:String(row.status),
+      variants:JSON.parse(String(row.variantes_de_question??"[]")),
+      followUps:JSON.parse(String(row.questions_json??"[]")),keywords:JSON.parse(String(row.keywords_json??"[]")),
+    })));
+    const state={...data,...index,checked:Date.now()};
     if((generations.get(projectId)??0)===generation) {
       if(cache.size>=32) cache.delete(cache.keys().next().value!);
       cache.set(projectId,state);
@@ -117,7 +134,10 @@ export function scoreQuestion(query:string,question:string,settings:AssistantSet
 }
 export type RankedQuestion={documentId:string;title:string;content:string;question:string;similarity:number;directAnswer:boolean;followUps:FollowUp[];exactPriority:number};
 export async function rankedQuestions(projectId:string,query:string):Promise<{settings:AssistantSettings;matches:RankedQuestion[]}> {
-  const state=await searchState(projectId),settings=state.settings;
+  return rankSearchState(await searchState(projectId),query);
+}
+export function rankSearchState(state:State,query:string):{settings:AssistantSettings;matches:RankedQuestion[]} {
+  const settings=state.settings;
   const tokens=tokenizer(settings)(query).slice(0,100),canonical=normalized(query);
   if(!tokens.length && normalized(query).length<2)return {settings,matches:[]};
   const qgrams=grams(tokens.join(" ")),unique=[...new Set(tokens)],n=state.entries.length;
@@ -154,7 +174,7 @@ export async function rankedQuestions(projectId:string,query:string):Promise<{se
   // Genuine conflicting questions of equal priority must not choose an arbitrary answer.
   const ambiguous=conflictingExactAnswers || first && matches.slice(1).some(other=>first.content!==other.content &&
     (first.similarity===1 ? other.similarity===1 && first.exactPriority===other.exactPriority :
-      first.similarity-other.similarity<0.06));
+      first.similarity-other.similarity<(settings.retrieval?.ambiguity_margin??defaultRetrievalSettings.ambiguity_margin)));
   if(first && first.similarity>=settings.confidence_threshold && !ambiguous) first.directAnswer=true;
   return {settings,matches};
 }
@@ -176,17 +196,29 @@ export async function retrieveReply(projectId:string,question:string) {
   // guide route uses its editable approved document, never generated prose.
   const legacyOverview=guide?.key==="faq-networks"&&matches[0]?.title===buzzGuides.find(g=>g.key==="overview")?.title&&
     matches[0]?.content===buzzGuides.find(g=>g.key==="overview")?.content;
-  if(entry && (matches[0]?.similarity!==1||legacyOverview))return {answer:entry.content,reliable:true,suggestions:[] as ReturnType<typeof followUpSuggestions>,closing_message:"",suggestions_label:""};
+  if(entry && (matches[0]?.similarity!==1||legacyOverview))return {
+    answer:entry.content,documentId:entry.documentId,reliable:true,
+    suggestions:[...followUpSuggestions(entry.documentId,entry.followUps),
+      ...matches.filter(item=>item.documentId!==entry.documentId&&item.similarity>=
+        (settings.retrieval?.minimum_score??defaultRetrievalSettings.minimum_score)&&!isGreetingSuggestion(item.title))
+        .map(item=>({document_id:item.documentId,question:item.title}))]
+      .filter((item,index,all)=>all.findIndex(other=>normalized(other.question)===normalized(item.question))===index).slice(0,3),
+    closing_message:"",suggestions_label:"",
+  };
   const match=matches[0],reliable=!!match?.directAnswer;
   const exactConflict=!!match && match.similarity===1 && !reliable;
   const tokenize=tokenizer(settings),queryTokens=tokenize(question);
-  const suggestions=reliable ? followUpSuggestions(match.documentId,match.followUps) :
+  const related=reliable?matches.filter(item=>item.documentId!==match.documentId&&item.similarity>=
+    (settings.retrieval?.minimum_score??defaultRetrievalSettings.minimum_score)&&
+    !isGreetingSuggestion(item.title)).map(item=>({document_id:item.documentId,question:item.title})):[];
+  const suggestions=reliable ? [...followUpSuggestions(match.documentId,match.followUps),...related]
+    .filter((item,index,all)=>all.findIndex(other=>normalized(other.question)===normalized(item.question))===index).slice(0,3) :
     matches.filter(m=>!exactConflict && normalized(m.question)!==normalized(question)
       && !isGreetingSuggestion(m.question) && !isGreetingSuggestion(m.title)
-      && m.similarity>=0.35
+      && m.similarity>=(settings.retrieval?.minimum_score??defaultRetrievalSettings.minimum_score)
       && queryTokens.some(q=>tokenize(m.question).some(candidate=>tokenSimilarity(q,candidate)>=0.7)))
-      .slice(0,1).map(m=>({document_id:m.documentId,question:m.question}));
-  return {answer:reliable?match.content:exactConflict
+      .slice(0,3).map(m=>({document_id:m.documentId,question:m.question}));
+  return {documentId:reliable?match.documentId:undefined,answer:reliable?match.content:exactConflict
     ? "Plusieurs réponses approuvées différentes sont configurées pour cette même question. L’équipe doit corriger ces références en conflit avant que je puisse vous donner une réponse fiable."
     :settings.no_answer_message,reliable,
     suggestions,closing_message:"",
@@ -207,7 +239,7 @@ export async function selectedKnowledgeReply(projectId:string,documentId:string,
   const mainMatch=mainQuestions.some(value=>normalized(value)===canonical);
   const followUp=followUps.find(item=>normalized(item.question)===canonical);
   if(!mainMatch && !followUp)return null;
-  return {answer:mainMatch?String(row.content):followUp!.answer,reliable:true,
+  return {documentId,answer:mainMatch?String(row.content):followUp!.answer,reliable:true,
     suggestions:mainMatch?followUpSuggestions(documentId,followUps):[],
     closing_message:"",suggestions_label:""};
 }

@@ -7,5 +7,5 @@
  */
 
 export type GetConversationHistoryParams = {
-before?: string;
+  before?: string;
 };

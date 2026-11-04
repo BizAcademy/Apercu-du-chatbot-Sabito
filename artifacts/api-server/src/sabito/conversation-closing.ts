@@ -1,6 +1,6 @@
 import { normalizeQuestion } from "./question-normalization";
 
-export const conversationClosing = "À la prochaine ! N'hésitez pas à revenir si vous avez un souci.";
+export const conversationClosing = "À la prochaine ! N’hésitez pas à revenir si vous avez un souci.";
 
 /** Whole acknowledgement only: never close a real question containing "merci" or "ok". */
 export function isClosingAcknowledgement(text: string): boolean {

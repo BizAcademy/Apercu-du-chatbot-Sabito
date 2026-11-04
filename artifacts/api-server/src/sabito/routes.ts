@@ -15,6 +15,7 @@ import { supportAdminRoutes } from "./support-admin";
 import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
 import { normalizedText } from "./semantic";
 import { assistantAdminRoutes,touchAssistant,readAssistantSettings } from "./assistant-settings";
+import { knowledgeReviewRoutes } from "./knowledge-review";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
@@ -127,7 +128,9 @@ coreRoutes.post("/v1/admin/projects/:projectId/knowledge",async (req,res) => {
     res.status(422).json({message:"Chaque question proposée doit contenir une question et une réponse non vides."});return;
   }
   const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),
-    undefined,undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions);
+    undefined,undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions,
+    (await readAssistantSettings(String(req.params.projectId))).profile==="buzzbooster"
+      ? {category:"À compléter",keywords:[],source:"Source à documenter par l’administrateur."}:undefined);
   res.status(201).json({success:true,data:document});
 });
 coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,res) => {
@@ -145,7 +148,9 @@ coreRoutes.put("/v1/admin/projects/:projectId/knowledge/:documentId",async (req,
     res.status(422).json({message:"Chaque question proposée doit contenir une question et une réponse non vides."});return;
   }
   const document = await saveKnowledge(String(req.params.projectId),parsed.data.title.trim(),parsed.data.content.trim(),id.data,
-    undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions);
+    undefined,parsed.data.variantes_de_question,parsed.data.follow_up_questions,
+    (await readAssistantSettings(String(req.params.projectId))).profile==="buzzbooster"
+      ? {category:"À compléter",keywords:[],source:"Source à documenter par l’administrateur."}:undefined);
   if (!document) {res.status(404).json({success:false,message:"Document introuvable."});return;}
   res.json({success:true,data:document});
 });
@@ -185,6 +190,7 @@ coreRoutes.get("/v1/conversations/:conversationId/history",async(req,res)=>{
   catch(error){if(error instanceof Error&&error.message==="INVALID_HISTORY_CURSOR"){res.sendStatus(422);return;}throw error;}
 });
 coreRoutes.use(supportAdminRoutes);
+coreRoutes.use(knowledgeReviewRoutes);
 coreRoutes.use(assistantAdminRoutes);
 coreRoutes.use(backendBridgeRoutes);
 coreRoutes.use((error: {code?:string},req: Request,res: Response,_next: NextFunction) => {

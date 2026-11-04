@@ -8,6 +8,121 @@
 import * as zod from 'zod';
 
 
+export const ListKnowledgeReviewsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const listKnowledgeReviewsResponseDataItemOneTitleMin = 2;
+export const listKnowledgeReviewsResponseDataItemOneTitleMax = 500;
+
+export const listKnowledgeReviewsResponseDataItemOneContentMin = 20;
+export const listKnowledgeReviewsResponseDataItemOneContentMax = 20000;
+
+export const listKnowledgeReviewsResponseDataItemOneCategoryMin = 2;
+export const listKnowledgeReviewsResponseDataItemOneCategoryMax = 100;
+
+export const listKnowledgeReviewsResponseDataItemOneSourceMin = 10;
+export const listKnowledgeReviewsResponseDataItemOneSourceMax = 4000;
+
+export const listKnowledgeReviewsResponseDataItemOneKeywordsMax = 30;
+
+export const listKnowledgeReviewsResponseDataItemOneVariantsMin = 5;
+export const listKnowledgeReviewsResponseDataItemOneVariantsMax = 10;
+
+
+
+export const ListKnowledgeReviewsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "title": zod.string().min(listKnowledgeReviewsResponseDataItemOneTitleMin).max(listKnowledgeReviewsResponseDataItemOneTitleMax),
+  "content": zod.string().min(listKnowledgeReviewsResponseDataItemOneContentMin).max(listKnowledgeReviewsResponseDataItemOneContentMax),
+  "category": zod.string().min(listKnowledgeReviewsResponseDataItemOneCategoryMin).max(listKnowledgeReviewsResponseDataItemOneCategoryMax),
+  "source": zod.string().min(listKnowledgeReviewsResponseDataItemOneSourceMin).max(listKnowledgeReviewsResponseDataItemOneSourceMax),
+  "keywords": zod.array(zod.string()).min(1).max(listKnowledgeReviewsResponseDataItemOneKeywordsMax),
+  "variants": zod.array(zod.string()).min(listKnowledgeReviewsResponseDataItemOneVariantsMin).max(listKnowledgeReviewsResponseDataItemOneVariantsMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['pending', 'ready', 'rejected'])
+})))
+})
+
+
+export const UpdateKnowledgeReviewParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "documentId": zod.coerce.string()
+})
+
+export const updateKnowledgeReviewBodyTitleMin = 2;
+export const updateKnowledgeReviewBodyTitleMax = 500;
+
+export const updateKnowledgeReviewBodyContentMin = 20;
+export const updateKnowledgeReviewBodyContentMax = 20000;
+
+export const updateKnowledgeReviewBodyCategoryMin = 2;
+export const updateKnowledgeReviewBodyCategoryMax = 100;
+
+export const updateKnowledgeReviewBodySourceMin = 10;
+export const updateKnowledgeReviewBodySourceMax = 4000;
+
+export const updateKnowledgeReviewBodyKeywordsMax = 30;
+
+export const updateKnowledgeReviewBodyVariantsMin = 5;
+export const updateKnowledgeReviewBodyVariantsMax = 10;
+
+
+
+export const UpdateKnowledgeReviewBody = zod.object({
+  "title": zod.string().min(updateKnowledgeReviewBodyTitleMin).max(updateKnowledgeReviewBodyTitleMax),
+  "content": zod.string().min(updateKnowledgeReviewBodyContentMin).max(updateKnowledgeReviewBodyContentMax),
+  "category": zod.string().min(updateKnowledgeReviewBodyCategoryMin).max(updateKnowledgeReviewBodyCategoryMax),
+  "source": zod.string().min(updateKnowledgeReviewBodySourceMin).max(updateKnowledgeReviewBodySourceMax),
+  "keywords": zod.array(zod.string()).min(1).max(updateKnowledgeReviewBodyKeywordsMax),
+  "variants": zod.array(zod.string()).min(updateKnowledgeReviewBodyVariantsMin).max(updateKnowledgeReviewBodyVariantsMax)
+})
+
+export const UpdateKnowledgeReviewResponse = zod.unknown()
+
+
+export const DecideKnowledgeReviewParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "documentId": zod.coerce.string()
+})
+
+export const DecideKnowledgeReviewBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const DecideKnowledgeReviewResponse = zod.unknown()
+
+
+export const ListVariantCandidatesParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const ListVariantCandidatesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "document_id": zod.string(),
+  "formulation": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reason": zod.enum(['selection', 'positive_feedback']),
+  "occurrences": zod.number().int(),
+  "title": zod.string()
+}))
+})
+
+
+export const DecideVariantCandidateParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "candidateId": zod.coerce.string()
+})
+
+export const DecideVariantCandidateBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const DecideVariantCandidateResponse = zod.unknown()
+
+
 export const GetPublicWidgetConfigurationQueryParams = zod.object({
   "projectId": zod.coerce.string().optional(),
   "product": zod.coerce.string().optional()
@@ -57,6 +172,12 @@ export const getAssistantConfigurationResponseIntentTemplatesItemResponsesErrorM
 
 export const getAssistantConfigurationResponseSettingsConfidenceThresholdMin = 0.35;
 export const getAssistantConfigurationResponseSettingsConfidenceThresholdMax = 1;
+
+export const getAssistantConfigurationResponseSettingsRetrievalMinimumScoreMin = 0.25;
+export const getAssistantConfigurationResponseSettingsRetrievalMinimumScoreMax = 0.9;
+
+export const getAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMin = 0.03;
+export const getAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMax = 0.3;
 
 export const getAssistantConfigurationResponseSettingsSynonymsItemItemMin = 2;
 export const getAssistantConfigurationResponseSettingsSynonymsItemItemMax = 80;
@@ -151,6 +272,12 @@ export const GetAssistantConfigurationResponse = zod.object({
 })).optional(),
   "settings": zod.object({
   "confidence_threshold": zod.number().min(getAssistantConfigurationResponseSettingsConfidenceThresholdMin).max(getAssistantConfigurationResponseSettingsConfidenceThresholdMax),
+  "retrieval": zod.object({
+  "minimum_score": zod.number().min(getAssistantConfigurationResponseSettingsRetrievalMinimumScoreMin).max(getAssistantConfigurationResponseSettingsRetrievalMinimumScoreMax),
+  "ambiguity_margin": zod.number().min(getAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMin).max(getAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMax),
+  "abbreviations": zod.record(zod.string(), zod.string()),
+  "corrections": zod.record(zod.string(), zod.string())
+}).optional(),
   "synonyms": zod.array(zod.array(zod.string().min(getAssistantConfigurationResponseSettingsSynonymsItemItemMin).max(getAssistantConfigurationResponseSettingsSynonymsItemItemMax)).min(getAssistantConfigurationResponseSettingsSynonymsItemMin).max(getAssistantConfigurationResponseSettingsSynonymsItemMax)).max(getAssistantConfigurationResponseSettingsSynonymsMax),
   "greeting_member": zod.string().min(1).max(getAssistantConfigurationResponseSettingsGreetingMemberMax),
   "greeting_guest": zod.string().min(1).max(getAssistantConfigurationResponseSettingsGreetingGuestMax),
@@ -197,6 +324,12 @@ export const UpdateAssistantConfigurationParams = zod.object({
 
 export const updateAssistantConfigurationBodySettingsConfidenceThresholdMin = 0.35;
 export const updateAssistantConfigurationBodySettingsConfidenceThresholdMax = 1;
+
+export const updateAssistantConfigurationBodySettingsRetrievalMinimumScoreMin = 0.25;
+export const updateAssistantConfigurationBodySettingsRetrievalMinimumScoreMax = 0.9;
+
+export const updateAssistantConfigurationBodySettingsRetrievalAmbiguityMarginMin = 0.03;
+export const updateAssistantConfigurationBodySettingsRetrievalAmbiguityMarginMax = 0.3;
 
 export const updateAssistantConfigurationBodySettingsSynonymsItemItemMin = 2;
 export const updateAssistantConfigurationBodySettingsSynonymsItemItemMax = 80;
@@ -269,6 +402,12 @@ export const updateAssistantConfigurationBodyExpectedRevisionMin = 0;
 export const UpdateAssistantConfigurationBody = zod.object({
   "settings": zod.object({
   "confidence_threshold": zod.number().min(updateAssistantConfigurationBodySettingsConfidenceThresholdMin).max(updateAssistantConfigurationBodySettingsConfidenceThresholdMax),
+  "retrieval": zod.object({
+  "minimum_score": zod.number().min(updateAssistantConfigurationBodySettingsRetrievalMinimumScoreMin).max(updateAssistantConfigurationBodySettingsRetrievalMinimumScoreMax),
+  "ambiguity_margin": zod.number().min(updateAssistantConfigurationBodySettingsRetrievalAmbiguityMarginMin).max(updateAssistantConfigurationBodySettingsRetrievalAmbiguityMarginMax),
+  "abbreviations": zod.record(zod.string(), zod.string()),
+  "corrections": zod.record(zod.string(), zod.string())
+}).optional(),
   "synonyms": zod.array(zod.array(zod.string().min(updateAssistantConfigurationBodySettingsSynonymsItemItemMin).max(updateAssistantConfigurationBodySettingsSynonymsItemItemMax)).min(updateAssistantConfigurationBodySettingsSynonymsItemMin).max(updateAssistantConfigurationBodySettingsSynonymsItemMax)).max(updateAssistantConfigurationBodySettingsSynonymsMax),
   "greeting_member": zod.string().min(1).max(updateAssistantConfigurationBodySettingsGreetingMemberMax),
   "greeting_guest": zod.string().min(1).max(updateAssistantConfigurationBodySettingsGreetingGuestMax),
@@ -342,6 +481,12 @@ export const updateAssistantConfigurationResponseIntentTemplatesItemResponsesErr
 
 export const updateAssistantConfigurationResponseSettingsConfidenceThresholdMin = 0.35;
 export const updateAssistantConfigurationResponseSettingsConfidenceThresholdMax = 1;
+
+export const updateAssistantConfigurationResponseSettingsRetrievalMinimumScoreMin = 0.25;
+export const updateAssistantConfigurationResponseSettingsRetrievalMinimumScoreMax = 0.9;
+
+export const updateAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMin = 0.03;
+export const updateAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMax = 0.3;
 
 export const updateAssistantConfigurationResponseSettingsSynonymsItemItemMin = 2;
 export const updateAssistantConfigurationResponseSettingsSynonymsItemItemMax = 80;
@@ -436,6 +581,12 @@ export const UpdateAssistantConfigurationResponse = zod.object({
 })).optional(),
   "settings": zod.object({
   "confidence_threshold": zod.number().min(updateAssistantConfigurationResponseSettingsConfidenceThresholdMin).max(updateAssistantConfigurationResponseSettingsConfidenceThresholdMax),
+  "retrieval": zod.object({
+  "minimum_score": zod.number().min(updateAssistantConfigurationResponseSettingsRetrievalMinimumScoreMin).max(updateAssistantConfigurationResponseSettingsRetrievalMinimumScoreMax),
+  "ambiguity_margin": zod.number().min(updateAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMin).max(updateAssistantConfigurationResponseSettingsRetrievalAmbiguityMarginMax),
+  "abbreviations": zod.record(zod.string(), zod.string()),
+  "corrections": zod.record(zod.string(), zod.string())
+}).optional(),
   "synonyms": zod.array(zod.array(zod.string().min(updateAssistantConfigurationResponseSettingsSynonymsItemItemMin).max(updateAssistantConfigurationResponseSettingsSynonymsItemItemMax)).min(updateAssistantConfigurationResponseSettingsSynonymsItemMin).max(updateAssistantConfigurationResponseSettingsSynonymsItemMax)).max(updateAssistantConfigurationResponseSettingsSynonymsMax),
   "greeting_member": zod.string().min(1).max(updateAssistantConfigurationResponseSettingsGreetingMemberMax),
   "greeting_guest": zod.string().min(1).max(updateAssistantConfigurationResponseSettingsGreetingGuestMax),
@@ -1077,7 +1228,7 @@ export const SubmitBackendJobResultBody = zod.object({
   "status": zod.enum(['ok', 'success', 'pending', 'confirmed', 'failed', 'not_found', 'active', 'inactive', 'forbidden', 'error', 'invalid_input']),
   "invalid_field": zod.string().regex(submitBackendJobResultBodyResultInvalidFieldRegExp).optional().describe('Champ collecté à corriger lorsque status vaut invalid_input. Sabito conserve la conversation et redemande ce champ.'),
   "code": zod.string().min(1).max(submitBackendJobResultBodyResultCodeMax).optional(),
-  "data": zod.record(zod.string(), zod.union([zod.string().max(submitBackendJobResultBodyResultDataOneMax),zod.number(),zod.boolean()]).nullable()).optional()
+  "data": zod.record(zod.string(), zod.union([zod.string().max(submitBackendJobResultBodyResultDataOneMax),zod.number(),zod.boolean(),zod.null()])).optional()
 })
 })
 

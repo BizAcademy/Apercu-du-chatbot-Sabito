@@ -8,9 +8,7 @@
 import type { ListUnansweredQuestionsStatus } from './listUnansweredQuestionsStatus';
 
 export type ListUnansweredQuestionsParams = {
-status?: ListUnansweredQuestionsStatus;
-/**
- * @minimum 0
- */
-page?: number;
+  status?: ListUnansweredQuestionsStatus;
+  /** @minimum 0 */
+  page?: number;
 };

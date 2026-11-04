@@ -8,5 +8,5 @@
 import type { GetConversationInsightsDays } from './getConversationInsightsDays';
 
 export type GetConversationInsightsParams = {
-days?: GetConversationInsightsDays;
+  days?: GetConversationInsightsDays;
 };
