@@ -16,6 +16,8 @@ import { handleBuzzCatalogue } from "./buzzbooster-catalogue-flow";
 import { directBuzzOrders } from "./buzzbooster-order-flow";
 import { explicitOrderRead,orderContext } from "./buzzbooster-orders";
 import { continueBackendConversation,rememberBackendResult } from "./backend-conversation";
+import { verifiedBcaResult } from "./bca-contract";
+import { logger } from "../lib/logger";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -147,6 +149,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       ? JSON.parse(String(current.collected_json)) : {};
     if(current?.status==="collecting" && (!detected || detected===current.intent)) originalQuestion=String(current.original_question);
     const definition=intentRegistry[intent];
+    if(profile==="bca"&&!isVerifiedMember(claims)) {
+      await connection.query("COMMIT");
+      return definition.guest_message;
+    }
     if(buzz&&!buzzOperations.includes(definition.backendOperation)) {
       await connection.query("COMMIT");return "Cette consultation n’est pas proposée par le connecteur Buzz Booster. Consultez Support pour connaître les possibilités disponibles.";
     }
@@ -230,6 +236,10 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     const exactFields=buzz?buzzBackendFields(definition.backendOperation,fields!):fields!;
     const response=await requestBackend(claims.sub,claims.externalUserId,definition.backendOperation,exactFields);
     if(buzz||profile==="bca")await rememberBackendResult(claims,conversationId,definition.backendOperation,exactFields,response,originalQuestion);
+    if(profile==="bca"&&response.status==="forbidden") {
+      reason="BACKEND_FORBIDDEN";
+      throw new Error(reason);
+    }
     if(buzz&&response.status==="forbidden")return "Je ne suis pas autorisé à consulter cette opération. Reconnectez-vous à votre compte ou contactez Support. Aucune information sur une opération d’un autre membre ne peut être divulguée.";
     const ambiguous=buzz&&response.status!=="error"&&(response.data?.ambiguous===true||typeof response.data?.match_count==="number"&&response.data.match_count>1);
     if(ambiguous) {
@@ -252,6 +262,8 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
         WHERE conversation_id=$2 AND project_id=$3 AND intent=$4 AND status='checking'`,
         [JSON.stringify(retained),conversationId,claims.sub,intent!]);
       retrySaved=true;
+      if(profile==="bca")await ticket(claims.sub,conversationId,claims,intent!,
+        response.status==="not_found"?"BACKEND_NOT_FOUND":"BACKEND_INVALID_INPUT");
       // Never expose a forbidden record, backend messages or existence information.
       const explanation=ambiguous?"Plusieurs opérations correspondent. Fournissez une référence précise pour identifier la bonne opération."
         :response.status==="invalid_input" ? settings.invalid_field_message
@@ -267,6 +279,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       reason="BACKEND_UNVERIFIED_RESULT";
       throw new Error(reason);
     }
+    if(profile==="bca"&&!verifiedBcaResult(definition.backendOperation,response)) {
+      throw new Error("BACKEND_UNVERIFIED_RESULT");
+    }
     const outcome: keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success"
       : ["pending","inactive"].includes(response.status)?"pending":["not_found","forbidden"].includes(response.status)?"not_found":"error";
     const data={...response.data,statut:response.data?.statut??response.status,
@@ -276,14 +291,22 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       nom_utilisateur:claims.externalUserName??response.data?.nom_utilisateur};
     const answer=renderTemplate(definition.responses[outcome],data);
     // A failed transaction is a verified business result, not a connector outage.
-    if (answer && (outcome==="success"||outcome==="pending"||response.status==="failed")) return answer;
+    if (answer && (outcome==="success"||outcome==="pending"||response.status==="failed")) {
+      if(profile==="bca")await pool.query(`UPDATE sabito_core.support_tickets SET status='ferme',updated_at=CURRENT_TIMESTAMP(6)
+        WHERE project_id=$1 AND conversation_id=$2 AND intent=$3 AND status='ouvert'`,
+        [claims.sub,conversationId,intent!]);
+      return answer;
+    }
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";
   } catch (error) {
     if(buzz||profile==="bca")await rememberBackendResult(claims,conversationId,intentRegistry[intent!].backendOperation,
       buzz?buzzBackendFields(intentRegistry[intent!].backendOperation,fields!):fields!,undefined,originalQuestion);
     const code=error instanceof Error ? error.message : "";
-    if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT"].includes(code)) reason=code;
+    if (["BACKEND_OFFLINE","BACKEND_TIMEOUT","BACKEND_BUSY","MEMBER_AUTH_REQUIRED","BACKEND_UNVERIFIED_RESULT",
+      "BACKEND_FORBIDDEN","BACKEND_UNSUPPORTED","BACKEND_OPERATION_NOT_CONFIGURED"].includes(code)) reason=code;
+    logger.warn({code:reason,operation:intentRegistry[intent!].backendOperation,projectId:claims.sub,stage:"backend_result"},
+      "Sabito consultation unavailable");
   } finally {
     if(!retrySaved) await pool.query(`UPDATE sabito_core.intent_sessions SET status='complete',collected_json=$1,updated_at=CURRENT_TIMESTAMP(6)
       WHERE conversation_id=$2 AND project_id=$3 AND intent=$4 AND status='checking'`,
@@ -293,5 +316,6 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   await recordUnanswered(claims.sub,originalQuestion,isVerifiedMember(claims)?claims.externalUserId:undefined);
   if(buzz)return `Je ne peux pas vérifier cette information de façon fiable pour le moment. Un ticket interne Sabito a été enregistré : ${id}. Cela ne signifie pas que votre opération financière a échoué. Pour contacter directement l’équipe Buzz Booster, ouvrez Support dans la plateforme.`;
   const ticketText=renderTemplate(settings.ticket_message,{ticket_id:id})??settings.no_answer_message;
+  if(profile==="bca")return `${reason==="BACKEND_FORBIDDEN"?"Je ne suis pas autorisé à consulter cette information. Reconnectez-vous à BCA ou contactez l’équipe.":reason==="BACKEND_UNSUPPORTED"?"Cette consultation n’est pas annoncée par le connecteur BCA.": "La consultation BCA est temporairement indisponible ou son résultat ne peut pas être confirmé."} ${ticketText} Cela ne signifie pas que votre paiement ou votre transaction a échoué.`;
   return [failureTemplate,ticketText,reason==="MEMBER_AUTH_REQUIRED"?intentRegistry[intent!].guest_message:""].filter(Boolean).join(" ");
 }

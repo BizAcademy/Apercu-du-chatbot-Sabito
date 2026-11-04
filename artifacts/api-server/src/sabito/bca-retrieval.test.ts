@@ -1,0 +1,67 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { defaultSettings } from "./assistant-settings";
+import { indexSearchDocuments,rankSearchState,type State } from "./question-search";
+import { bcaSourceDrafts } from "./bca-source-drafts";
+import { publicReplyPresentation,requestedClosing } from "./reply-presentation";
+import { verifiedBcaResult } from "./bca-contract";
+import { adaptBca,bcaIntents } from "./bca-settings";
+
+// Independently authored controls, not installed as aliases or dictionary entries.
+const controls:[string,number][]=[
+  ["cmt transmettre reference de mon depo",0],["numero telephone ou reference de depot",0],
+  ["kel identifiant envoyer pour depot",0],["ou recuperer ref exacte depot bca",0],
+  ["kel portefeuil sabito consulte",1],["consulter soldes principal usd",1],
+  ["quel devise solde peut lire sabito",1],["portefeuilles sabito lecture solde bloque",1],
+  ["pk reference operation precise",2],["reference ambigue operation introuvable",2],
+  ["operation pas trouve reference incorrecte",2],["reference exacte paiement echoue ou consultation",2],
+  ["identifian numerique campagne ou diffusion ads",3],["cmt identifier journee bca ads",3],
+  ["reference de paiement campagne publication",3],["campagn diffusion identifiant exact",3],
+  ["periode recompence leader format",4],["cmt indiquer mois recompense leader",4],
+  ["date premier jour mois leader",4],["prime leader periode ecrire date",4],
+  ["sabito effectue remboursment",5],["sabito peut faire paiement remboursement",5],
+  ["assistant peut crediter portefeuille",5],["sabito activation compte remboursement",5],
+  ["pk actualiser montant abonnment digital store",6],["prix abonnement change actualiser",6],
+  ["ancien tarif abonnemant vendeur",6],["abonnement page prix change",6],
+  ["envoyer mon code pin sabito",7],["quel information jamais envoyer assistant",7],
+  ["mot de passe token a envoyer",7],["quelles donnees confidentiel partager sabito",7],
+];
+test("BCA malformed controls report exact answers separately from confirmations",()=>{
+  const settings=defaultSettings();
+  const documents=bcaSourceDrafts.map((draft,index)=>({...draft,id:String(index),status:"ready"}));
+  const state:State={settings,revision:1,profile:"bca",checked:0,...indexSearchDocuments(settings,documents)};
+  let correct=0,direct=0,falsePositives=0;const failures=[];
+  for(const [question,expected] of controls) {
+    const first=rankSearchState(state,question).matches[0];
+    if(first?.documentId===String(expected)) {correct++;if(first.directAnswer)direct++;}
+    else {if(first?.directAnswer)falsePositives++;failures.push({question,expected,actual:first?.documentId,direct:first?.directAnswer});}
+  }
+  console.info(JSON.stringify({kind:"bca-retrieval-controls",cases:controls.length,correctTop:correct,correctDirect:direct,
+    confirmationRequired:correct-direct,falsePositives,exactAnswerRate:100*direct/controls.length,
+    orientationRate:100*correct/controls.length,failures}));
+  assert.equal(falsePositives,0);
+  assert.equal(indexSearchDocuments(settings,documents.map(d=>({...d,status:"pending"}))).entries.length,0);
+});
+test("Final public answers close exactly; financial and uncertain replies do not",()=>{
+  const reply={reliable:true,closing_message:"",suggestions:[1,2,3,4],suggestions_label:""};
+  assert.equal(publicReplyPresentation(reply,false).closing_message,requestedClosing);
+  assert.equal(publicReplyPresentation(reply,false).suggestions.length,3);
+  assert.deepEqual(publicReplyPresentation(reply,true).suggestions,[]);
+  assert.equal(publicReplyPresentation(reply,true).closing_message,"");
+  assert.equal(publicReplyPresentation({...reply,reliable:false},false).closing_message,"");
+  assert.deepEqual(publicReplyPresentation({...reply,suggestions:[1]},false).suggestions,[]);
+  assert.equal(verifiedBcaResult("wallet_balance",{status:"confirmed"}),false);
+  assert.equal(verifiedBcaResult("referral_code",{status:"ok",data:{statut:"Code",code_parrain:"A"}}),true);
+});
+test("Contract prompt upgrades preserve authored settings and deleted intentions",()=>{
+  const legacy=defaultSettings(),settings={...legacy,intents:bcaIntents()};
+  const campaign=settings.intents.find(item=>item.id==="ads_campaign_status")!;
+  campaign.fields[0].prompt="Quelle est la référence de votre campagne BCA Ads ?";
+  campaign.triggers=["déclencheur personnalisé"];
+  const adapted=adaptBca(settings,legacy);
+  assert.match(adapted.intents.find(item=>item.id===campaign.id)!.fields[0].prompt,/identifiant numérique/);
+  assert.deepEqual(adapted.intents.find(item=>item.id===campaign.id)!.triggers,campaign.triggers);
+  campaign.fields[0].prompt="Ma consigne spécifique";
+  assert.equal(adaptBca(settings,legacy).intents.find(item=>item.id===campaign.id)!.fields[0].prompt,"Ma consigne spécifique");
+  assert.deepEqual(adaptBca({...settings,intents:[]},legacy).intents,[]);
+});

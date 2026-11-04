@@ -3,6 +3,7 @@ import type { BackendResult } from "./backend-bridge";
 import type { AccessClaims } from "./security";
 import type { BackendObservation } from "./backend-context";
 import { renderTemplate } from "./templates";
+import { verifiedBcaResult } from "./bca-contract";
 
 /** Use the platform's configured field names literally, never Buzz aliases. */
 export function bcaContinuationFields(definition:IntentDefinition,fields:Record<string,string>) {
@@ -10,7 +11,7 @@ export function bcaContinuationFields(definition:IntentDefinition,fields:Record<
     .map(field=>[field.name,fields[field.name]]));
 }
 export function bcaBackendAnswer(definition:IntentDefinition|undefined,response:BackendResult|undefined,claims:AccessClaims):string|null {
-  if(!definition||!response||!["ok","success","confirmed","active","pending","inactive","failed"].includes(response.status))return null;
+  if(!definition||!response||!verifiedBcaResult(definition.backend_function,response))return null;
   const outcome:keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success":
     ["pending","inactive"].includes(response.status)?"pending":"error";
   const data={...response.data,statut:response.data?.statut??response.status,

@@ -9,7 +9,7 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:core": "node --import tsx --test --test-timeout=60000 src/sabito/core.test.ts",
-    "test:corpus": "node --import tsx --test src/sabito/buzzbooster-corpus.test.ts src/sabito/buzzbooster-catalogue.test.ts",
+    "test:corpus": "node --import tsx --test src/sabito/buzzbooster-corpus.test.ts src/sabito/buzzbooster-catalogue.test.ts src/sabito/bca-retrieval.test.ts",
     "test:retrieval": "node --import tsx --test src/sabito/retrieval-evaluation.test.ts src/sabito/knowledge-review.test.ts src/sabito/question-spelling.test.ts src/sabito/backend-context.test.ts src/sabito/buzzbooster-help.test.ts src/sabito/support-memory.test.ts src/sabito/public-guidance-language.test.ts src/sabito/conversation-closing.test.ts src/sabito/unanswered-export.test.ts",
     "test:security": "node --import tsx --test src/http-security.test.ts src/widget-frame.test.ts src/sabito/mysql-pool.test.ts",
     "test:database-config": "node --import tsx --test src/sabito/database-config.test.ts src/sabito/mysql-pool.test.ts src/sabito/mysql-migrations.test.ts src/sabito/mysql-diagnostics.test.ts src/widget-frame.test.ts src/sabito/buzzbooster-help.test.ts src/sabito/backend-context.test.ts",

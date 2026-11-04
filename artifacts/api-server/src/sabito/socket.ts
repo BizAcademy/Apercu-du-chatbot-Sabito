@@ -12,6 +12,8 @@ import { conversationGreeting,initialGreeting } from "./welcome";
 import { isVerifiedMember } from "./templates";
 import { recordUnanswered } from "./unanswered";
 import { handleIntent } from "./intents";
+import { publicReplyPresentation } from "./reply-presentation";
+import { greetingReply } from "./greeting-reply";
 import { continueBackendConversation } from "./backend-conversation";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { suggestedReply } from "./suggestion-replies";
@@ -110,7 +112,7 @@ export function attachSocketServer(httpServer: HttpServer) {
         if(previous)return;
         void conversationGreeting(claims,conversationId).then(content=>{
           if(socket.connected)socket.emit("conversation:welcome",{conversationId,content});
-        }).catch(error=>logger.error({err:error},"Conversation welcome unavailable"));
+        }).catch(()=>logger.error({code:"WELCOME_UNAVAILABLE",projectId:claims.sub,stage:"welcome"},"Conversation welcome unavailable"));
       } catch {
         acknowledge({ok:false,error:{code:"INTERNAL_ERROR"}});
       }
@@ -172,6 +174,13 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         // Only an unrecognized question with a relevant search proposal gets a clarification title.
         reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
+        if((await searchState(claims.sub)).profile==="bca") {
+          const activeCheck=await pool.query(`SELECT status FROM sabito_core.intent_sessions
+            WHERE conversation_id=$1 AND project_id=$2 AND status IN ('collecting','checking')`,
+            [conversationId,claims.sub]);
+          Object.assign(reply,publicReplyPresentation(reply,!!intentAnswer||!!memory.answer||memory.feedbackOnly||
+            !!guidance?.context.awaiting||!!activeCheck.rows.length||!!greetingReply(question)));
+        }
         if (!reply.reliable&&!opaqueConversationInput(parsed.data.content)) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
         const answer = guidance?.context.awaiting?reply.answer:
@@ -198,7 +207,7 @@ export function attachSocketServer(httpServer: HttpServer) {
           suggestions:reply.suggestions,suggestions_label:reply.suggestions_label,closing_message:reply.closing_message});
       } catch (error) {
         const code = error instanceof Error && ["CONVERSATION_NOT_FOUND","CONVERSATION_EXPIRED"].includes(error.message) ? error.message : "INTERNAL_ERROR";
-        logger.error({err:error,projectId:claims.sub},"Sabito message failed");
+        logger.error({code,projectId:claims.sub,stage:"message"},"Sabito message failed");
         if (!userMessageId) acknowledge({ok:false,error:{code,message:"Le message n’a pas été accepté."}});
         else {
           await Promise.all([finishMessage(userMessageId,undefined,code),

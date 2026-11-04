@@ -3,6 +3,7 @@ import { saveKnowledge } from "./knowledge";
 import { normalizeQuestion } from "./question-normalization";
 import { bcaGuides } from "./bca-guide-data";
 import { bcaFaq,bcaFaqFor } from "./bca-faq";
+import { bcaSourceDrafts } from "./bca-source-drafts";
 
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
@@ -82,6 +83,23 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
         preservedQuestions:pack.guides.filter(guide => !pending.includes(guide)).map(guide => guide.title),
       })]);
       changed = changed || ids.length > 0;
+    }
+    const sourceAction="bca.source_drafts.proposed";
+    const seeded=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,sourceAction]);
+    if(!seeded.rows.length) {
+      const existing=await connection.query("SELECT title FROM sabito_core.knowledge_documents WHERE project_id=$1",[projectId]);
+      const titles=new Set(existing.rows.map(row=>normalizeQuestion(String(row.title))));
+      let count=0;
+      for(const draft of bcaSourceDrafts) {
+        if(titles.has(normalizeQuestion(draft.title)))continue;
+        await saveKnowledge(projectId,draft.title,draft.content,undefined,connection,draft.variants,[],
+          {category:draft.category,keywords:draft.keywords,source:`Archive backend BCA fournie par le propriétaire. ${draft.source}`});
+        count++;
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,sourceAction,JSON.stringify({count,status:"pending"})]);
+      changed=changed||count>0;
     }
     await connection.query("COMMIT");
     if (installed.size >= 10000) installed.delete(installed.values().next().value!);

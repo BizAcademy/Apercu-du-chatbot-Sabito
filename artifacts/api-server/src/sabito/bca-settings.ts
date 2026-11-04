@@ -15,13 +15,13 @@ const catalog: Template[] = [
     field: ["transaction_id", "Quelle est la référence du paiement d’activation à vérifier ?"] },
   { operation: "deposit_status", name: "Dépôt Mobile Money ou crypto",
     triggers: ["dépôt non reçu", "vérifier mon dépôt", "dépôt en attente", "dépôt crypto", "crédit manuel USD"],
-    field: ["deposit_number", "Veuillez communiquer la référence du dépôt, du paiement ou le numéro utilisé. Si plusieurs dépôts correspondent, une référence précise sera nécessaire."] },
+    field: ["deposit_number", "Veuillez communiquer la référence exacte du dépôt affichée dans votre historique BCA, et non un numéro de téléphone."] },
   { operation: "deposit_fee_status", name: "Frais et montant net d'un dépôt",
     triggers: ["frais de mon dépôt", "montant net de mon dépôt", "pourquoi mon dépôt est inférieur"],
     field: ["deposit_number", "Quelle est la référence du dépôt dont vous souhaitez consulter les frais ?"] },
   { operation: "withdrawal_status", name: "Retrait Mobile Money ou crypto",
     triggers: ["retrait non reçu", "vérifier mon retrait", "statut de mon retrait", "délai de retrait", "retrait crypto"],
-    field: ["withdrawal_number", "Veuillez communiquer le numéro utilisé ou la référence de votre retrait."] },
+    field: ["withdrawal_number", "Veuillez communiquer la référence exacte du retrait affichée dans votre historique BCA, et non un numéro de téléphone."] },
   { operation: "withdrawal_refund_status", name: "Remboursement d'un retrait",
     triggers: ["remboursement de mon retrait", "retrait rejeté non remboursé", "retrait crypto remboursé"],
     field: ["withdrawal_number", "Quelle est la référence du retrait dont vous attendez le remboursement ?"] },
@@ -40,22 +40,22 @@ const catalog: Template[] = [
     triggers: ["mon code parrain", "code de parrainage", "mon lien de parrainage"] },
   { operation: "referral_commission_status", name: "Commission de parrainage",
     triggers: ["commission de parrainage non reçue", "vérifier ma commission", "mes commissions de parrainage"],
-    field: ["commission_reference", "Quelle est la référence de la commission de parrainage à vérifier ?"] },
+    field: ["commission_reference", "Quel est l’identifiant numérique exact de la commission de parrainage à vérifier ?"] },
   { operation: "leader_reward_status", name: "Récompense mensuelle des leaders",
     triggers: ["ma récompense leader", "bonus mensuel leader", "prime top leader", "récompense mensuelle non reçue"],
-    field: ["reward_period", "Pour quel mois et quelle année souhaitez-vous vérifier votre récompense leader ?"] },
+    field: ["reward_period", "Indiquez le premier jour du mois de récompense au format AAAA-MM-01, par exemple 2026-11-01."] },
   { operation: "formation_payment_status", name: "Paiement d'une formation",
     triggers: ["paiement de ma formation", "formation payée non accessible", "vérifier mon paiement de formation"],
     field: ["payment_reference", "Quelle est la référence du paiement de votre formation ?"] },
   { operation: "digital_purchase_status", name: "Achat Digital Store",
     triggers: ["mon achat Digital Store", "achat numérique non reçu", "vérifier mon achat numérique"],
-    field: ["purchase_reference", "Quelle est la référence de votre achat Digital Store ?"] },
+    field: ["purchase_reference", "Quel est l’identifiant numérique de la transaction associée à votre achat Digital Store ?"] },
   { operation: "digital_sale_status", name: "Revenu d'une vente Digital Store",
     triggers: ["revenu de ma vente", "vente Digital Store non créditée", "vérifier ma vente numérique"],
-    field: ["sale_reference", "Quelle est la référence de la vente Digital Store à vérifier ?"] },
+    field: ["sale_reference", "Quel est l’identifiant numérique de la transaction associée à la vente Digital Store ?"] },
   { operation: "digital_subscription_status", name: "Abonnement annuel vendeur",
     triggers: ["mon abonnement vendeur", "abonnement annuel Digital Store", "paiement abonnement vendeur"],
-    field: ["subscription_reference", "Quelle est la référence du paiement de votre abonnement vendeur ?"] },
+    field: ["subscription_reference", "Quel est l’identifiant numérique de la transaction associée à votre abonnement vendeur ?"] },
   { operation: "digital_store_fee_status", name: "Frais de publication ou modification",
     triggers: ["frais de publication Digital Store", "frais de modification Digital Store", "frais de ma formation numérique"],
     field: ["fee_reference", "Quelle est la référence du paiement des frais de publication ou de modification ?"] },
@@ -64,16 +64,16 @@ const catalog: Template[] = [
     field: ["fee_reference", "Quelle est la référence des frais Digital Store à rembourser ?"] },
   { operation: "refund_status", name: "Remboursement d'un achat numérique",
     triggers: ["remboursement de mon achat", "achat Digital Store non remboursé", "remboursement de ma formation"],
-    field: ["purchase_reference", "Quelle est la référence de l’achat concerné par le remboursement ?"] },
+    field: ["purchase_reference", "Quel est l’identifiant numérique de la transaction associée à l’achat concerné par le remboursement ?"] },
   { operation: "ads_campaign_status", name: "Budget et état d'une campagne BCA Ads",
     triggers: ["budget de ma campagne BCA Ads", "statut de ma campagne BCA Ads", "paiement de ma campagne publicitaire"],
-    field: ["campaign_reference", "Quelle est la référence de votre campagne BCA Ads ?"] },
+    field: ["campaign_reference", "Quel est l’identifiant numérique exact de votre campagne BCA Ads ?"] },
   { operation: "ads_refund_status", name: "Remboursement d'une campagne BCA Ads",
     triggers: ["remboursement campagne BCA Ads", "campagne rejetée non remboursée"],
     field: ["campaign_reference", "Quelle est la référence de la campagne BCA Ads concernée ?"] },
   { operation: "ads_payout_status", name: "Rémunération d'une diffusion BCA Ads",
     triggers: ["paiement de ma diffusion BCA Ads", "rémunération publication BCA Ads", "gain de ma diffusion publicitaire"],
-    field: ["publication_reference", "Quelle est la référence de votre diffusion ou journée de publication BCA Ads ?"] },
+    field: ["publication_reference", "Quel est l’identifiant numérique exact de la journée de publication BCA Ads ?"] },
   { operation: "wallet_movement_status", name: "Détail d'un mouvement de solde",
     triggers: ["vérifier un mouvement de mon solde", "détail de ma transaction", "mon solde a diminué"],
     field: ["transaction_id", "Quelle est la référence du mouvement de solde à vérifier ?"] },
@@ -108,7 +108,28 @@ export function bcaIntents(): IntentDefinition[] {
 
 /** Upgrade only the untouched historical intent list; never reset authored or deleted rules. */
 export function adaptBca(settings: AssistantSettings, legacy: AssistantSettings): AssistantSettings {
-  return JSON.stringify(settings.intents) === JSON.stringify(legacy.intents)
-    ? { ...settings, intents: bcaIntents() }
-    : settings;
+  if(JSON.stringify(settings.intents) === JSON.stringify(legacy.intents))return {...settings,intents:bcaIntents()};
+  // Upgrade only verbatim old stock prompts. Authored triggers, fields, replies,
+  // disabled/deleted intentions and personalized prompts remain authoritative.
+  const stock:Record<string,string>={
+    deposit_status:"Veuillez communiquer la référence du dépôt, du paiement ou le numéro utilisé. Si plusieurs dépôts correspondent, une référence précise sera nécessaire.",
+    withdrawal_status:"Veuillez communiquer le numéro utilisé ou la référence de votre retrait.",
+    referral_commission_status:"Quelle est la référence de la commission de parrainage à vérifier ?",
+    leader_reward_status:"Pour quel mois et quelle année souhaitez-vous vérifier votre récompense leader ?",
+    digital_purchase_status:"Quelle est la référence de votre achat Digital Store ?",
+    digital_sale_status:"Quelle est la référence de la vente Digital Store à vérifier ?",
+    digital_subscription_status:"Quelle est la référence du paiement de votre abonnement vendeur ?",
+    refund_status:"Quelle est la référence de l’achat concerné par le remboursement ?",
+    ads_campaign_status:"Quelle est la référence de votre campagne BCA Ads ?",
+    ads_payout_status:"Quelle est la référence de votre diffusion ou journée de publication BCA Ads ?",
+  };
+  const templates=bcaIntents();
+  return {...settings,intents:settings.intents.map(intent=>{
+    const template=templates.find(item=>item.id===intent.id&&item.backend_function===intent.backend_function);
+    if(!template||!stock[intent.id])return intent;
+    return {...intent,fields:intent.fields.map(field=>{
+      const replacement=template.fields.find(value=>value.name===field.name);
+      return replacement&&field.prompt===stock[intent.id]?{...field,prompt:replacement.prompt}:field;
+    })};
+  })};
 }

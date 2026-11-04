@@ -37,6 +37,8 @@ import { verifyBcaFaq } from "./tests/bca-faq";
 import { buzzCorpus } from "./buzzbooster-corpus";
 import { ensureBuzzBoosterKnowledge } from "./buzzbooster-knowledge-install";
 import { approvedCorpusClarification } from "./public-help-context";
+import { verifyBcaContract } from "./tests/bca-contract";
+import { bcaReadOperations } from "./bca-contract";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
   return new Promise(resolve => socket.once(event,(...args: T[]) => resolve(args)));
@@ -594,8 +596,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       }
       const privateConv=await createConversation(id,guest.externalUserId);
       const privateTrigger=config.settings.intents.find(intent=>intent.backend_function==="deposit_status")!.triggers[0];
-      assert.match((await handleIntent(guest,privateConv,privateTrigger))!,/Souhaitez-vous vérifier/);
-      assert.match((await handleIntent(guest,privateConv,"oui"))!,/Connectez-vous/);
+      assert.match((await handleIntent(guest,privateConv,privateTrigger))!,/Connectez-vous/);
+      assert.equal(await handleIntent(guest,privateConv,"oui"),null);
       assert.equal(isBcaHelpQuestion("Vérifie mon dépôt"),false);
       assert.equal(isBcaHelpQuestion("Quel est mon solde ?"),false);
       assert.equal(isBcaHelpQuestion("Vérifie la transaction 0000123"),false);
@@ -633,11 +635,11 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.deepEqual(config.settings.intents.map((item:{id:string})=>item.id),expected.map(item=>item.id));
       assert.equal(config.settings.intents.find((item:{id:string})=>item.id==="activity_reward_status").enabled,false);
       const settings=settingsSchema.parse(config.settings);
-      const operations=expected.filter(item=>item.enabled).map(item=>item.backend_function);
+      const operations=expected.filter(item=>item.enabled&&bcaReadOperations.some(op=>op===item.backend_function)).map(item=>item.backend_function);
       const claims={sub:id,clientId:credentials.clientId,externalUserId:"bca-financial-member",scope:["chat:connect","member:verified"]};
       const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret).send({operations});
       await poll().expect(200);
-      for(const intent of expected.filter(item=>item.enabled)) {
+      for(const intent of expected.filter(item=>item.enabled&&operations.includes(item.backend_function))) {
         for(const trigger of intent.triggers) assert.equal(detectIntent(trigger,settings),intent.id,trigger);
         const conv=await createConversation(id,claims.externalUserId);
         const proposal=await handleIntent(claims,conv,intent.triggers[0]);
@@ -659,7 +661,9 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
             assert.equal(job.external_user_id,claims.externalUserId);
             assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:"REF-BCA-123"}:{});
             await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
-              .send({result:{status:"confirmed",data:{statut:"Statut réel BCA",reference:"REF-BCA-123",montant:1250,devise:"XAF",code:"PARRAIN-BCA"}}}).expect(200);
+              .send({result:{status:"confirmed",data:{statut:"Statut réel BCA",reference:"REF-BCA-123",montant:1250,devise:"XAF",
+                code_parrain:"PARRAIN-BCA",solde_principal:1250,solde_usd:1,devise_principale:"XAF",devise_usd:"USD",
+                periode:"2026-11-01",montant_credite:1250}}}).expect(200);
             completed=true;break;
           }
           await new Promise(resolve=>setTimeout(resolve,10));
@@ -696,8 +700,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.deepEqual((await poll().expect(200)).body.jobs,[]);
       const guest={...claims,externalUserId:"guest:financial-test",scope:["chat:connect"]};
       const guestConv=await createConversation(id,guest.externalUserId);
-      await handleIntent(guest,guestConv,"statut de ma conversion");
-      assert.match((await handleIntent(guest,guestConv,"oui"))!,/Connectez-vous/);
+      assert.match((await handleIntent(guest,guestConv,"statut de ma conversion"))!,/Connectez-vous/);
+      assert.equal(await handleIntent(guest,guestConv,"oui"),null);
       assert.deepEqual((await poll().expect(200)).body.jobs,[]);
       // Existing custom messages survive the automatic upgrade of untouched historical rules.
       const historical=settingsSchema.parse(defaultSettings(true));
@@ -1235,11 +1239,17 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         values.push(randomUUID(),fixture.project.id,`Question charge identifiant${i}`,`Réponse approuvée identifiant${i}.`);
       }
       await pool.query(`INSERT INTO sabito_core.knowledge_documents(id,project_id,title,content,status) VALUES ${rows.join(",")}`,values);
-      const started=Date.now(),ids=new Set<string>();
+      const started=Date.now(),ids=new Set<string>(),latencies:number[]=[];
+      const memoryStart=process.memoryUsage().rss;
+      let memoryPeak=memoryStart;
+      const memorySampler=setInterval(()=>{memoryPeak=Math.max(memoryPeak,process.memoryUsage().rss);},50);
+      memorySampler.unref();
+      try {
       await Promise.all(Array.from({length:500},async(_,i)=>{
         const loadToken=signAccessToken({sub:fixture.project.id,clientId:fixture.credentials.clientId,
           externalUserId:`load-user-${i}`,externalUserName:`Membre ${i}`,scope:["chat:connect","member:verified"]});
         const client=await openSocket(loadToken);
+        const conversationStarted=Date.now();
         const greeting=await client.timeout(30000).emitWithAck("conversation:start",{});
         assert.ok(greeting.ok);assert.ok(greeting.data.greeting.includes(`Membre ${i}`));
         ids.add(greeting.data.conversationId);
@@ -1251,12 +1261,20 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         assert.equal(answer.content,`Réponse approuvée identifiant${i}.`);
         assert.equal(answer.conversationId,greeting.data.conversationId);
         assert.ok(answer.suggestions.length<=3);
+        latencies.push(Date.now()-conversationStarted);
         client.disconnect();
       }));
+      } finally {clearInterval(memorySampler);}
       assert.equal(ids.size,500);
       const saved=await pool.query(`SELECT COUNT(*) AS n FROM sabito_core.messages WHERE project_id=$1 AND status='completed'`,[fixture.project.id]);
       assert.equal(Number(saved.rows[0].n),1000);
       console.info(`LOAD_TEST: 500/500 conversations, 1000/1000 completed messages, ${Date.now()-started}ms (isolated local database).`);
+      latencies.sort((a,b)=>a-b);
+      console.info(JSON.stringify({kind:"load-metrics",conversations:500,completed:latencies.length,errors:500-latencies.length,
+        durationMs:Date.now()-started,p50Ms:latencies[Math.ceil(latencies.length*.5)-1],
+        p95Ms:latencies[Math.ceil(latencies.length*.95)-1],maxMs:latencies.at(-1),
+        rssStartBytes:memoryStart,rssPeakBytes:memoryPeak,rssEndBytes:process.memoryUsage().rss,
+        scope:"Real Socket.IO + isolated MariaDB, approved public fixtures; not production or Laravel load."}));
     });
     await t.test("Authored follow-up buttons persist, answer exactly, reject stale/cross-tenant selections and clear on edit",async()=>{
       const url=`/v1/admin/projects/${first.project.id}/knowledge`;
@@ -1635,6 +1653,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       ()=>verifyPublicGuidance({app,adminKey,projectIds,openSocket}));
     await t.test("Support history resumes for 24 hours, scopes deletion, records explicit satisfaction and isolates guest cookies",
       ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
+    await t.test("BCA explicit contracts, pending drafts, tickets and corrected references remain scoped",
+      ()=>verifyBcaContract({app,adminKey,projectIds}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       // The first socket may belong to a separate earlier regression fixture.
       const rotationSocket=await openSocket(token);

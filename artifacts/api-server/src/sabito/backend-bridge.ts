@@ -38,7 +38,10 @@ export async function requestBackend(projectId:string, externalUserId:string, op
   if(!identifier.safeParse(operation).success || (operation!=="user_profile"&&!settings.intents.some(i=>i.enabled&&i.backend_function===operation)))
     throw new Error("BACKEND_OPERATION_NOT_CONFIGURED");
   if (!backendStatus(projectId).connected) return Promise.reject(new Error("BACKEND_OFFLINE"));
-  if(seen.get(projectId)?.operations.length && !seen.get(projectId)!.operations.includes(operation)) throw new Error("BACKEND_UNSUPPORTED");
+  // BCA must explicitly announce each capability. Retain the historical
+  // no-list protocol for unrelated generic integrations only.
+  if((profile==="bca" || seen.get(projectId)?.operations.length) &&
+    !seen.get(projectId)?.operations.includes(operation)) throw new Error("BACKEND_UNSUPPORTED");
   if (pending.size >= 10000 || (counts.get(projectId)??0) >= 1024)
     return Promise.reject(new Error("BACKEND_BUSY"));
   return new Promise((resolve,reject) => {

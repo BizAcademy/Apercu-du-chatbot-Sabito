@@ -6,6 +6,7 @@ import { requestBackend,type BackendResult } from "./backend-bridge";
 import { searchState } from "./question-search";
 import { retrieveReply } from "./question-search";
 import { bcaBackendAnswer,bcaContinuationFields,explainBcaObservation } from "./bca-backend-context";
+import { bcaContinuationTicket,closeBcaContinuationTicket } from "./bca-support";
 import { buzzBackendFields,buzzResultAnswer } from "./buzzbooster-contract";
 import { backendContinuation,continuationFields,explainBackendObservation,observationKey,parseBackendContext,
   rememberBackendObservation,type BackendContext,type BackendObservation } from "./backend-context";
@@ -118,7 +119,13 @@ export async function continueBackendConversation(claims:AccessClaims,conversati
       return "La session a expiré. Reconnectez-vous avant de reprendre la vérification.";
     await rememberBackendResult(claims,conversationId,plan.operation,fields,result,text);
     const answer=profile==="bca"?bcaBackendAnswer(definition,result,claims):buzzResultAnswer(plan.operation,result);
-    if(answer)return answer;
+    if(answer) {
+      if(profile==="bca")await closeBcaContinuationTicket(claims.sub,conversationId,definition.id);
+      return answer;
+    }
+    if(profile==="bca")await bcaContinuationTicket(claims,conversationId,definition.id,plan.operation,
+      result.status==="not_found"?"BACKEND_NOT_FOUND":result.status==="invalid_input"?"BACKEND_INVALID_INPUT":
+        result.status==="forbidden"?"BACKEND_FORBIDDEN":"BACKEND_UNVERIFIED_RESULT");
     if(["not_found","invalid_input"].includes(result.status)) {
       const definition=settings.intents.find(intent=>intent.enabled&&intent.backend_function===plan.operation)!;
       const first=definition.fields.find(field=>field.name===result.invalid_field)??definition.fields[0];
@@ -135,9 +142,12 @@ export async function continueBackendConversation(claims:AccessClaims,conversati
         return `La nouvelle consultation n’a pas retrouvé une opération accessible avec ces informations. Renvoyez l’information pour continuer : ${first.prompt}`;
       }
     }
-    return "La nouvelle consultation n’a pas permis de vérifier cette opération. Aucun ancien résultat n’est présenté comme actuel. Vérifiez les informations ou contactez Support.";
-  }catch {
+    return `La nouvelle consultation n’a pas permis de vérifier cette opération. Aucun ancien résultat n’est présenté comme actuel. Vérifiez les informations ou contactez Support.${profile==="bca"?" Un ticket interne a été enregistré. Cela ne signifie pas que votre paiement a échoué.":""}`;
+  }catch(error) {
     await rememberBackendResult(claims,conversationId,plan.operation,fields,undefined,text);
+    const code=error instanceof Error?error.message:"";
+    if(profile==="bca")await bcaContinuationTicket(claims,conversationId,definition.id,plan.operation,
+      ["BACKEND_TIMEOUT","BACKEND_OFFLINE","BACKEND_BUSY","BACKEND_UNSUPPORTED","BACKEND_OPERATION_NOT_CONFIGURED"].includes(code)?code:"BACKEND_UNAVAILABLE");
     return "La nouvelle consultation n’a pas abouti : le backend est indisponible ou n’a pas répondu. Le statut actuel n’est pas vérifié ; cela ne confirme ni un échec financier, ni un crédit. Vous pouvez réessayer.";
   }
 }
