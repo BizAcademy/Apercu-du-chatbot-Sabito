@@ -155,6 +155,20 @@ export async function verifyPublicGuidance({app,adminKey,projectIds,openSocket}:
     .send({title:access.title,content:customAccess,variantes_de_question:access.variantes_de_question}).expect(200);
   conversationId=await createConversation(id,faqGuest.externalUserId);
   answer=(await send(faqSocket,conversationId,"Comment accéder à Buzz Booster ?")).content;
+  assert.ok(!answer.includes("https://example.org/buzz-official"),
+    "A newly edited official URL remains private until explicit administrator approval");
+  const reviewUrl=`/v1/admin/projects/${id}/knowledge-review/${access.id}`;
+  await request(app).put(reviewUrl).set("X-Admin-Key",adminKey).send({
+    title:access.title,content:customAccess,category:"Accès à la plateforme",
+    keywords:["accès","connexion","inscription"],
+    source:"Scénario de test isolé : URL officielle fournie et vérifiée par l’administrateur.",
+    variants:["Comment accéder à Buzz Booster ?","Où ouvrir la plateforme ?",
+      "Quel site officiel utiliser ?","Comment rejoindre la plateforme ?","Où se connecter à Buzz Booster ?"],
+  }).expect(200);
+  await request(app).post(`${reviewUrl}/decision`).set("X-Admin-Key",adminKey)
+    .send({decision:"approve"}).expect(200);
+  conversationId=await createConversation(id,faqGuest.externalUserId);
+  answer=(await send(faqSocket,conversationId,"Comment accéder à Buzz Booster ?")).content;
   assert.ok(answer.startsWith(customAccess),"Configured official URL is read from the approved reference, never inferred");
   const generic=(await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
     .send({slug:`other-${randomUUID()}`,name:"Other platform",assistant_name:"Sabito",

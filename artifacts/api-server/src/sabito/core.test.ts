@@ -162,12 +162,26 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal(await contextualBuzzReply({...claims,externalUserId:"other-member"},conversationId,"Comment ça fonctionne ?"),null);
       const intro=await send("C’est quoi Buzz Booster ?");
       assert.ok(intro.content.startsWith(overview.content));
-      assert.equal(intro.suggestions.length,2);
+      assert.ok(intro.suggestions.length>=2&&intro.suggestions.length<=3);
+      for(const key of ["service-choice","mobile-money"]) {
+        assert.ok(intro.suggestions.some(s=>s.question===buzzGuides.find(g=>g.key===key)!.title),
+          "Authored follow-ups remain available alongside related approved references");
+      }
       assert.match(intro.content,/déjà connecté.*inutile de recréer/);
       assert.doesNotMatch(intro.content,/numéro de commande|référence de transaction/);
       const more=await send("Plus de détails");
       assert.match(more.content,/Quel point souhaitez-vous approfondir/);
-      assert.equal(more.suggestions.length,2);
+      assert.ok(more.suggestions.length>=2&&more.suggestions.length<=3);
+      assert.deepEqual(more.suggestions.slice(0,2).map(s=>s.question),intro.suggestions.slice(0,2).map(s=>s.question),
+        "An elliptical follow-up retains the authored next steps; the related reference may be re-ranked");
+      for(const reply of [intro,more]) {
+        assert.equal(new Set(reply.suggestions.map(s=>s.question)).size,reply.suggestions.length);
+        for(const suggestion of reply.suggestions.slice(2)) {
+          const approved=await pool.query(`SELECT id FROM sabito_core.knowledge_documents
+            WHERE project_id=$1 AND title=$2 AND status='ready'`,[id,suggestion.question]);
+          assert.ok(approved.rows.length>0,"Additional suggestions only expose approved project references");
+        }
+      }
       const deposit=more.suggestions.find(s=>s.question==="Comment faire un dépôt Mobile Money ?")!;
       assert.ok(deposit.follow_up_id);
       assert.equal((await send(deposit.question,deposit.follow_up_id)).content,buzzGuides.find(g=>g.key==="mobile-money")!.content);
@@ -384,6 +398,21 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const signup=docs.find((document:{title:string})=>document.title==="Comment créer un compte ?");
       await request(app).put(`${url}/${signup.id}`).set("X-Admin-Key",adminKey)
         .send({title:signup.title,content:"Instructions approuvées personnalisées pour créer votre compte Buzz Booster.",variantes_de_question:signup.variantes_de_question}).expect(200);
+      assert.doesNotMatch((await retrieveReply(id,"Comment créer un compte ?")).answer,
+        /Instructions approuvées personnalisées/,"An edited reference cannot be published before review");
+      const reviewUrl=`/v1/admin/projects/${id}/knowledge-review/${signup.id}`;
+      await request(app).post(`${reviewUrl}/decision`).set("X-Admin-Key",adminKey)
+        .send({decision:"approve"}).expect(422);
+      await request(app).put(reviewUrl).set("X-Admin-Key",adminKey).send({
+        title:signup.title,content:"Instructions approuvées personnalisées pour créer votre compte Buzz Booster.",
+        category:"Inscription",keywords:["compte","inscription"],
+        source:"Scénario de test isolé : instructions d’inscription validées par l’administrateur.",
+        variants:["Comment m’inscrire ?","Comment ouvrir mon compte ?","Je veux créer un compte",
+          "Où faire mon inscription ?","Créer mon profil Buzz Booster"],
+      }).expect(200);
+      await request(app).post(`${reviewUrl}/decision`).send({decision:"approve"}).expect(401);
+      await request(app).post(`${reviewUrl}/decision`).set("X-Admin-Key",adminKey)
+        .send({decision:"approve"}).expect(200);
       assert.match((await retrieveReply(id,"Comment créer un compte ?")).answer,/Instructions approuvées personnalisées/);
       await request(app).delete(`${url}/${signup.id}`).set("X-Admin-Key",adminKey).expect(204);
       await readAssistantSettings(id);
@@ -960,11 +989,11 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       }
       for(const acknowledgement of ["merci","ok","okk","daccord","d’accord","tank","thanks","ok merci beaucoup"]) {
         const closing=await retrieveReply(second.project.id,acknowledgement);
-        assert.equal(closing.answer,"À la prochaine ! N'hésitez pas à revenir si vous avez un souci.");
+        assert.equal(closing.answer,"À la prochaine ! N’hésitez pas à revenir si vous avez un souci.");
         assert.equal(closing.closing_message,"");assert.deepEqual(closing.suggestions,[]);
       }
       assert.notEqual((await retrieveReply(second.project.id,"Merci, comment recevoir mon retrait ?")).answer,
-        "À la prochaine ! N'hésitez pas à revenir si vous avez un souci.");
+        "À la prochaine ! N’hésitez pas à revenir si vous avez un souci.");
       assert.ok(reply.suggestions.length<=3);
       assert.ok(scoreQuestion("Je veux adhérer","Je veux souscrire",settings)>.9);
       assert.ok(scoreQuestion("ma transaction","ma transacion",settings)>.7);
