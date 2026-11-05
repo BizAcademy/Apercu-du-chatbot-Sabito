@@ -4,6 +4,7 @@ import { retrieveReply,searchState } from "./question-search";
 import type { AccessClaims } from "./security";
 import { corpusClarificationKey } from "./conversation-input";
 import { buzzCorpus } from "./buzzbooster-corpus";
+import { bcaConversationHelp } from "./bca-conversation-help";
 
 /** Read a clarification from the SAME approved index. Pending proposals never
  * supply a public answer. Existing field collectors always have precedence. */
@@ -26,6 +27,8 @@ export async function approvedCorpusClarification(claims:AccessClaims,conversati
 /** Reuse only the immediately preceding approved public answer. Never turn a
  * backend result, an older topic, or another member's history into public help. */
 export async function contextualBuzzReply(claims:AccessClaims,conversationId:string,text:string) {
+  const bca=await bcaConversationHelp(claims,conversationId,text);
+  if(bca)return bca;
   const question=normalizeQuestion(text).replace(/[?.!]+$/g,"").trim();
   const explain=/^(?:(?:je veux|je voudrais) savoir )?comment (?:ca|cela) (?:fonctionne|marche)$/.test(question)
     || /^(?:explique moi|expliquez moi|peux tu m expliquer|pourquoi|comment faire alors)$/.test(question);

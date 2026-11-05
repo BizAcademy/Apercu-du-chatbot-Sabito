@@ -5,6 +5,7 @@ import { bcaGuides } from "./bca-guide-data";
 import { bcaFaq,bcaFaqFor } from "./bca-faq";
 import { bcaSourceDrafts } from "./bca-source-drafts";
 import { bcaMemberFaq } from "./bca-member-faq";
+import { bcaQuestionAliases,bcaQuestionAlias,bcaQuestionFaq } from "./bca-question-followups";
 
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
@@ -27,9 +28,11 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
     }
     const faqKeys=new Set(bcaFaq.map(guide=>guide.key));
     const memberKeys=new Set(bcaMemberFaq.map(guide=>guide.key));
+    const questionKeys=new Set(bcaQuestionFaq.map(guide=>guide.key));
     const packs=[{action,guides:bcaGuides.filter(guide=>!faqKeys.has(guide.key))},
-      {action:"bca.general_faq.installed",guides:bcaFaq.filter(guide=>!memberKeys.has(guide.key))},
-      {action:"bca.member_questions.installed",guides:bcaMemberFaq}];
+      {action:"bca.general_faq.installed",guides:bcaFaq.filter(guide=>!memberKeys.has(guide.key)&&!questionKeys.has(guide.key))},
+      {action:"bca.member_questions.installed",guides:bcaMemberFaq},
+      {action:"bca.conversation_questions.installed",guides:bcaQuestionFaq}];
     for(const pack of packs) {
       const marker = await connection.query(
         "SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1", [projectId, pack.action]);
@@ -87,6 +90,36 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
       })]);
       changed = changed || ids.length > 0;
     }
+    const aliasesAction="bca.conversation_aliases.installed";
+    const aliasesMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,aliasesAction]);
+    if(!aliasesMarker.rows.length) {
+      const existing=await connection.query(`SELECT d.id,d.title,d.content,d.status,v.variantes_de_question,f.questions_json
+        FROM sabito_core.knowledge_documents d LEFT JOIN sabito_core.knowledge_question_variants v
+        ON v.document_id=d.id AND v.project_id=d.project_id
+        LEFT JOIN sabito_core.knowledge_follow_ups f ON f.document_id=d.id AND f.project_id=d.project_id
+        WHERE d.project_id=$1`,[projectId]);
+      const reserved=new Set<string>();
+      for(const row of existing.rows)for(const question of [String(row.title),...JSON.parse(String(row.variantes_de_question??"[]"))])
+        reserved.add(normalizeQuestion(question));
+      for(const row of existing.rows)for(const followUp of JSON.parse(String(row.questions_json??"[]")))
+        if(typeof followUp.question==="string")reserved.add(normalizeQuestion(followUp.question));
+      let added=0;
+      for(const group of bcaQuestionAliases) {
+        const guide=bcaGuides.find(item=>item.key===group.key);
+        const doc=guide&&existing.rows.find(row=>String(row.title)===guide.title&&String(row.status)==="ready");
+        if(!doc)continue; // Never resurrect deleted references or publish a pending one.
+        const fresh=group.questions.filter(question=>!reserved.has(normalizeQuestion(question)));
+        if(!fresh.length)continue;
+        const aliases=[...JSON.parse(String(doc.variantes_de_question??"[]")),...fresh];
+        await saveKnowledge(projectId,String(doc.title),String(doc.content),String(doc.id),connection,aliases);
+        for(const question of fresh)reserved.add(normalizeQuestion(question));
+        added+=fresh.length;
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,aliasesAction,JSON.stringify({added,preservedContent:true})]);
+      changed=changed||added>0;
+    }
     const sourceAction="bca.source_drafts.proposed";
     const seeded=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
       [projectId,sourceAction]);
@@ -121,6 +154,7 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
  * and requests for actual personal results remain in the existing member flow. */
 export function isBcaHelpQuestion(text:string):boolean {
   const question = normalizeQuestion(text);
+  if(bcaQuestionAlias(text))return true;
   if(bcaFaqFor(text))return true;
   if (/\d/.test(question) || /^(?:verifie|verifier|consulte|recherche|cherche)\b/.test(question))
     return false;

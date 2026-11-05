@@ -11,6 +11,8 @@ import { bcaFaqFor } from "./bca-faq";
 import { bcaGuides } from "./bca-guide-data";
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
+import { bcaQuestionAliases,bcaQuestionFaq,bcaFollowupKind } from "./bca-question-followups";
+import { isBcaHelpQuestion } from "./bca-knowledge-install";
 
 // Independently authored controls, not installed as aliases or dictionary entries.
 const controls:[string,number][]=[
@@ -93,4 +95,21 @@ test("CSV social phrases do not hide real questions or confirm a financial outco
   assert.ok(isClosingAcknowledgement("Ok merci tu es fort"));
   assert.ok(isClosingAcknowledgement("Oui j'ai pu"));
   assert.equal(isClosingAcknowledgement("Oui j'ai pu payer mais mon dépôt est bloqué"),false);
+});
+test("Additional BCA questions use bounded aliases and explicit clarification, not guessed personal data",()=>{
+  for(const group of bcaQuestionAliases) {
+    assert.ok(bcaGuides.some(guide=>guide.key===group.key),group.key);
+    for(const question of group.questions)assert.ok(isBcaHelpQuestion(question),question);
+  }
+  for(const guide of bcaQuestionFaq) {
+    for(const question of [guide.title,...guide.variants])assert.equal(bcaFaqFor(question)?.key,guide.key,question);
+    for(const key of guide.followUpKeys)assert.ok(bcaGuides.some(item=>item.key===key),key);
+  }
+  assert.equal(bcaFollowupKind("En quel année BCA à été fondé ?"),"year");
+  assert.equal(bcaFollowupKind("Mon argent dois e123f"),"incomplete");
+  assert.equal(bcaFollowupKind("Comment faire"),"explain");
+  assert.equal(bcaFollowupKind("Comment faire un dépôt 12345"),undefined);
+  assert.equal(bcaFollowupKind("Yo mais mon retrait est bloqué"),undefined);
+  assert.ok(greetingReply("Yo"));
+  assert.equal(greetingReply("Yo pourquoi mon dépôt est bloqué"),null);
 });

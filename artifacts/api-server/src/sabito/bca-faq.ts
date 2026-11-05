@@ -2,6 +2,7 @@ import type { BcaGuide } from "./bca-guide-data";
 import { expandQuestion,tokenSimilarity } from "./question-spelling";
 import { bcaMemberFaq } from "./bca-member-faq";
 import { normalizeQuestion } from "./question-normalization";
+import { bcaQuestionFaq,bcaQuestionAlias } from "./bca-question-followups";
 
 const usage="Pour apprendre à publier et à vérifier vos campagnes sur votre statut WhatsApp, ouvrez « Présentation BCA », puis cliquez sur « Guide d’utilisation ». Suivez les étapes de publication et de vérification, les preuves et les délais indiqués.";
 const guide=(key:string,title:string,variants:string[],content:string):BcaGuide=>
@@ -40,6 +41,7 @@ export const bcaFaq:BcaGuide[]=[
     "Est-ce que BCA est une plateforme d’investissement ?","Je veux investir pour avoir des gains garantis",
   ],"Biz Connect Academy n’est pas une plateforme d’investissement ni de jeux d’argent. Elle propose notamment des formations, des produits digitaux, le parrainage selon ses conditions et la diffusion de campagnes BCA Ads validées.\nPour envisager des revenus, vous pouvez apprendre une compétence et l’utiliser, vendre un produit digital conforme dans Digital Store, participer au parrainage autorisé ou devenir diffuseur BCA Ads après validation du test. Chacun de ces parcours a ses conditions ; l’inscription ne garantit ni gain, ni rendement, ni récupération automatique de votre paiement.\nQu’est-ce qui vous intéresse le plus : les formations, la vente digitale, le parrainage ou la diffusion de campagnes ?"),
   ...bcaMemberFaq,
+  ...bcaQuestionFaq,
 ];
 
 /** FAQ-only spelling tolerance; never transform transaction numbers or IDs. */
@@ -56,6 +58,10 @@ export function bcaFaqFor(text:string):BcaGuide|undefined {
   const literal=normalizeQuestion(text);
   const member=bcaMemberFaq.find(guide=>[guide.title,...guide.variants].some(value=>normalizeQuestion(value)===literal));
   if(member)return member;
+  const additional=bcaQuestionFaq.find(guide=>[guide.title,...guide.variants].some(value=>normalizeQuestion(value)===literal));
+  if(additional)return additional;
+  const alias=bcaQuestionAlias(text);
+  if(alias)return bcaFaq.find(guide=>guide.key===alias.key);
   let key:string|undefined;
   if(/\b(?:jeux?|investissement|investir)\b/.test(q))key="faq-no-gambling";
   else if(/\bdiffuseur\b/.test(q)&&/\b(?:bloque|debloquer|debloque)\b/.test(q))key="faq-blocked-publisher";
