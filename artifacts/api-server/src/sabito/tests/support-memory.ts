@@ -42,7 +42,7 @@ export async function verifySupportMemory({app,adminKey,projectIds,openSocket}:C
   let stats=(await request(app).get(`/v1/admin/projects/${id}/insights`).set(admin).expect(200)).body;
   assert.equal(stats.total_questions,2);assert.equal(stats.satisfaction.satisfied,1);assert.equal(stats.satisfaction.rate,100);
   const third=(await send(questions[2])).content;assert.ok(third.includes(questions[1]));
-  assert.match((await send("non")).content,/À quel niveau/);
+  assert.match((await send("Par encore")).content,/À quel niveau/);
   const again=(await send("aidez-moi à nouveau")).content;assert.ok(again.includes(answers[1]));
   stats=(await request(app).get(`/v1/admin/projects/${id}/insights?days=7`).set(admin).expect(200)).body;
   assert.equal(stats.satisfaction.satisfied,1);assert.equal(stats.satisfaction.unsatisfied,1);

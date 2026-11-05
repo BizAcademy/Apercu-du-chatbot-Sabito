@@ -74,7 +74,8 @@ export function backendContinuation(text:string,context:BackendContext|null,prof
     !/^(?:pourquoi|comment|explique|expliquez)\b/.test(q)&&
     /\b(?:est il|est elle|est ce|quel est le statut|quel est son statut|ai je recu)\b/.test(q);
   const action=/\b(?:confirmer|confirme|confirmez|valider|valide|validez|forcer|force|rembourser|rembourse|annuler|annule|crediter|credite|attribuer)\b/.test(q);
-  const explain=/\b(?:comment|pourquoi|explique|expliquer|expliquez|signifie|veut dire|comprendre|distincts?|difference|details|c est quoi)\b/.test(q)||
+  const explain=(profile==="bca"&&/^(?:aidez moi a nouveau(?: dans bca)?|repondez)$/.test(q))||
+    /\b(?:comment|pourquoi|explique|expliquer|expliquez|signifie|veut dire|comprendre|distincts?|difference|details|c est quoi)\b/.test(q)||
     /\b(?:credit du portefeuille|attribution d un bonus|confirmation du paiement)\b/.test(q);
   const related=/^(?:et |qu en est il|mon bonus|le bonus|son remboursement)/.test(q);
   let operation:string|undefined;

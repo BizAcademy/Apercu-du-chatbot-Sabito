@@ -1,5 +1,6 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
 import { bcaOwnerPrivateAliases } from "./bca-owner-answers";
+import { bcaSupportTemplates } from "./bca-support-questions";
 
 type Template = {
   operation: string;
@@ -11,6 +12,7 @@ type Template = {
 
 /** Consultation only. Operation names must be implemented independently by BCA. */
 const catalog: Template[] = [
+  ...bcaSupportTemplates,
   { operation: "account_activation", name: "État et paiement d'activation",
     triggers: ["compte non activé", "vérifier mon activation", "paiement d'activation"],
     field: ["transaction_id", "Quelle est la référence du paiement d’activation à vérifier ?"] },

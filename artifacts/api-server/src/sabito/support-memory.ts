@@ -9,13 +9,13 @@ import { recordVariantCandidate } from "./variant-candidates";
 export function substantialQuestion(text:string) {
   const q=normalizeQuestion(text);
   return !opaqueConversationInput(text)&&!greetingReply(text)&&!isClosingAcknowledgement(text)&&q.split(" ").length>=2&&
-    !/^(oui|non|ok|suite|page suivante|reverifie celle ci|aidez moi a nouveau|aide moi a nouveau)$/.test(q)&&
+    !/^(oui|non|ok|suite|page suivante|par encore|pas encore|reverifie celle ci|aidez moi a nouveau(?: dans bca)?|aide moi a nouveau)$/.test(q)&&
     !/^(et |celle |maintenant |voici |le bon numero|mon otp|mon code|code otp)/.test(q)&&
     !/^[\d\s]+$/.test(q);
 }
 const short=(text:string)=>text.replace(/\s+/g," ").slice(0,170);
 const positive=/^(oui|oui merci|oui ca m a aide|oui c est resolu|je suis satisfait|c est resolu|probleme resolu|satisfait|parfait|tout est bon)$/;
-const negative=/^(non|non merci|pas encore|non pas encore|pas satisfait|je ne suis pas satisfait|non ca ne marche pas|ca ne marche pas|non toujours pas)$/;
+const negative=/^(non|non merci|pas encore|par encore|non pas encore|pas satisfait|je ne suis pas satisfait|non ca ne marche pas|ca ne marche pas|non toujours pas)$/;
 const retry=/^(oui|oui merci|aidez moi a nouveau|aide moi a nouveau|recommence|reprenons|oui aidez moi a nouveau|je veux de l aide)$/;
 type Turn={answer?:string;query?:string;fallbackQuestion?:string;feedbackOnly?:boolean};
 export async function supportMemoryTurn(projectId:string,conversationId:string,text:string,assistantId:string):Promise<Turn> {
@@ -26,7 +26,8 @@ export async function supportMemoryTurn(projectId:string,conversationId:string,t
   const row=result.rows[0];
   if(!row)return {};
   const last=await pool.query(`SELECT id FROM sabito_core.messages WHERE conversation_id=$1 AND role='assistant'
-    AND status='completed' ORDER BY created_at DESC,id DESC LIMIT 1`,[conversationId]);
+    AND status='completed' AND created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+    ORDER BY created_at DESC,id DESC LIMIT 1`,[conversationId]);
   if(last.rows[0]?.id!==row.asked_after_message_id)return {};
   const q=normalizeQuestion(text);
   if(row.status==="asked"&&(positive.test(q)||negative.test(q))) {

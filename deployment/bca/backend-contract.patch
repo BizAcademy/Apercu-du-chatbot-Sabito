@@ -1,8 +1,7 @@
 diff --git a/app/Console/Commands/SabitoJobsWork.php b/app/Console/Commands/SabitoJobsWork.php
-index d56022c..9b4b94b 100644
 --- a/app/Console/Commands/SabitoJobsWork.php
 +++ b/app/Console/Commands/SabitoJobsWork.php
-@@ -41,7 +41,9 @@ class SabitoJobsWork extends Command
+@@ -41,7 +41,9 @@
                      } catch (Throwable) {
                          $failed = true;
                          Log::warning('[Sabito] Read-only job processing failed', [
@@ -13,7 +12,7 @@ index d56022c..9b4b94b 100644
                              'operation' => in_array($job['operation'] ?? null, SabitoReadOnlyJobService::OPERATIONS, true)
                                  ? $job['operation']
                                  : 'unknown',
-@@ -51,7 +53,9 @@ class SabitoJobsWork extends Command
+@@ -51,7 +53,9 @@
              } catch (Throwable) {
                  $failed = true;
                  if (time() - $lastUnavailableLoggedAt >= 60) {
@@ -26,10 +25,9 @@ index d56022c..9b4b94b 100644
              }
 diff --git a/app/Services/Sabito/SabitoJobContract.php b/app/Services/Sabito/SabitoJobContract.php
 new file mode 100644
-index 0000000..cc182c6
 --- /dev/null
 +++ b/app/Services/Sabito/SabitoJobContract.php
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,88 @@
 +<?php
 +
 +namespace App\Services\Sabito;
@@ -47,6 +45,10 @@ index 0000000..cc182c6
 +        'wallet_swap_status' => ['swap_reference', 'public_id'],
 +        'wallet_balance' => null,
 +        'referral_code' => null,
++        'digital_product_review' => ['product_reference', 'product_id'],
++        'referral_commissions_recent' => null,
++        'ads_publisher_status' => null,
++        'bca_catalogue_current' => null,
 +        'referral_commission_status' => ['commission_reference', 'commission_id'],
 +        'leader_reward_status' => ['reward_period', 'period_start'],
 +        'formation_payment_status' => ['payment_reference', 'reference'],
@@ -102,7 +104,7 @@ index 0000000..cc182c6
 +            throw new InvalidArgumentException($public);
 +        }
 +        $value = $fields[$public];
-+        if (in_array($internal, ['commission_id', 'campaign_id', 'publication_day_id', 'transaction_id', 'purchase_reference'], true) &&
++        if (in_array($internal, ['commission_id', 'campaign_id', 'publication_day_id', 'transaction_id', 'purchase_reference', 'product_id'], true) &&
 +            (! preg_match('/^[1-9][0-9]{0,17}$/D', $value))) {
 +            throw new InvalidArgumentException($public);
 +        }
@@ -115,10 +117,17 @@ index 0000000..cc182c6
 +    }
 +}
 diff --git a/app/Services/Sabito/SabitoReadOnlyJobService.php b/app/Services/Sabito/SabitoReadOnlyJobService.php
-index 1ead921..e6f06fd 100644
 --- a/app/Services/Sabito/SabitoReadOnlyJobService.php
 +++ b/app/Services/Sabito/SabitoReadOnlyJobService.php
-@@ -33,7 +33,15 @@ class SabitoReadOnlyJobService
+@@ -24,6 +24,7 @@
+         'leader_reward_status', 'formation_payment_status', 'digital_purchase_status',
+         'digital_sale_status', 'digital_subscription_status', 'digital_store_fee_status',
+         'refund_status', 'ads_campaign_status', 'ads_payout_status', 'wallet_movement_status',
++        'digital_product_review', 'referral_commissions_recent', 'ads_publisher_status', 'bca_catalogue_current',
+     ];
+ 
+     public function handle(array $job): array
+@@ -33,7 +34,15 @@
              return $this->result('forbidden', 'Identité membre invalide.');
          }
  
@@ -135,7 +144,7 @@ index 1ead921..e6f06fd 100644
          if (! $user || (string) $user->getKey() !== $externalId || $user->is_banned) {
              return $this->result('forbidden', 'Compte membre non disponible.');
          }
-@@ -55,13 +63,30 @@ class SabitoReadOnlyJobService
+@@ -55,13 +64,32 @@
              return $this->result('forbidden', 'Opération non autorisée.');
          }
  
@@ -161,6 +170,8 @@ index 1ead921..e6f06fd 100644
 +            }
              return match ($operation) {
 -                'account_activation' => $this->activation($user),
++                'digital_product_review', 'referral_commissions_recent', 'ads_publisher_status', 'bca_catalogue_current'
++                    => (new SabitoSupportReadService())->handle($user, $operation, $fields),
 +                'account_activation' => $this->activation($user, $fields),
                  'wallet_balance' => $this->balance($user),
                  'referral_code' => $this->result('ok', 'Code de parrainage du compte.', [
@@ -169,7 +180,7 @@ index 1ead921..e6f06fd 100644
                  ]),
                  'deposit_status' => $this->transactionStatus($user, $fields, ['deposit'], 'Dépôt'),
                  'withdrawal_status' => $this->transactionStatus($user, $fields, ['withdrawal'], 'Retrait', 'external_withdrawal'),
-@@ -74,19 +99,30 @@ class SabitoReadOnlyJobService
+@@ -74,19 +102,30 @@
                  'digital_purchase_status' => $this->purchaseStatus($user, $fields, false),
                  'digital_sale_status' => $this->purchaseStatus($user, $fields, true),
                  'digital_subscription_status' => $this->subscriptionStatus($user, $fields),
@@ -190,8 +201,9 @@ index 1ead921..e6f06fd 100644
      }
  
 -    private function activation(User $user): array
+-    {
 +    private function activation(User $user, array $fields = []): array
-     {
++    {
 +        if ($fields !== []) {
 +            $query = $this->transactionQuery($user, $fields);
 +            if (! $query) {
@@ -202,7 +214,7 @@ index 1ead921..e6f06fd 100644
          $activation = Transaction::query()->where('user_id', $user->id)->where('type', 'activation')
              ->where('status', 'completed')->latest('processed_at')->latest('id')->first();
  
-@@ -305,14 +341,15 @@ class SabitoReadOnlyJobService
+@@ -305,14 +344,15 @@
  
      private function transactionResult(Builder $query, string $label, User $user): array
      {
@@ -220,7 +232,7 @@ index 1ead921..e6f06fd 100644
          $status = match ($tx->status) {
              'completed' => 'confirmed', 'pending' => 'pending', 'failed' => 'failed', default => 'error',
          };
-@@ -337,20 +374,26 @@ class SabitoReadOnlyJobService
+@@ -337,20 +377,26 @@
      private function swapStatus(User $user, array $fields): array
      {
          $query = WalletSwap::query()->where('user_id', $user->id);
@@ -252,7 +264,7 @@ index 1ead921..e6f06fd 100644
              'reference' => $swap->public_id,
              'direction' => $swap->direction,
              'montant_source' => (float) $swap->source_amount,
-@@ -381,7 +424,7 @@ class SabitoReadOnlyJobService
+@@ -381,7 +427,7 @@
          $commission = $rows->first();
  
          return $this->result($commission->status === 'completed' ? 'confirmed' : 'pending', 'Commission '.$commission->status.'.', [
@@ -261,7 +273,7 @@ index 1ead921..e6f06fd 100644
              'niveau' => (int) $commission->level,
              'montant' => (float) $commission->amount,
              'statut_commission' => $commission->status,
-@@ -405,6 +448,9 @@ class SabitoReadOnlyJobService
+@@ -405,6 +451,9 @@
          }
          $reward = $rows->first();
          $cashTransaction = $reward->cashTransaction;
@@ -271,7 +283,7 @@ index 1ead921..e6f06fd 100644
          $cashCredited = $cashTransaction && $cashTransaction->status === 'completed';
          $technicalStatus = $cashCredited || $reward->status === 'fulfilled' ? 'confirmed' : 'pending';
  
-@@ -440,7 +486,7 @@ class SabitoReadOnlyJobService
+@@ -440,7 +489,7 @@
          $purchase = $rows->first();
  
          return $this->result($purchase->status === 'completed' ? 'confirmed' : 'pending', ($seller ? 'Vente ' : 'Achat ').$purchase->status.'.', [
@@ -280,7 +292,7 @@ index 1ead921..e6f06fd 100644
              'produit' => $purchase->product?->title,
              'montant' => (float) $purchase->amount,
              'devise' => $purchase->currency,
-@@ -469,7 +515,7 @@ class SabitoReadOnlyJobService
+@@ -469,7 +518,7 @@
          $technicalStatus = $active ? 'active' : (in_array($subscription->status, ['expired', 'cancelled'], true) ? 'inactive' : 'pending');
  
          return $this->result($technicalStatus, 'Abonnement '.$subscription->status.'.', [
@@ -290,10 +302,9 @@ index 1ead921..e6f06fd 100644
              'montant' => (float) $subscription->amount,
              'devise' => 'XAF',
 diff --git a/app/Services/Sabito/SabitoSecurityService.php b/app/Services/Sabito/SabitoSecurityService.php
-index f71fc54..91d9b20 100644
 --- a/app/Services/Sabito/SabitoSecurityService.php
 +++ b/app/Services/Sabito/SabitoSecurityService.php
-@@ -333,8 +333,12 @@ class SabitoSecurityService
+@@ -333,8 +333,12 @@
  
      public function auditLog(string $event, array $context = []): void
      {
@@ -309,18 +320,18 @@ index f71fc54..91d9b20 100644
  
      private function assertUserSessionStillActive(User $user, array $payload): void
 diff --git a/tests/Feature/SabitoIntegrationTest.php b/tests/Feature/SabitoIntegrationTest.php
-index e5eb8a6..8156b77 100644
 --- a/tests/Feature/SabitoIntegrationTest.php
 +++ b/tests/Feature/SabitoIntegrationTest.php
-@@ -20,6 +20,7 @@ use Tests\TestCase;
+@@ -20,6 +20,8 @@
  
  class SabitoIntegrationTest extends TestCase
  {
 +    use SabitoReadContractCases;
++    use SabitoSupportReadCases;
      private const SABITO_URL = 'https://sabito.bizconnectacademy.com';
  
      private const SABITO_CLIENT_ID = 'bca_sabito_client_001';
-@@ -662,6 +663,10 @@ class SabitoIntegrationTest extends TestCase
+@@ -662,6 +664,10 @@
              'balance_main' => 25000,
              'is_active' => true,
          ]);
@@ -333,10 +344,9 @@ index e5eb8a6..8156b77 100644
              'title' => 'Initiation Marketing Digital',
 diff --git a/tests/Feature/SabitoReadContractCases.php b/tests/Feature/SabitoReadContractCases.php
 new file mode 100644
-index 0000000..633e20f
 --- /dev/null
 +++ b/tests/Feature/SabitoReadContractCases.php
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,127 @@
 +<?php
 +
 +namespace Tests\Feature;
@@ -441,6 +451,7 @@ index 0000000..633e20f
 +            'expires_at'=>now()->addMinute()->toIso8601String()];
 +        $this->assertSame('invalid_input', $service->handle($job)['status']);
 +        foreach (SabitoReadOnlyJobService::OPERATIONS as $operation) {
++            if (in_array($operation, ['digital_product_review','referral_commissions_recent','ads_publisher_status','bca_catalogue_current'], true)) continue;
 +            [$field] = SabitoJobContract::FIELDS[$operation];
 +            $table = match ($operation) {
 +                'wallet_swap_status'=>'wallet_swaps', 'wallet_balance'=>'user_balances',
@@ -461,5 +472,203 @@ index 0000000..633e20f
 +                Schema::rename($table.'_unavailable_fixture', $table);
 +            }
 +        }
++    }
++}
+diff --git a/app/Services/Sabito/SabitoSupportReadService.php b/app/Services/Sabito/SabitoSupportReadService.php
+new file mode 100644
+--- /dev/null
++++ b/app/Services/Sabito/SabitoSupportReadService.php
+@@ -0,0 +1,104 @@
++<?php
++
++namespace App\Services\Sabito;
++
++use App\Models\User;
++use Illuminate\Support\Facades\DB;
++
++/** Called only after SabitoReadOnlyJobService verifies identity, expiry and
++ * the explicit field contract. All queries are bounded and read-only. */
++final class SabitoSupportReadService
++{
++    public function handle(User $user, string $operation, array $fields): array
++    {
++        return match ($operation) {
++            'digital_product_review' => $this->product($user, $fields),
++            'referral_commissions_recent' => $this->commissions($user),
++            'ads_publisher_status' => $this->publisher($user),
++            'bca_catalogue_current' => $this->catalogue(),
++            default => ['status' => 'forbidden'],
++        };
++    }
++
++    private function text(mixed $value, int $length = 160): string
++    {
++        return mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]+/u', ' ', (string) $value)), 0, $length);
++    }
++
++    private function product(User $user, array $fields): array
++    {
++        $product = DB::table('digital_products')->where('user_id', $user->id)
++            ->where('id', $fields['product_id'])->first(['id', 'title', 'status', 'rejection_reason']);
++        if (! $product) {
++            return ['status' => 'not_found'];
++        }
++        if (! in_array($product->status, ['pending', 'approved', 'rejected'], true)) {
++            return ['status' => 'error'];
++        }
++        return ['status' => $product->status === 'pending' ? 'pending' : 'ok', 'data' => [
++            'statut' => $product->status, 'reference' => (string) $product->id,
++            'produit' => $this->text($product->title),
++            'motif' => $product->status === 'rejected' && $product->rejection_reason !== null ?
++                $this->text($product->rejection_reason, 1000) : null,
++        ]];
++    }
++
++    private function commissions(User $user): array
++    {
++        $rows = DB::table('affiliate_commissions')->where('sponsor_id', $user->id)
++            ->orderByDesc('id')->limit(6)->get(['id', 'level', 'amount', 'status', 'paid_at']);
++        if ($rows->isEmpty()) {
++            return ['status' => 'not_found'];
++        }
++        $lines = $rows->take(5)->map(fn ($row) => 'Commission '.$row->id.' — niveau '.
++            $this->text($row->level, 8).' — montant enregistré '.$this->text($row->amount, 30).
++            ' — statut '.$this->text($row->status, 40).
++            ($row->paid_at ? ' — date enregistrée '.$this->text($row->paid_at, 40) : ''))->implode("\n");
++        return ['status' => 'ok', 'data' => [
++            'statut' => 'consultation effectuée', 'nombre' => min(5, $rows->count()),
++            'commissions' => $lines, 'liste_limitee' => $rows->count() > 5,
++        ]];
++    }
++
++    private function publisher(User $user): array
++    {
++        $profile = DB::table('bca_ads_publisher_profiles')->where('user_id', $user->id)
++            ->first(['status', 'test_campaign_validated', 'blocked_reason']);
++        if (! $profile) {
++            return ['status' => 'not_found'];
++        }
++        // Do not substitute the archived application's default tariff for an
++        // actual setting. A missing setting remains explicitly unavailable.
++        $rate = DB::table('settings')->where('key', 'bca_ads_publisher_rate_per_view')->value('value');
++        $rate = is_numeric($rate) && is_finite((float) $rate) && (float) $rate >= 0 ? (float) $rate : null;
++        return ['status' => 'ok', 'data' => [
++            'statut' => $this->text($profile->status, 40),
++            'test_valide' => (bool) $profile->test_campaign_validated,
++            'motif_blocage' => $profile->status === 'blocked' ? $this->text($profile->blocked_reason, 800) : null,
++            'taux_configure' => $rate,
++            'precision_tarif' => $rate === null ? 'Paramètre absent : aucun taux actuel confirmé.' :
++                'Paramètre global enregistré ; consulter aussi les conditions de la campagne courante.',
++        ]];
++    }
++
++    private function catalogue(): array
++    {
++        $groups = [
++            'Formations' => DB::table('formations')->where('is_active', true),
++            'Ebooks' => DB::table('ebooks')->where('is_active', true),
++            'Digital Store' => DB::table('digital_products')->where('is_active', true)->where('status', 'approved'),
++        ];
++        $lines = [];
++        $limited = false;
++        foreach ($groups as $label => $query) {
++            $rows = $query->orderBy('id')->limit(6)->get(['title']);
++            $limited = $limited || $rows->count() > 5;
++            $lines[] = $label.' : '.($rows->isEmpty() ? 'aucune offre publiée renvoyée' :
++                $rows->take(5)->map(fn ($row) => $this->text($row->title, 90))->implode(' ; '));
++        }
++        return ['status' => 'ok', 'data' => [
++            'statut' => 'consultation effectuée', 'catalogue' => implode("\n", $lines),
++            'liste_limitee' => $limited,
++        ]];
++    }
++}
+diff --git a/tests/Feature/SabitoSupportReadCases.php b/tests/Feature/SabitoSupportReadCases.php
+new file mode 100644
+--- /dev/null
++++ b/tests/Feature/SabitoSupportReadCases.php
+@@ -0,0 +1,84 @@
++<?php
++
++namespace Tests\Feature;
++
++use App\Models\User;
++use App\Services\Sabito\SabitoReadOnlyJobService;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++
++trait SabitoSupportReadCases
++{
++    public function test_support_reads_are_owned_bounded_and_never_write(): void
++    {
++        $owner = User::create(['name'=>'Owner','email'=>'support-owner@fixture.test',
++            'password'=>'fixture-only','is_active'=>true,'sponsor_code'=>'OWNER']);
++        $other = User::create(['name'=>'Other','email'=>'support-other@fixture.test',
++            'password'=>'fixture-only','is_active'=>true,'sponsor_code'=>'OTHER']);
++        Schema::table('digital_products', fn (Blueprint $t) => $t->text('rejection_reason')->nullable());
++        foreach ([
++            'affiliate_commissions'=>['sponsor_id','level','amount','status','paid_at'],
++            'bca_ads_publisher_profiles'=>['user_id','status','test_campaign_validated','blocked_reason'],
++            'ebooks'=>['title','is_active'],
++        ] as $table=>$columns) {
++            Schema::create($table, function (Blueprint $t) use ($columns): void {
++                $t->id();
++                foreach ($columns as $column) $t->string($column)->nullable();
++            });
++        }
++        DB::table('digital_products')->insert([
++            ['id'=>1,'user_id'=>$owner->id,'title'=>'Owned product','status'=>'pending','rejection_reason'=>null],
++            ['id'=>2,'user_id'=>$other->id,'title'=>'OTHER PRIVATE PRODUCT','status'=>'rejected','rejection_reason'=>'OTHER PRIVATE REASON'],
++            ['id'=>3,'user_id'=>$owner->id,'title'=>'Owned rejected','status'=>'rejected','rejection_reason'=>'Lien inaccessible'],
++            ['id'=>4,'user_id'=>$owner->id,'title'=>'Missing reason','status'=>'rejected','rejection_reason'=>null],
++        ]);
++        DB::table('affiliate_commissions')->insert([
++            ['sponsor_id'=>$owner->id,'level'=>1,'amount'=>23,'status'=>'paid'],
++            ['sponsor_id'=>$other->id,'level'=>2,'amount'=>999,'status'=>'SECRET_OTHER_COMMISSION'],
++        ]);
++        DB::table('bca_ads_publisher_profiles')->insert([
++            'user_id'=>$owner->id,'status'=>'active','test_campaign_validated'=>1,
++        ]);
++        DB::table('settings')->insert(['key'=>'bca_ads_publisher_rate_per_view','value'=>'0.6']);
++        DB::table('formations')->insert(['title'=>'Public course']);
++        DB::table('ebooks')->insert([['title'=>'Public ebook','is_active'=>1],['title'=>'HIDDEN EBOOK','is_active'=>0]]);
++        $service = new SabitoReadOnlyJobService;
++        $read = fn ($op, $fields = [], $member = null) => $service->handle([
++            'operation'=>$op,'external_user_id'=>(string)($member ?? $owner->id),'fields'=>$fields,
++            'expires_at'=>now()->addMinute()->toIso8601String(),
++        ]);
++        $writes = [];
++        DB::listen(function ($query) use (&$writes): void {
++            if (preg_match('/^\s*(insert|update|delete|replace|alter|drop|create)\b/i', $query->sql)) $writes[] = $query->sql;
++        });
++        $this->assertSame('pending', $read('digital_product_review',['product_reference'=>'1'])['data']['statut']);
++        $this->assertSame('Lien inaccessible', $read('digital_product_review',['product_reference'=>'3'])['data']['motif']);
++        $this->assertNull($read('digital_product_review',['product_reference'=>'4'])['data']['motif']);
++        $foreign = $read('digital_product_review',['product_reference'=>'2']);
++        $this->assertSame('not_found', $foreign['status']);
++        $this->assertArrayNotHasKey('data', $foreign);
++        $this->assertSame('invalid_input', $read('digital_product_review',['product_reference'=>'bad'])['status']);
++        $this->assertSame('invalid_input', $read('digital_product_review',['product_reference'=>'1','user_id'=>(string)$other->id])['status']);
++        $commissions = $read('referral_commissions_recent');
++        $this->assertSame(1, $commissions['data']['nombre']);
++        $this->assertStringNotContainsString('SECRET_OTHER', json_encode($commissions));
++        $this->assertSame('forbidden', $read('referral_commissions_recent', [], 999999)['status']);
++        $this->assertTrue($read('ads_publisher_status')['data']['test_valide']);
++        $this->assertSame(0.6, $read('ads_publisher_status')['data']['taux_configure']);
++        $this->assertSame('not_found', $read('ads_publisher_status', [], $other->id)['status']);
++        $catalogue = $read('bca_catalogue_current');
++        $this->assertStringContainsString('Public course', $catalogue['data']['catalogue']);
++        $this->assertStringContainsString('Public ebook', $catalogue['data']['catalogue']);
++        $this->assertStringNotContainsString('HIDDEN', $catalogue['data']['catalogue']);
++        $this->assertStringNotContainsString('PRIVATE', $catalogue['data']['catalogue']);
++        foreach (['digital_product_review','referral_commissions_recent','ads_publisher_status','bca_catalogue_current'] as $operation) {
++            $this->assertSame('forbidden', $read($operation, [], 999999)['status']);
++            $this->assertSame('invalid_input', $read($operation, ['user_id'=>(string)$other->id])['status']);
++        }
++        $this->assertSame([], $writes);
++        // Simulated unavailable storage must not become a successful empty result.
++        Schema::drop('affiliate_commissions');
++        $this->assertSame('error', $read('referral_commissions_recent')['status']);
 +    }
 +}

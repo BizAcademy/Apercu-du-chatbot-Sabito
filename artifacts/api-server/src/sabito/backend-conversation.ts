@@ -19,7 +19,8 @@ async function contextRow(claims:AccessClaims,conversationId:string) {
     FROM sabito_core.conversations c JOIN sabito_core.intent_sessions s
     ON s.conversation_id=c.id AND s.project_id=c.project_id
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3
-    AND c.created_at > CURRENT_TIMESTAMP(6) - INTERVAL 24 HOUR`,
+    AND c.created_at > CURRENT_TIMESTAMP(6) - INTERVAL 24 HOUR
+    AND s.updated_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)`,
     [conversationId,claims.sub,claims.externalUserId]);
   return result.rows[0]??null;
 }

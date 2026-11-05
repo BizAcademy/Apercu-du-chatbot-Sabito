@@ -1,3 +1,4 @@
+import { bcaSupportFaq } from "./bca-support-questions";
 import type { BcaGuide } from "./bca-guide-data";
 import { expandQuestion,tokenSimilarity } from "./question-spelling";
 import { bcaMemberFaq } from "./bca-member-faq";
@@ -44,6 +45,7 @@ export const bcaFaq:BcaGuide[]=[
   ...bcaMemberFaq,
   ...bcaQuestionFaq,
   ...bcaOwnerFaq,
+  ...bcaSupportFaq,
 ];
 
 /** FAQ-only spelling tolerance; never transform transaction numbers or IDs. */
@@ -60,7 +62,7 @@ export function bcaFaqFor(text:string):BcaGuide|undefined {
   const literal=normalizeQuestion(text);
   const member=bcaMemberFaq.find(guide=>[guide.title,...guide.variants].some(value=>normalizeQuestion(value)===literal));
   if(member)return member;
-  const additional=[...bcaQuestionFaq,...bcaOwnerFaq].find(guide=>[guide.title,...guide.variants].some(value=>normalizeQuestion(value)===literal));
+  const additional=[...bcaQuestionFaq,...bcaOwnerFaq,...bcaSupportFaq].find(guide=>[guide.title,...guide.variants].some(value=>normalizeQuestion(value)===literal));
   if(additional)return additional;
   const alias=bcaQuestionAlias(text);
   if(alias)return bcaFaq.find(guide=>guide.key===alias.key);

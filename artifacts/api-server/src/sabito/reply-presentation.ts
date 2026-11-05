@@ -5,6 +5,6 @@ export function publicReplyPresentation<T extends {reliable:boolean;closing_mess
   suggestions:unknown[];suggestions_label:string}>(reply:T,blocked:boolean):T {
   if(blocked)return {...reply,suggestions:[],suggestions_label:"",closing_message:""};
   if(!reply.reliable)return {...reply,closing_message:""};
-  return {...reply,suggestions:reply.suggestions.length>=2?reply.suggestions.slice(0,3):[],
+  return {...reply,suggestions:reply.suggestions.slice(0,3),
     suggestions_label:"",closing_message:requestedClosing};
 }

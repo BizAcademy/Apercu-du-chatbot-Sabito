@@ -13,6 +13,10 @@ export const defaultAbbreviations: Record<string, string> = {
   txn: "transaction", txns: "transactions", nn: "non",
   mdp: "mot de passe", pb: "probleme", prblm: "probleme",
   pa: "pas", depo: "depot", dep: "depot", recu: "recu",
+  jvx:"je veux",jveux:"je veux",fonctione:"fonctionne",fonction:"fonction",
+  formasion:"formation",formassion:"formation",formtion:"formation",
+  rejeter:"rejete",rejettee:"rejetee",parainage:"parrainage",parrainag:"parrainage",
+  revnu:"revenu",retraitt:"retrait",apres:"apres",vasy:"vas y",
 };
 export type LanguageDictionary = { abbreviations: Record<string,string>; corrections: Record<string,string> };
 export function expandQuestion(text: string, dictionary?:LanguageDictionary) {

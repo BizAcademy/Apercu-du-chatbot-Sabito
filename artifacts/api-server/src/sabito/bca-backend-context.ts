@@ -4,6 +4,7 @@ import type { AccessClaims } from "./security";
 import type { BackendObservation } from "./backend-context";
 import { renderTemplate } from "./templates";
 import { verifiedBcaResult } from "./bca-contract";
+import { bcaSupportResultGuidance } from "./bca-support-questions";
 
 /** Use the platform's configured field names literally, never Buzz aliases. */
 export function bcaContinuationFields(definition:IntentDefinition,fields:Record<string,string>) {
@@ -19,7 +20,7 @@ export function bcaBackendAnswer(definition:IntentDefinition|undefined,response:
       .map(([key,value])=>`${key} : ${String(value)}`).join("\n"),
     code_parrain:response.data?.code_parrain??response.data?.code??response.code,
     nom_utilisateur:claims.externalUserName??response.data?.nom_utilisateur};
-  return renderTemplate(definition.responses[outcome],data);
+  return renderTemplate(definition.responses[outcome],data)+bcaSupportResultGuidance(definition.backend_function,response.data??{});
 }
 export function explainBcaObservation(entry:BackendObservation,definition:IntentDefinition|undefined,claims:AccessClaims) {
   const answer=entry.stage==="observed"?bcaBackendAnswer(definition,entry.result,claims):null;

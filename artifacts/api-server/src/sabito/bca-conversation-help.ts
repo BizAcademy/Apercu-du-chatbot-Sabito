@@ -5,13 +5,47 @@ import { bcaFollowupKind } from "./bca-question-followups";
 import { normalizeQuestion } from "./question-normalization";
 import { greetingReply } from "./greeting-reply";
 import { conversationClosing } from "./conversation-closing";
+import { readAssistantSettings } from "./assistant-settings";
+import { bcaWarmClosing } from "./bca-dialogue-rules";
 import type { AccessClaims } from "./security";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
-const social=new Set([conversationClosing,...["bonjour","salut","bonsoir","hello","yo",
+const social=new Set([conversationClosing,bcaWarmClosing,...["bonjour","salut","bonsoir","hello","yo",
   "bonjour comment allez vous","bonsoir comment allez vous","salut comment allez vous"]
   .map(text=>greetingReply(text)).filter(Boolean)]);
 const clarify="Quel sujet BCA souhaitez-vous approfondir : les formations, la vente, le parrainage ou les campagnes WhatsApp ? Si vous êtes bloqué, indiquez la rubrique et le message exact, sans information confidentielle.";
+
+/** Resolve a choice only against the immediately preceding, owned clarification.
+ * No choice supplies an identifier, identity or backend result. */
+export async function bcaClarifiedQuery(claims:AccessClaims,conversationId:string,text:string):Promise<string|null> {
+  const q=normalizeQuestion(text);
+  if(!/^(?:campagne|une campagne|produit|un produit|parrainage|depot|un depot|retrait|un retrait|solde|mon solde|consulter mon solde|gagner|gagner de l argent|retirer|retirer des fonds)$/.test(q))return null;
+  const state=await searchState(claims.sub);
+  if(state.profile!=="bca")return null;
+  const rows=await pool.query(`SELECT m.content,s.status FROM sabito_core.conversations c
+    JOIN sabito_core.messages m ON m.conversation_id=c.id AND m.project_id=c.project_id
+    LEFT JOIN sabito_core.intent_sessions s ON s.conversation_id=c.id AND s.project_id=c.project_id
+    WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3 AND m.role='assistant'
+    AND m.status='completed' AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+    ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,
+    [conversationId,claims.sub,claims.externalUserId]);
+  const last=rows.rows[0];
+  if(!last||["collecting","checking"].includes(String(last.status)))return null;
+  const content=String(last.content);
+  let operation:string|undefined;
+  if(content.startsWith("Quel statut souhaitez-vous vérifier :")) {
+    operation=/campagne/.test(q)?"ads_campaign_status":/produit/.test(q)?"digital_product_review":
+      /parrainage/.test(q)?"referral_commissions_recent":/depot/.test(q)?"deposit_status":
+      /retrait/.test(q)?"withdrawal_status":undefined;
+  } else if(content.startsWith("Souhaitez-vous savoir comment gagner de l’argent,")) {
+    if(q.startsWith("gagner"))return bcaGuides.find(guide=>guide.key==="member-income")!.title;
+    if(/retir/.test(q))return "Le retrait";
+    if(/solde/.test(q))operation="wallet_balance";
+  }
+  if(!operation)return null;
+  const {settings}=await readAssistantSettings(claims.sub);
+  return settings.intents.find(intent=>intent.enabled&&intent.backend_function===operation)?.triggers[0]??null;
+}
 
 /** Explicit follow-ups only. An unrelated message, backend result or another
  * member's history must never become the source of a public answer.
@@ -48,6 +82,11 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     if(reply.reliable&&reply.answer===String(exact.content))return reply;
   }
   switch(kind) {
+    case "status-choice":return response("Quel statut souhaitez-vous vérifier : une campagne, un produit, un parrainage, un dépôt ou un retrait ? Indiquez le sujet ; pour consulter des données personnelles, il faut être connecté à votre compte BCA.");
+    case "money-choice":return response("Souhaitez-vous savoir comment gagner de l’argent, consulter votre solde ou retirer des fonds ? Ce sont trois démarches différentes. Pour votre solde ou un retrait personnel, une session BCA vérifiée et une consultation autorisée sont nécessaires.",["member-income","13"]);
+    case "ads-budget":return response("Êtes-vous annonceur ou diffuseur, et de quelle campagne, de quel budget ou de quel seuil parlez-vous ? Le budget payé par l’annonceur finance la publicité ; les gains du diffuseur dépendent des vues validées et des conditions de sa campagne. Votre message ne permet pas de confirmer un virement ni une rémunération. Je n’ai consulté aucune campagne.",["26","27","30"]);
+    case "ads-rate":return response("Parlez-vous du taux par vue validée affiché sur votre campagne ? Vous ne pouvez pas augmenter vous-même ce tarif. Une valeur de 1,80 dans un ancien code ne confirme pas le taux actuellement appliqué. Le tarif indiqué sur la campagne courante et la configuration active doivent être vérifiés ; je n’ai pas encore consulté ces données. Vous pouvez demander « Vérifier mon profil diffuseur » ou transmettre au support le nom de la campagne et le taux affiché : https://bcachat.bizconnectacademy.com");
+    case "ads-location":return response("Dans votre espace BCA, cherchez la rubrique « BCA Ads Network » ou « BCA Ads », puis choisissez le parcours annonceur ou diffuseur. Les sources fournies décrivent le service mais ne permettent pas de confirmer la position actuelle du menu frontend. Si vous ne voyez pas cette rubrique, indiquez les libellés de votre menu ou contactez https://bcachat.bizconnectacademy.com ; je ne vais pas vous envoyer une route API comme page à ouvrir.",["26","27"]);
     case "year":return response("Je n’ai pas de date de fondation BCA confirmée dans mes références. Je préfère vous le dire plutôt que d’inventer une année. Cette information doit être confirmée par l’équipe BCA.");
     case "duration":return response("Je ne peux pas prédire combien de temps BCA restera disponible ni garantir sa pérennité ou des revenus futurs. Consultez les conditions et communications officielles ; une durée garantie ne peut pas être inventée.");
     case "roles":return response("L’annonceur crée et finance une publicité ; le diffuseur publie des campagnes selon son éligibilité. Je ne peux pas confirmer que les deux rôles sont autorisés simultanément pour un même compte : cette règle doit être précisée par BCA. Vérifiez les options de votre espace sans contourner une restriction.",["26","27"]);
@@ -69,7 +108,9 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
   const previous=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
     JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
     WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
-    AND m.role='assistant' AND m.status='completed' ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,
+     AND m.role='assistant' AND m.status='completed'
+     AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+     ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,
     [claims.sub,conversationId,claims.externalUserId]);
   let anchor:typeof state.entries[number]|undefined;
   for(const message of previous.rows) {
@@ -107,6 +148,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     if(anchor&&!keys.length&&base)reply.suggestions=base.suggestions;
     return reply;
   };
+  if(kind==="not-yet")return next("Quelle étape n’est pas encore terminée ? Précisez ce qui reste à faire ou le message affiché. Je ne peux pas conclure à un échec ou à une réussite sans cette précision.");
   if(kind==="blocked")return next("Quelle étape ne fonctionne pas et quel message voyez-vous ? S’il s’agit d’un dépôt, précisez si vous parlez du portefeuille ou de l’activation. Un paiement annoncé ne prouve pas un crédit ; ne payez pas une deuxième fois uniquement pour débloquer l’écran.",["member-new-after-deposit","member-whatsapp-views"]);
   if(kind==="validation") {
     if(anchor?.title===bcaGuides.find(guide=>guide.key==="28")?.title)return base;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { pool } from "./database";
 import { bcaOwnerResultGuidance } from "./bca-owner-answers";
+import { bcaSupportResultGuidance } from "./bca-support-questions";
 import { requestBackend, type BackendOperation, type BackendResult } from "./backend-bridge";
 import type { AccessClaims } from "./security";
 import { normalizeQuestion, recordUnanswered } from "./unanswered";
@@ -291,12 +292,18 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       code_parrain:response.data?.code_parrain??response.data?.code??response.code,
       nom_utilisateur:claims.externalUserName??response.data?.nom_utilisateur};
     const answer=renderTemplate(definition.responses[outcome],data);
+    if(profile==="bca"&&definition.backendOperation==="digital_product_review"&&response.data?.statut==="rejected"&&
+      (typeof response.data.motif!=="string"||!response.data.motif.trim())) {
+      const id=await ticket(claims.sub,conversationId,claims,intent!,"PRODUCT_REJECTION_REASON_MISSING");
+      return answer+bcaSupportResultGuidance(definition.backendOperation,response.data)+`\n\nTicket de suivi Sabito : ${id}.`;
+    }
     // A failed transaction is a verified business result, not a connector outage.
     if (answer && (outcome==="success"||outcome==="pending"||response.status==="failed")) {
       if(profile==="bca")await pool.query(`UPDATE sabito_core.support_tickets SET status='ferme',updated_at=CURRENT_TIMESTAMP(6)
         WHERE project_id=$1 AND conversation_id=$2 AND intent=$3 AND status='ouvert'`,
         [claims.sub,conversationId,intent!]);
-      return answer+(profile==="bca"?bcaOwnerResultGuidance(definition.backendOperation,response):"");
+    return answer+(profile==="bca"?bcaOwnerResultGuidance(definition.backendOperation,response)+
+      bcaSupportResultGuidance(definition.backendOperation,response.data??{}):"");
     }
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";

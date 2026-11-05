@@ -39,6 +39,7 @@ import { buzzCorpus } from "./buzzbooster-corpus";
 import { ensureBuzzBoosterKnowledge } from "./buzzbooster-knowledge-install";
 import { approvedCorpusClarification } from "./public-help-context";
 import { verifyBcaContract } from "./tests/bca-contract";
+import { verifyBcaDialogue } from "./tests/bca-dialogue";
 import { bcaReadOperations } from "./bca-contract";
 
 function socketOnce<T = unknown>(socket: Socket,event: string): Promise<T[]> {
@@ -622,7 +623,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       assert.equal((await request(app).get(`/v1/admin/projects/${otherId}/knowledge`)
         .set("X-Admin-Key",adminKey).expect(200)).body.data.length,0);
     });
-    await t.test("BCA financial catalog confirms, collects and dispatches every enabled read operation with isolated identity", async () => {
+    await t.test("BCA legacy financial catalog confirms, collects and dispatches its read operations with isolated identity", async () => {
       const created=await request(app).post("/v1/admin/projects").set("X-Admin-Key",adminKey)
         .send({slug:`bca-finance-${randomUUID()}`,name:"Biz Connect Academy",assistant_name:"Sabito",system_prompt:"Répondre uniquement avec les références approuvées."}).expect(201);
       const {project,credentials}=created.body.data;
@@ -631,7 +632,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       await request(app).get(url).expect(401);
       let config=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body;
       assert.equal(config.profile,"bca");
-      assert.equal(config.intent_templates.length,25);
+      assert.equal(config.intent_templates.length,bcaIntents().length);
       const expected=bcaIntents();
       assert.deepEqual(config.settings.intents.map((item:{id:string})=>item.id),expected.map(item=>item.id));
       assert.equal(config.settings.intents.find((item:{id:string})=>item.id==="activity_reward_status").enabled,false);
@@ -640,7 +641,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const claims={sub:id,clientId:credentials.clientId,externalUserId:"bca-financial-member",scope:["chat:connect","member:verified"]};
       const poll=()=>request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret).send({operations});
       await poll().expect(200);
-      for(const intent of expected.filter(item=>item.enabled&&operations.includes(item.backend_function))) {
+      for(const intent of expected.filter(item=>item.enabled&&operations.includes(item.backend_function)&&
+        !["digital_product_review","referral_commissions_recent","ads_publisher_status","bca_catalogue_current"].includes(item.backend_function))) {
         for(const trigger of intent.triggers) assert.equal(detectIntent(trigger,settings),intent.id,trigger);
         const conv=await createConversation(id,claims.externalUserId);
         const proposal=await handleIntent(claims,conv,intent.triggers[0]);
@@ -709,7 +711,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       historical.greeting_member="Bienvenue {nom_utilisateur}, message BCA personnalisé.";
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:historical,expected_revision:config.revision}).expect(200)).body;
-      assert.equal(config.settings.intents.length,25);
+      assert.equal(config.settings.intents.length,expected.length);
       assert.equal(config.settings.greeting_member,historical.greeting_member);
       // Authored, disabled and intentionally deleted rules must not be restored or overwritten.
       const custom=structuredClone(historical);
@@ -718,7 +720,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
       assert.deepEqual(config.settings.intents,settingsSchema.parse(custom).intents);
-      assert.equal(config.intent_templates.length,25);
+      assert.equal(config.intent_templates.length,expected.length);
       custom.intents=[];
       config=(await request(app).put(url).set("X-Admin-Key",adminKey)
         .send({settings:custom,expected_revision:config.revision}).expect(200)).body;
@@ -1656,6 +1658,8 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
     await t.test("BCA explicit contracts, pending drafts, tickets and corrected references remain scoped",
       ()=>verifyBcaContract({app,adminKey,projectIds}));
+    await t.test("BCA dialogue: pending approval, real choices, 30-minute expiry and hidden ticket identifiers",
+      ()=>verifyBcaDialogue({app,adminKey,projectIds,openSocket}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       // The first socket may belong to a separate earlier regression fixture.
       const rotationSocket=await openSocket(token);

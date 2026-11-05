@@ -17,6 +17,8 @@ import { pool } from "../database";
 import { bcaOwnerFaq,bcaOwnerCorrections,bcaOwnerPrivateAliases } from "../bca-owner-answers";
 import { detectIntent } from "../question-search";
 import { bcaLegacyQuestionFaq } from "../bca-question-followups";
+import { bcaSupportAliases,bcaSupportTemplates } from "../bca-support-questions";
+import { bcaScenario } from "../bca-dialogue-rules";
 
 export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   app:Express;adminKey:string;projectIds:string[];openSocket:(token:string)=>Promise<Socket>;
@@ -29,6 +31,10 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   for(const [operation,aliases] of Object.entries(bcaOwnerPrivateAliases))for(const alias of aliases)
     assert.equal(detectIntent(alias,configuration.settings),
       configuration.settings.intents.find(intent=>intent.backend_function===operation)!.id);
+  for(const template of bcaSupportTemplates)for(const question of template.triggers)
+    assert.equal(detectIntent(question,configuration.settings),template.operation,question);
+  for(const group of bcaSupportAliases)for(const question of group.questions)
+    assert.equal((await retrieveReply(id,question)).answer,bcaGuides.find(guide=>guide.key===group.key)!.content,question);
   for(const scope of [["chat:connect"],["chat:connect","member:verified"]]){
     // Keep the real 20 messages/minute/member protection enabled. Exercise
     // larger FAQ packs across independent identities, not a privileged bypass.
@@ -45,7 +51,9 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
         });
       });
       const result=await reply;
-      assert.equal(result.content,guide.content,guide.title);
+      const expected=bcaScenario(guide.variants[0],configuration.settings.retrieval)==="income"
+        ?["member-bca-overview","member-income"].map(key=>bcaGuides.find(item=>item.key===key)!.content).join("\n\n"):guide.content;
+      assert.equal(result.content,expected,guide.title);
       assert.doesNotMatch(result.content,/communiquez.*(?:numéro de transaction|référence de dépôt)/i);
     }
     }
@@ -113,6 +121,31 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
     "Information confirmée par le propriétaire pour ce test.","Exact approved answers override the uncertainty fallback");
   assert.deepEqual((await request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
     .send({operations:configuration.settings.intents.map(i=>i.backend_function)}).expect(200)).body.jobs,[]);
+  // A separate identity keeps the real rate limiter enabled for the new CSV's
+  // multi-turn controls. Public continuations cannot reuse private histories.
+  const supportClaims={...contextualClaims,externalUserId:`guest:support-${randomUUID()}`};
+  const supportConversation=await createConversation(id,supportClaims.externalUserId);
+  const supportSocket=await openSocket(signAccessToken(supportClaims));
+  const sendSupport=(content:string)=>new Promise<string>((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error("BCA_SUPPORT_CONTEXT_TIMEOUT")),15000);
+    supportSocket.once("message:complete",message=>{
+      clearTimeout(timer);resolve(String(message.content).split("\n\nConcernant votre question précédente « ")[0]);
+    });
+    supportSocket.emit("message:send",{conversationId:supportConversation,content,idempotencyKey:randomUUID()},(ack:{ok:boolean})=>{
+      if(!ack.ok){clearTimeout(timer);reject(new Error("BCA_SUPPORT_CONTEXT_REJECTED"));}
+    });
+  });
+  assert.match(await sendSupport("Aidez moi à nouveau"),/quel sujet|quelle étape/i);
+  assert.equal(await sendSupport(premium.title),premium.content);
+  assert.equal(await sendSupport("Aidez moi à nouveau"),premium.content);
+  assert.equal(await sendSupport("Répondez"),premium.content);
+  assert.equal(await sendSupport("Aidez moi à nouveau dans bca"),premium.content);
+  assert.match(await sendSupport("Commet je veut verfier me statut"),/campagne.*produit.*parrainage.*dépôt.*retrait/s);
+  assert.match(await sendSupport("comment avoir l’argent sur BCA"),/gagner.*solde.*retirer/s);
+  assert.match(await sendSupport("Et concernant les campagnes"),/campagne test/);
+  assert.match(await sendSupport("Par encore"),/étape.*terminée/);
+  assert.match(await sendSupport("Comment faire monter le prix à 1.80"),/ne pouvez pas augmenter.*tarif/s);
+  assert.match(await sendSupport("on retrouve la BCA ads network où"),/position actuelle du menu/);
   const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
   // Simulate an already-installed platform: update only exact shipped bodies,
   // while preserving a custom answer and an independently authored inline reply.

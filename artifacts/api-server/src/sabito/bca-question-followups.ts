@@ -38,16 +38,24 @@ export const bcaQuestionFaq:BcaGuide[]=bcaLegacyQuestionFaq.map(guide=>({
 
 export type BcaFollowupKind="explain"|"detail"|"link"|"blocked"|"profile"|"publish"|"started"|
   "campaign"|"activities"|"sell-learn"|"withdrawal"|"validation"|"identity"|"exit"|
-  "incomplete"|"year"|"duration"|"roles"|"referral-contact"|"premium-stage"|"best-income"|"unclear-product"|"shop";
+  "incomplete"|"year"|"duration"|"roles"|"referral-contact"|"premium-stage"|"best-income"|"unclear-product"|"shop"|
+  "status-choice"|"money-choice"|"ads-budget"|"ads-rate"|"ads-location"|"not-yet";
 const turns:[BcaFollowupKind,string[]][]=[
-  ["explain",["Comment ça fonctionne ?","Comment faire","Explication claire","aide moi","Aidez-moi à niveau","Alors, aidez-moi, s'il vous plaît."]],
+  ["explain",["Comment ça fonctionne ?","Comment faire","Explication claire","aide moi","Aidez-moi à niveau","Alors, aidez-moi, s'il vous plaît.",
+    "Aidez moi à nouveau","Aidez moi à nouveau dans bca","Répondez"]],
   ["detail",["Je veux connaître plus"]],
   ["link",["Okay envoie moi ça comme un lien","Comment l'envoyer au personne"]],
   ["blocked",["Ce qui bloque ?","Vous n'avez pas pu répondre","Bonjour, j'ai fait mon dépôt mais ça ne marche pas. Comment faire ?"]],
   ["profile",["Oui est l'option profil"]],
   ["publish",["Okay c'est sur quel plateforme je dois poste les photos et vidéos"]],
   ["started",["Okay, j'ai mon espace déjà"]],
-  ["campaign",["Campagne"]],
+  ["campaign",["Campagne","Et concernant les campagnes"]],
+  ["status-choice",["Commet je veut verfier me statut","Comment je veux vérifier mon statut"]],
+  ["money-choice",["comment avoir l’argent sur BCA"]],
+  ["ads-budget",["pourquoi on peut payer des campagnes publicitaires, même si le virement était atteint, mais c’est grâce à nous que les vieux ont été atteints, on ne paye pas pour ça"]],
+  ["ads-rate",["Comment faire monter le prix à 1.80","Comment faire monter le prix à 1,80"]],
+  ["ads-location",["on retrouve la BCA ads network où"]],
+  ["not-yet",["Par encore","Pas encore"]],
   ["activities",["Les activités"]],
   ["sell-learn",["Appendice des compétences et vendre des formations"]],
   ["shop",["Je veux une boutique en ligne"]],

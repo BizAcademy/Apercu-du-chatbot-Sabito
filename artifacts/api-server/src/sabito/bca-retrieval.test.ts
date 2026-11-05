@@ -14,6 +14,7 @@ import { isClosingAcknowledgement } from "./conversation-closing";
 import { bcaQuestionAliases,bcaQuestionFaq,bcaFollowupKind } from "./bca-question-followups";
 import { bcaOwnerFaq,bcaOwnerCorrections,bcaOwnerResultGuidance } from "./bca-owner-answers";
 import { isBcaHelpQuestion } from "./bca-knowledge-install";
+import { bcaSupportFaq,bcaSupportAliases,bcaSupportTemplates,bcaSupportResultGuidance } from "./bca-support-questions";
 
 // Independently authored controls, not installed as aliases or dictionary entries.
 const controls:[string,number][]=[
@@ -34,6 +35,42 @@ const controls:[string,number][]=[
   ["envoyer mon code pin sabito",7],["quel information jamais envoyer assistant",7],
   ["mot de passe token a envoyer",7],["quelles donnees confidentiel partager sabito",7],
 ];
+
+test("Latest BCA export: all 28 exact formulations have an explicit public, context or private route",()=>{
+  const questions=[
+    "Aidez moi à nouveau",
+    "pourquoi on peut payer des campagnes publicitaires, même si le virement était atteint, mais c’est grâce à nous que les vieux ont été atteints, on ne paye pas pour ça",
+    "Répondez","Pourquoi je Mets produit en ligne toujours en cours","Je veux avoir un compte Netflix gratuit",
+    "Et concernant les campagnes","Oui si je veux publier un contenu,est ce que forcé il faut que j'amène ça dans vendeur digital?",
+    "Quelles sont les compétences","Je veux apprendre une compétence","comment ca fonctione","Vendre de formation",
+    "Commet je veut verfier me statut","Parrainage non reçu","recommander la plateforme",
+    "Pour mon cas, j'avais lancé mon produit digital sur cette plateforme et ça été rejeté... Mais j'ignore la vraie raison.",
+    "Aidez moi à nouveau dans bca",
+    "Non, j'ai besoin de savoir si à la BCA on vend uniquement les formations (vidéo) ou aussi les formats PDF",
+    "Je veux découvrir les parrainages",
+    "Je veux découvrir le parrainage parce que depuis des mois j'arrive même pas a gagner 100f dans bca je suis totalement dessus",
+    "Quelles sont les produits digitaux vendables sur la BCA ?",
+    "Le moyens  le plus simple er facile de ce faire beaucoup de revenu avec bca","Parrainage","Par encore",
+    "Ce qui bloque est que après avoir validé la campagne text, rien ne vient plus de nouveau pour que je continue le travail",
+    "Comment faire monter le prix à 1.80","Mais j'ai validé déjà la campagne text","on retrouve la BCA ads network où",
+    "comment avoir l’argent sur BCA",
+  ];
+  assert.equal(questions.length,28);
+  for(const question of questions)assert.ok(bcaFollowupKind(question)||bcaFaqFor(question)||
+    bcaSupportAliases.some(group=>group.questions.includes(question))||
+    bcaSupportTemplates.some(template=>template.triggers.includes(question)),question);
+  for(const guide of bcaSupportFaq) {
+    for(const question of [guide.title,...guide.variants])assert.equal(bcaFaqFor(question)?.key,guide.key,question);
+    for(const key of guide.followUpKeys)assert.ok(bcaGuides.some(item=>item.key===key),key);
+  }
+  for(const template of bcaSupportTemplates)for(const question of template.triggers)
+    assert.equal(bcaFaqFor(question),undefined,"Private reads cannot become static FAQ results: "+question);
+  assert.equal(verifiedBcaResult("digital_product_review",{status:"ok",data:{statut:"rejected",reference:"1"}}),true);
+  assert.equal(verifiedBcaResult("digital_product_review",{status:"ok",data:{statut:"unexpected",reference:"1"}}),false);
+  assert.equal(verifiedBcaResult("ads_publisher_status",{status:"ok",data:{statut:"active",test_valide:true,taux_configure:null}}),true);
+  assert.match(bcaSupportResultGuidance("digital_product_review",{statut:"rejected"}),/pas.*inventer/);
+  assert.doesNotMatch(bcaSupportFaq.map(guide=>guide.content).join(" "),/revenu garanti|sera approuvé|sous 24/i);
+});
 test("BCA malformed controls report exact answers separately from confirmations",()=>{
   const settings=defaultSettings();
   const documents=bcaSourceDrafts.map((draft,index)=>({...draft,id:String(index),status:"ready"}));
@@ -57,7 +94,8 @@ test("Final public answers close exactly; financial and uncertain replies do not
   assert.deepEqual(publicReplyPresentation(reply,true).suggestions,[]);
   assert.equal(publicReplyPresentation(reply,true).closing_message,"");
   assert.equal(publicReplyPresentation({...reply,reliable:false},false).closing_message,"");
-  assert.deepEqual(publicReplyPresentation({...reply,suggestions:[1]},false).suggestions,[]);
+  assert.deepEqual(publicReplyPresentation({...reply,suggestions:[1]},false).suggestions,[1],
+    "Keep a real single choice instead of fabricating a second one or hiding it");
   assert.equal(verifiedBcaResult("wallet_balance",{status:"confirmed"}),false);
   assert.equal(verifiedBcaResult("referral_code",{status:"ok",data:{statut:"Code",code_parrain:"A"}}),true);
 });

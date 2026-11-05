@@ -1,3 +1,6 @@
+import { bcaClarifiedQuery } from "./bca-conversation-help";
+import { bcaDialogueReply,saveBcaDialogue,bcaDialogueSuggestions } from "./bca-dialogue";
+import { bcaFallback,bcaWarmClosing,bcaTestPrompt,bcaTone } from "./bca-dialogue-rules";
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { z } from "zod";
@@ -138,11 +141,18 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
-        const memory=parsed.data.follow_up_id?{}:await supportMemoryTurn(claims.sub,conversationId,parsed.data.content,assistantId);
-        const question=memory.query??parsed.data.content;
+        const isBca=(await searchState(claims.sub)).profile==="bca";
+        // A visible public choice takes precedence over a satisfaction survey.
+        // Private collection/checking is explicitly excluded by both resolvers.
+        const preliminary=parsed.data.follow_up_id||!isBca?null:
+          await bcaDialogueReply(claims,conversationId,parsed.data.content)??
+          await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
+        const memory=parsed.data.follow_up_id||preliminary?{}:await supportMemoryTurn(claims.sub,conversationId,parsed.data.content,assistantId);
+        const question=memory.query??await bcaClarifiedQuery(claims,conversationId,parsed.data.content)??parsed.data.content;
+        const dialogue=preliminary;
         const followUp = parsed.data.follow_up_id
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
-        const proposalAnswer = parsed.data.follow_up_id||memory.answer ? null :
+        const proposalAnswer = parsed.data.follow_up_id||memory.answer ? null : dialogue??
           await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
         const backendAnswer=parsed.data.follow_up_id||proposalAnswer||memory.answer?null:
           await continueBackendConversation(claims,conversationId,question);
@@ -174,18 +184,28 @@ export function attachSocketServer(httpServer: HttpServer) {
         }
         // Only an unrecognized question with a relevant search proposal gets a clarification title.
         reply.suggestions_label=!reply.reliable && reply.suggestions.length ? "Voulez-vous dire :" : "";
-        if((await searchState(claims.sub)).profile==="bca") {
+        if(isBca) {
+          const choices=await bcaDialogueSuggestions(claims.sub,reply.answer);
+          if(choices)reply.suggestions=choices;
+          if(intentAnswer&&/\bticket\b/i.test(reply.answer)) {
+            reply.answer=bcaFallback;reply.reliable=false;reply.suggestions=[];
+          }
+          if(!reply.reliable&&!contextReply&&!earlyClarification&&!lateClarification)reply.answer=reply.suggestions.length&&reply.answer!==bcaFallback
+            ?"Voulez-vous parler de l’un de ces sujets ? Choisissez la question qui correspond à votre demande.":bcaFallback;
           const activeCheck=await pool.query(`SELECT status FROM sabito_core.intent_sessions
             WHERE conversation_id=$1 AND project_id=$2 AND status IN ('collecting','checking')`,
             [conversationId,claims.sub]);
-          Object.assign(reply,publicReplyPresentation(reply,!!intentAnswer||!!memory.answer||memory.feedbackOnly||
-            !!guidance?.context.awaiting||!!activeCheck.rows.length||!!greetingReply(question)));
+          if(!reply.answer.startsWith(bcaTestPrompt))
+            Object.assign(reply,publicReplyPresentation(reply,!!intentAnswer||!!memory.answer||memory.feedbackOnly||
+              !!guidance?.context.awaiting||!!activeCheck.rows.length||!!greetingReply(question)||reply.answer===bcaWarmClosing));
         }
         if (!reply.reliable&&!opaqueConversationInput(parsed.data.content)) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
-        const answer = guidance?.context.awaiting?reply.answer:
+        let answer = guidance?.context.awaiting?reply.answer:
           (tracked||guidance)?await appendPreviousSatisfaction(claims.sub,conversationId,guidance?.context.questionId??userMessageId,assistantId,reply.answer):reply.answer;
+        if(isBca)answer=bcaTone(answer);
         if(guidance)await savePublicGuidance(claims.sub,conversationId,guidance,answer);
+        await saveBcaDialogue(claims,conversationId,question,reply,!!intentAnswer||!!backendAnswer);
         if(intentAnswer||memory.feedbackOnly) {
           const state=await pool.query("SELECT collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2 AND status='complete'",[conversationId,claims.sub]);
           if(state.rows[0]) {
