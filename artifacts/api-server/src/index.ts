@@ -5,6 +5,7 @@ import { initializeSabitoCore } from "./sabito/database";
 import { attachSocketServer } from "./sabito/socket";
 import { closeMysqlPool } from "./sabito/mysql-pool";
 import { describeMysqlFailure } from "./sabito/mysql-diagnostics";
+import { installGracefulShutdown } from "./shutdown";
 
 const rawPort = process.env["PORT"];
 
@@ -27,7 +28,8 @@ try {
   throw new Error("MYSQL_INITIALIZATION_FAILED");
 }
 const server = createServer(app);
-attachSocketServer(server);
+const io=attachSocketServer(server);
+installGracefulShutdown({server,io,closeDatabase:closeMysqlPool,logger});
 server.on("error", (err) => {
   logger.error({ err }, "Error listening on port");
   process.exit(1);
@@ -35,23 +37,3 @@ server.on("error", (err) => {
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
 });
-
-let stopping = false;
-async function shutdown() {
-  if (stopping) return;
-  stopping = true;
-  const deadline = setTimeout(() => process.exit(1), 10000);
-  deadline.unref();
-  server.close();
-  server.closeAllConnections();
-  try {
-    await closeMysqlPool();
-    clearTimeout(deadline);
-    process.exit(0);
-  } catch {
-    logger.error("Could not close the database pool during shutdown.");
-    process.exit(1);
-  }
-}
-process.once("SIGTERM", shutdown);
-process.once("SIGINT", shutdown);

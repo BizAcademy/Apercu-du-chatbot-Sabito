@@ -18,7 +18,17 @@ async function start() {
   }
   require(path.join(current, "app.js"));
 }
-start().catch(() => {
-  process.stderr.write("Sabito : lancement impossible. Vérifie que GitHub Actions est terminé, l'accès aux Releases, unzip et les variables privées. Aucun build ni migration automatique effectué.\n");
-  process.exitCode = 1;
+start().catch((error) => {
+  const known = new Set(["CHECKSUM_MISMATCH", "CURRENT_PATH_IS_NOT_A_RELEASE_LINK",
+    "DEPLOYMENT_ALREADY_RUNNING", "GITHUB_ACCESS_FAILED", "GITHUB_DOWNLOAD_FAILED",
+    "IMMUTABLE_RELEASE_CONFLICT", "INCOMPLETE_ARCHIVE", "INCOMPLETE_GITHUB_RELEASE",
+    "INVALID_RELEASE", "INVALID_REPOSITORY", "NODE_VERSION_TOO_OLD",
+    "PRIVATE_CONFIG_PERMISSIONS_REQUIRED", "RELEASE_DOES_NOT_MATCH_SOURCE",
+    "RELEASE_NOT_READY_OR_ACCESS_DENIED", "RELEASE_TOO_LARGE", "UNSAFE_ARCHIVE",
+    "UNSAFE_DOWNLOAD_REDIRECT", "UNZIP_FAILED", "MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"]);
+  const code = known.has(error?.code) ? error.code : "STARTUP_FAILED";
+  process.stderr.write(`Sabito : lancement impossible [${code}]. Vérifie que GitHub Actions est terminé, l'accès aux Releases, unzip et les variables privées. Aucun build ni migration automatique effectué.\n`);
+  // Passenger keeps its control channel open: exitCode alone can leave a failed
+  // bootstrap alive forever without an HTTP listener.
+  process.exit(1);
 });

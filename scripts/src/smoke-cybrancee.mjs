@@ -37,6 +37,11 @@ await rm(path.join(packageDir, ".sabito-runtime"), { recursive: true });
 const preload = path.join(packageDir, "github-download-fixture.mjs");
 await writeFile(preload, `
 import { readFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
+globalThis.PhusionPassenger = new EventEmitter();
+process.on("message", message => {
+  if (message?.type === "test-passenger-exit") globalThis.PhusionPassenger.emit("exit");
+});
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, options) => {
   const address = String(url);
@@ -64,7 +69,12 @@ const mysqlSettings = {
 };
 const origin = "http://127.0.0.1:33307";
 const adminKey = randomBytes(32).toString("base64url");
+// A restart reuses the private configuration; rotating signing keys here would
+// invalidate the connected client's token and test a logout instead of a restart.
+const jwtSecret = randomBytes(32).toString("base64url");
+const clientSecretPepper = randomBytes(32).toString("base64url");
 let logs = "", projectId;
+const spawnServer = () => {
 const child = spawn(process.execPath, ["--import", pathToFileURL(preload).href, "app.js"], {
   cwd: packageDir,
   // Deliberately omit all real workspace credentials and managed AI variables.
@@ -74,15 +84,18 @@ const child = spawn(process.execPath, ["--import", pathToFileURL(preload).href, 
     MYSQL_DATABASE: process.env.MYSQL_DATABASE,
     MYSQL_USER: process.env.MYSQL_USER, MYSQL_PASSWORD: process.env.MYSQL_PASSWORD,
     ADMIN_API_KEY: adminKey,
-    JWT_SECRET: randomBytes(32).toString("base64url"),
-    CLIENT_SECRET_PEPPER: randomBytes(32).toString("base64url"),
+    JWT_SECRET: jwtSecret,
+    CLIENT_SECRET_PEPPER: clientSecretPepper,
     PUBLIC_URL: origin, CORS_ORIGINS: origin,
   },
-  stdio: ["ignore", "pipe", "pipe"],
+  stdio: ["ignore", "pipe", "pipe", "ipc"],
 });
 child.stdout.on("data", bytes => { logs += bytes.toString(); });
 child.stderr.on("data", bytes => { logs += bytes.toString(); });
-try {
+return child;
+};
+let child=spawnServer();
+const waitReady=async()=>{
   let ready = false;
   for (let attempt = 0; attempt < 50; attempt++) {
     if (child.exitCode !== null) throw new Error(`Standalone startup failed: ${logs}`);
@@ -91,6 +104,13 @@ try {
     await delay(200);
   }
   assert.ok(ready, "Standalone server should become healthy");
+};
+let chatClient;
+try {
+  await waitReady();
+  const firstStatus=await (await fetch(`${origin}/v1/status`)).json();
+  assert.equal(firstStatus.release,metadata.sourceFingerprint);
+  assert.ok(Number.isFinite(Date.parse(firstStatus.startedAt)));
   const json = async (route, method = "GET", body, authenticated = true) => {
     const response = await fetch(`${origin}${route}`, {
       method, headers: { "Content-Type": "application/json", ...(authenticated ? {"X-Admin-Key":adminKey} : {}) },
@@ -155,8 +175,41 @@ try {
   const loader = await fetch(`${origin}/widget/sabito-chat.js`);
   assert.equal(loader.status, 200);
   assert.match(await loader.text(), /sabito:session-request/);
-  console.info(`Plesk cold Restart OK on Node.js ${process.versions.node}: matching prebuilt GitHub package downloaded, checksum verified, no node_modules or build, MySQL, protected administration, knowledge, tokens, SPA routes/assets and private-file protection.`);
+  const require=createRequire(path.join(root,"artifacts/api-server/package.json"));
+  const {io}=require("socket.io-client");
+  chatClient=io(origin,{auth:{token:token.data.data.access_token},transports:["websocket"],
+    reconnection:true,reconnectionDelay:100,reconnectionDelayMax:300,timeout:1000});
+  await new Promise((resolve,reject)=>{
+    const deadline=setTimeout(()=>reject(new Error("Standalone WebSocket did not connect")),5000);
+    chatClient.once("connect",()=>{clearTimeout(deadline);resolve();});
+    chatClient.once("connect_error",()=>{clearTimeout(deadline);reject(new Error("Standalone WebSocket connection failed"));});
+  });
+  const disconnected=once(chatClient,"disconnect");
+  const stopped=once(child,"exit");
+  const deadline=setTimeout(()=>child.kill("SIGKILL"),12000);
+  try {
+    child.send({type:"test-passenger-exit"});
+    const [code,signal]=await stopped;
+    assert.equal(code,0,"Passenger shutdown with an active chat must complete cleanly");
+    assert.equal(signal,null);
+    assert.notEqual((await disconnected)[0],"io server disconnect",
+      "A restart must not permanently disable the widget's automatic reconnection");
+  } finally {clearTimeout(deadline);}
+  child=spawnServer();
+  await waitReady();
+  if(!chatClient.connected)await new Promise((resolve,reject)=>{
+    const deadline=setTimeout(()=>reject(new Error("Chat did not reconnect after restart")),5000);
+    chatClient.once("connect",()=>{clearTimeout(deadline);resolve();});
+  });
+  const secondStatus=await (await fetch(`${origin}/v1/status`)).json();
+  assert.equal(secondStatus.release,metadata.sourceFingerprint);
+  assert.notEqual(secondStatus.startedAt,firstStatus.startedAt,"A warm restart must expose a new start time");
+  assert.equal(secondStatus.configured,true);
+  assert.ok((await json("/api/v1/admin/projects")).data.data.some(project=>project.id===projectId),
+    "Projects must survive a restart");
+  console.info(`Plesk cold and warm Restart OK on Node.js ${process.versions.node}: matching prebuilt GitHub package downloaded, checksum verified, no node_modules or build, MySQL, protected administration, knowledge, tokens, SPA routes/assets, private-file protection, Passenger exit with an authenticated WebSocket, automatic chat reconnection, unchanged release and new start time.`);
 } finally {
+  chatClient?.disconnect();
   const stopped = child.exitCode === null ? once(child, "exit") : Promise.resolve();
   child.kill("SIGTERM");
   await stopped;

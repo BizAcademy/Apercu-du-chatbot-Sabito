@@ -16,6 +16,7 @@ import { backendBridgeRoutes, revokeBackendJobs } from "./backend-bridge";
 import { normalizedText } from "./semantic";
 import { assistantAdminRoutes,touchAssistant,readAssistantSettings } from "./assistant-settings";
 import { knowledgeReviewRoutes } from "./knowledge-review";
+import { runtimeStatus } from "../runtime-status";
 
 export const coreRoutes = Router();
 const idSchema = z.string().uuid();
@@ -23,7 +24,7 @@ const identitySchema = z.object({external_user_id:z.string().trim().min(1).max(1
   external_user_name:z.string().trim().min(1).max(100).optional()});
 const sensitiveLimiter = rateLimit({windowMs:60000,limit:120,skipSuccessfulRequests:true,standardHeaders:"draft-7",legacyHeaders:false});
 coreRoutes.use("/v1",(_req,res,next) => {res.setHeader("Cache-Control","no-store");next();});
-coreRoutes.get("/v1/status",(_req,res) => { res.json(configurationStatus()); });
+coreRoutes.get("/v1/status",(_req,res) => { res.json({...configurationStatus(),...runtimeStatus()}); });
 coreRoutes.use("/v1/admin",sensitiveLimiter,(req,res,next) => {
   if (!configurationStatus().configured) {
     res.status(503).json({success:false,message:"Configure les clés Sabito dans les Secrets avant de te connecter."}); return;

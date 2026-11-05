@@ -41,10 +41,15 @@ await writeFile(path.join(output, "package.json"), JSON.stringify({
 }, null, 2) + "\n");
 const appBootstrap = `// Plesk startup file; contains no credentials.
 const path = require("node:path");
+const fs = require("node:fs");
 require("dotenv").config({ path: process.env.SABITO_CONFIG_FILE || path.join(__dirname, ".env"), quiet: true });
 process.env.NODE_ENV = "production";
 process.env.PORT ||= "3000";
 process.env.SABITO_WEB_DIR = path.join(__dirname, "public");
+const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, "release.json"), "utf8"));
+globalThis.__sabitoRuntime = Object.freeze({
+  release: metadata.sourceFingerprint, startedAt: new Date().toISOString()
+});
 import("./index.mjs").catch(() => {
   process.stderr.write("Sabito n'a pas pu démarrer. Vérifie les variables MYSQL_*, la connexion et l'historique des migrations.\\n");
   process.exit(1);
