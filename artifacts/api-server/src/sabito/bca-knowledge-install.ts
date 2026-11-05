@@ -4,6 +4,7 @@ import { normalizeQuestion } from "./question-normalization";
 import { bcaGuides } from "./bca-guide-data";
 import { bcaFaq,bcaFaqFor } from "./bca-faq";
 import { bcaSourceDrafts } from "./bca-source-drafts";
+import { bcaMemberFaq } from "./bca-member-faq";
 
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
@@ -25,8 +26,10 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
       return false;
     }
     const faqKeys=new Set(bcaFaq.map(guide=>guide.key));
+    const memberKeys=new Set(bcaMemberFaq.map(guide=>guide.key));
     const packs=[{action,guides:bcaGuides.filter(guide=>!faqKeys.has(guide.key))},
-      {action:"bca.general_faq.installed",guides:bcaFaq}];
+      {action:"bca.general_faq.installed",guides:bcaFaq.filter(guide=>!memberKeys.has(guide.key))},
+      {action:"bca.member_questions.installed",guides:bcaMemberFaq}];
     for(const pack of packs) {
       const marker = await connection.query(
         "SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1", [projectId, pack.action]);

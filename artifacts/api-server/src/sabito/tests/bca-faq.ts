@@ -38,6 +38,23 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
     .send({operations:configuration.settings.intents.map(i=>i.backend_function)}).expect(200);
   assert.deepEqual(polled.body.jobs,[],"Public BCA FAQ must never trigger private financial checks");
   const url=`/v1/admin/projects/${id}/knowledge`;
+  const contextualClaims={sub:id,clientId:credentials.clientId,externalUserId:`guest:csv-context-${randomUUID()}`,scope:["chat:connect"]};
+  const contextSocket=await openSocket(signAccessToken(contextualClaims));
+  const contextualConversation=await createConversation(id,contextualClaims.externalUserId);
+  const sendContext=(content:string)=>new Promise<{content:string}>((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error("BCA_CSV_CONTEXT_TIMEOUT")),15000);
+    contextSocket.once("message:complete",message=>{clearTimeout(timer);resolve(message);});
+    contextSocket.emit("message:send",{conversationId:contextualConversation,content,idempotencyKey:randomUUID()},(ack:{ok:boolean})=>{
+      if(!ack.ok){clearTimeout(timer);reject(new Error("BCA_CSV_CONTEXT_REJECTED"));}
+    });
+  });
+  assert.match((await sendContext("Explication claire")).content,/quelle étape/i);
+  const premium=bcaFaq.find(guide=>guide.key==="member-premium-courses")!;
+  assert.equal((await sendContext(premium.title)).content,premium.content);
+  assert.equal((await sendContext("Comment ça fonctionne ?")).content,premium.content,
+    "An elliptical question must retain the immediately preceding approved BCA topic");
+  assert.deepEqual((await request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
+    .send({operations:configuration.settings.intents.map(i=>i.backend_function)}).expect(200)).body.jobs,[]);
   const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
   const fees=docs.find((doc:{title:string})=>doc.title===bcaFaq[1].title);
   assert.ok(fees);

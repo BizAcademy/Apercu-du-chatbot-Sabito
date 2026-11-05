@@ -6,6 +6,11 @@ import { bcaSourceDrafts } from "./bca-source-drafts";
 import { publicReplyPresentation,requestedClosing } from "./reply-presentation";
 import { verifiedBcaResult } from "./bca-contract";
 import { adaptBca,bcaIntents } from "./bca-settings";
+import { bcaMemberFaq } from "./bca-member-faq";
+import { bcaFaqFor } from "./bca-faq";
+import { bcaGuides } from "./bca-guide-data";
+import { greetingReply } from "./greeting-reply";
+import { isClosingAcknowledgement } from "./conversation-closing";
 
 // Independently authored controls, not installed as aliases or dictionary entries.
 const controls:[string,number][]=[
@@ -64,4 +69,28 @@ test("Contract prompt upgrades preserve authored settings and deleted intentions
   campaign.fields[0].prompt="Ma consigne spécifique";
   assert.equal(adaptBca(settings,legacy).intents.find(item=>item.id===campaign.id)!.fields[0].prompt,"Ma consigne spécifique");
   assert.deepEqual(adaptBca({...settings,intents:[]},legacy).intents,[]);
+});
+test("BCA CSV replies use approved subjects and never convert personal requests into public results",()=>{
+  assert.equal(bcaMemberFaq.length,11);
+  for(const guide of bcaMemberFaq) {
+    for(const question of [guide.title,...guide.variants])assert.equal(bcaFaqFor(question)?.key,guide.key,question);
+    for(const key of guide.followUpKeys)assert.ok(bcaGuides.some(item=>item.key===key),key);
+  }
+  const premium=bcaFaqFor("Comment accéder aux applications premium")!;
+  assert.match(premium.content,/liste des formations/);
+  assert.match(premium.content,/Canal\+/);
+  assert.match(premium.content,/CapCut/);
+  for(const personal of ["Mon code parrainage","Mon dépôt est en attente",
+    "Bonsoir j'aimerais savoir combien y'a dans mon compte BCA comme commission",
+    "Vérifie mon dépôt 12345","Mon retrait est-il payé ?"])
+    assert.equal(bcaFaqFor(personal),undefined,personal);
+  assert.match(bcaFaqFor("Comment je fais pour gagner de l'argent chaque jour sur bca")!.content,/aucun gain quotidien/i);
+});
+test("CSV social phrases do not hide real questions or confirm a financial outcome",()=>{
+  assert.ok(greetingReply("Bonjour comment allez-vous j'espère que vous allez bien"));
+  assert.ok(greetingReply("hello boss"));
+  assert.equal(greetingReply("Bonjour comment allez-vous mon dépôt est bloqué"),null);
+  assert.ok(isClosingAcknowledgement("Ok merci tu es fort"));
+  assert.ok(isClosingAcknowledgement("Oui j'ai pu"));
+  assert.equal(isClosingAcknowledgement("Oui j'ai pu payer mais mon dépôt est bloqué"),false);
 });

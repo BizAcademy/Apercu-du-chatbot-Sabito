@@ -30,15 +30,25 @@ export async function contextualBuzzReply(claims:AccessClaims,conversationId:str
   const explain=/^(?:(?:je veux|je voudrais) savoir )?comment (?:ca|cela) (?:fonctionne|marche)$/.test(question)
     || /^(?:explique moi|expliquez moi|peux tu m expliquer|pourquoi|comment faire alors)$/.test(question);
   const detail=/^(?:plus de details|donne moi plus de details|pouvez vous donner plus de details|peux tu m en dire plus)$/.test(question);
-  if(!explain&&!detail)return null;
-  if((await searchState(claims.sub)).profile!=="buzzbooster")return null;
+  const profile=(await searchState(claims.sub)).profile;
+  const bcaHelp=profile==="bca"&&/^(?:explication claire|aidez moi a niveau|aidez moi|aide moi)$/.test(question);
+  if(!explain&&!detail&&!bcaHelp)return null;
+  if(profile!=="buzzbooster"&&profile!=="bca")return null;
+  if(profile==="bca") {
+    const collecting=await pool.query(`SELECT status FROM sabito_core.intent_sessions
+      WHERE conversation_id=$1 AND project_id=$2 AND status IN ('collecting','checking')`,
+      [conversationId,claims.sub]);
+    if(collecting.rows.length)return null;
+  }
+  const clarify=()=>profile==="bca"?{answer:"Sur quelle étape de BCA souhaitez-vous de l’aide : une formation, les campagnes WhatsApp, le parrainage, un dépôt ou un retrait ? Précisez la rubrique et, si vous êtes bloqué, le message affiché, sans code confidentiel.",
+    reliable:false,suggestions:[],suggestions_label:"",closing_message:""}:null;
   const previous=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
     JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
     WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
       AND m.role='assistant' AND m.status='completed'
     ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,
     [claims.sub,conversationId,claims.externalUserId]);
-  if(!previous.rows[0])return null;
+  if(!previous.rows[0])return clarify();
   let previousContent=String(previous.rows[0].content);
   const footer=previousContent.lastIndexOf("\n\nConcernant votre question précédente « ");
   if(footer>=0) {
@@ -51,7 +61,7 @@ export async function contextualBuzzReply(claims:AccessClaims,conversationId:str
     WHERE project_id=$1 AND status='ready' AND content=$2 LIMIT 1`,
     [claims.sub,previousContent]);
   const document=documents.rows[0];
-  if(!document||document.content!==previousContent)return null;
+  if(!document||document.content!==previousContent)return clarify();
   const reply=await retrieveReply(claims.sub,String(document.title));
   if(!reply.reliable||reply.answer!==document.content)return null;
   return detail&&reply.suggestions.length

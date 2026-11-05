@@ -24,6 +24,7 @@ import { retrieveReply,scoreQuestion,detectIntent } from "./question-search";
 import { conversationGreeting } from "./welcome";
 import { searchKnowledge,saveKnowledge } from "./knowledge";
 import { bcaGuides } from "./bca-guide-data";
+import { bcaFaq } from "./bca-faq";
 import { ensureBcaKnowledge,isBcaHelpQuestion } from "./bca-knowledge-install";
 import { selectedFollowUp } from "./knowledge-follow-ups";
 import { semanticSimilarity } from "./semantic";
@@ -560,7 +561,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       const config=await readAssistantSettings(id);
       assert.equal(config.profile,"bca");
       assert.equal(config.settings.greeting_guest,"Bienvenue dans mon espace BCA personnalisé.");
-      assert.equal(bcaGuides.length,46); // Original 38 guides and eight owner-approved FAQ entries.
+      assert.equal(bcaGuides.length,38+bcaFaq.length);
       assert.equal(new Set(bcaGuides.map(guide=>guide.key)).size,bcaGuides.length);
       assert.equal((await pool.query("SELECT system_prompt FROM sabito_core.projects WHERE id=$1",[id])).rows[0].system_prompt,
         "Instructions BCA personnalisées à conserver.");
