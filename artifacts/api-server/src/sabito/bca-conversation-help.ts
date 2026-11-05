@@ -62,7 +62,9 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     case "sell-learn":return response("Souhaitez-vous apprendre une compétence dans une formation, ou vendre une formation que vous avez créée et que vous avez le droit de commercialiser ? Les deux démarches sont différentes.",["20","23"]);
     case "shop":return response("Souhaitez-vous vendre dans Digital Store sur BCA ou créer un site marchand indépendant ? Je peux vous expliquer le parcours vendeur BCA, mais ouvrir un espace vendeur ne signifie pas créer un site externe.",["23"]);
     case "withdrawal":return response("Souhaitez-vous savoir comment effectuer un retrait, ou vérifier un retrait déjà demandé ? Pour un statut personnel, une consultation autorisée est nécessaire ; je n’ai vérifié aucun retrait.",["13","14"]);
-    case "incomplete":return response("Pouvez-vous compléter votre message et préciser la rubrique concernée ? Je ne peux pas déduire une demande, un montant ou une opération à partir de cette phrase seule.");
+    case "incomplete":return response(normalizeQuestion(text)==="j ai une question"
+      ?"Bien sûr, posez votre question. Je suis là pour vous aider à comprendre BCA et vous accompagner dans vos démarches."
+      :"Pouvez-vous préciser votre demande et la rubrique concernée ? Je ne comprends pas suffisamment ce message pour vous répondre sans deviner.");
   }
   const previous=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
     JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id

@@ -1,5 +1,6 @@
 import type { BcaGuide } from "./bca-guide-data";
 import { normalizeQuestion } from "./question-normalization";
+import { bcaOwnerCorrections } from "./bca-owner-answers";
 
 /** Additional formulations from the owner's second unanswered-question export.
  * Only aliases of established public help: never identifiers or personal results.
@@ -16,7 +17,7 @@ export const bcaQuestionAliases:{key:string;questions:string[]}[]=[
   {key:"20",questions:["Concernant la formation en création de contenu"]},
 ];
 
-export const bcaQuestionFaq:BcaGuide[]=[
+export const bcaLegacyQuestionFaq:BcaGuide[]=[
   {key:"questions-contact-visibility",title:"Les contacts téléchargés verront-ils automatiquement mon statut WhatsApp ?",
     variants:["Comment faire pour que les contacts télécharge voyent mon statut ?"],
     content:"Télécharger un fichier de contacts ne garantit pas que les autres personnes verront votre statut.\n1. Ouvrez Contacts dans BCA et utilisez l’export officiel disponible pour votre compte.\n2. Importez le fichier VCF dans l’application Contacts de votre téléphone selon ses instructions.\n3. Vérifiez les autorisations de Contacts de WhatsApp et vos paramètres de confidentialité des statuts.\n4. Vérifiez que vous publiez auprès de l’audience souhaitée, sans exposer des coordonnées ni envoyer de messages non sollicités.\nL’export ne prouve pas que les autres membres ont enregistré votre numéro. Je ne peux pas vérifier leurs téléphones ou garantir des vues. Pour une campagne, suivez aussi le guide de publication et de vérification BCA : présence dans les contacts, vues WhatsApp et vues validées sont différentes.",
@@ -30,6 +31,10 @@ export const bcaQuestionFaq:BcaGuide[]=[
     content:"Le nombre de vues affiché sur WhatsApp n’est pas nécessairement le nombre de vues validées et rémunérables par BCA. Je n’ai pas consulté votre compte : vos chiffres seuls ne permettent pas de confirmer un manque de paiement ni un taux de rémunération.\n1. Ouvrez la campagne et la journée concernées.\n2. Vérifiez s’il s’agit d’un test ou d’une campagne rémunérée : le test n’est pas rémunéré.\n3. Consultez l’état de la publication, de la preuve et de la validation, puis les vues retenues selon les règles affichées.\n4. Comparez avec les écritures effectivement créditées dans votre historique, en vérifiant la devise et les références.\nUne publication, un nombre déclaré ou une preuve envoyée ne prouve pas qu’un crédit a eu lieu. Je ne peux pas promettre une heure de versement, multiplier toutes les vues par un tarif supposé ni calculer votre solde à partir de ce message. Si une journée validée ne correspond pas à l’historique, demandez une vérification autorisée au support avec la campagne et la journée, sans PIN ni mot de passe.",
     followUpKeys:["29","30","member-whatsapp-views"]},
 ];
+
+export const bcaQuestionFaq:BcaGuide[]=bcaLegacyQuestionFaq.map(guide=>({
+  ...guide,content:bcaOwnerCorrections[guide.key]??guide.content,
+}));
 
 export type BcaFollowupKind="explain"|"detail"|"link"|"blocked"|"profile"|"publish"|"started"|
   "campaign"|"activities"|"sell-learn"|"withdrawal"|"validation"|"identity"|"exit"|

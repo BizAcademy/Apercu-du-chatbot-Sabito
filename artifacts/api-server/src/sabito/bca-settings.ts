@@ -1,4 +1,5 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
+import { bcaOwnerPrivateAliases } from "./bca-owner-answers";
 
 type Template = {
   operation: string;
@@ -37,9 +38,10 @@ const catalog: Template[] = [
   { operation: "wallet_balance", name: "Soldes et devises des portefeuilles",
     triggers: ["mon solde disponible", "solde de mon portefeuille", "mon solde USD", "consulter mes soldes"] },
   { operation: "referral_code", name: "Code de parrainage",
-    triggers: ["mon code parrain", "code de parrainage", "mon lien de parrainage"] },
+    triggers: ["mon code parrain", "code de parrainage", "mon lien de parrainage",...bcaOwnerPrivateAliases.referral_code] },
   { operation: "referral_commission_status", name: "Commission de parrainage",
-    triggers: ["commission de parrainage non reçue", "vérifier ma commission", "mes commissions de parrainage"],
+    triggers: ["commission de parrainage non reçue", "vérifier ma commission", "mes commissions de parrainage",
+      ...bcaOwnerPrivateAliases.referral_commission_status],
     field: ["commission_reference", "Quel est l’identifiant numérique exact de la commission de parrainage à vérifier ?"] },
   { operation: "leader_reward_status", name: "Récompense mensuelle des leaders",
     triggers: ["ma récompense leader", "bonus mensuel leader", "prime top leader", "récompense mensuelle non reçue"],

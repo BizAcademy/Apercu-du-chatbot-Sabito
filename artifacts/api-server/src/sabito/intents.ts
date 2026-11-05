@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { pool } from "./database";
+import { bcaOwnerResultGuidance } from "./bca-owner-answers";
 import { requestBackend, type BackendOperation, type BackendResult } from "./backend-bridge";
 import type { AccessClaims } from "./security";
 import { normalizeQuestion, recordUnanswered } from "./unanswered";
@@ -295,7 +296,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
       if(profile==="bca")await pool.query(`UPDATE sabito_core.support_tickets SET status='ferme',updated_at=CURRENT_TIMESTAMP(6)
         WHERE project_id=$1 AND conversation_id=$2 AND intent=$3 AND status='ouvert'`,
         [claims.sub,conversationId,intent!]);
-      return answer;
+      return answer+(profile==="bca"?bcaOwnerResultGuidance(definition.backendOperation,response):"");
     }
     if(answer)failureTemplate=answer;
     reason="BACKEND_UNVERIFIED_RESULT";

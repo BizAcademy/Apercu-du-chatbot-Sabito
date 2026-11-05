@@ -14,6 +14,9 @@ import { bcaConversationHelp } from "../bca-conversation-help";
 import { saveKnowledge } from "../knowledge";
 import { handleIntent } from "../intents";
 import { pool } from "../database";
+import { bcaOwnerFaq,bcaOwnerCorrections,bcaOwnerPrivateAliases } from "../bca-owner-answers";
+import { detectIntent } from "../question-search";
+import { bcaLegacyQuestionFaq } from "../bca-question-followups";
 
 export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   app:Express;adminKey:string;projectIds:string[];openSocket:(token:string)=>Promise<Socket>;
@@ -23,6 +26,9 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
       system_prompt:"Utiliser les références approuvées et ne jamais inventer de résultat financier."}).expect(201)).body.data;
   const id=project.id;projectIds.push(id);
   const configuration=await readAssistantSettings(id);
+  for(const [operation,aliases] of Object.entries(bcaOwnerPrivateAliases))for(const alias of aliases)
+    assert.equal(detectIntent(alias,configuration.settings),
+      configuration.settings.intents.find(intent=>intent.backend_function===operation)!.id);
   for(const scope of [["chat:connect"],["chat:connect","member:verified"]]){
     // Keep the real 20 messages/minute/member protection enabled. Exercise
     // larger FAQ packs across independent identities, not a privileged bypass.
@@ -79,10 +85,11 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   await sendContext("merci");
   assert.equal((await sendContext("Comment faire")).content,pin.content,
     "A courtesy acknowledgement does not discard the public subject");
-  assert.match((await sendContext("En quel année BCA à été fondé ?")).content,/pas de date.*confirmée/);
-  assert.match((await sendContext("Comment faire")).content,/Quel sujet/,
-    "Do not jump back over a different unanswered subject");
-  assert.match((await sendContext("Je suis arrivé au compagne 3 abonnement premium")).content,/campagne publicitaire.*formation/s);
+  const history=bcaOwnerFaq.find(guide=>guide.key==="owner-history")!;
+  assert.equal((await sendContext("En quel année BCA à été fondé ?")).content,history.content);
+  assert.equal((await sendContext("Comment faire")).content,history.content,
+    "The owner's confirmed history replaces the former uncertainty without returning to the PIN subject");
+  assert.match((await sendContext("Je suis arrivé au compagne 3 abonnement premium")).content,/pas d’abonnement premium.*Canal\+.*CapCut/s);
   const campaignChoice=await sendContext("Campagne");
   assert.match(campaignChoice.content,/campagne test/);
   assert.equal((await sendContext("Comment faire")).content,campaignChoice.content,
@@ -98,13 +105,54 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   await saveKnowledge(id,"Formation de démonstration validée",`Consultez le cours public : ${publicLink}`);
   await sendContext("Formation de démonstration validée");
   assert.match((await sendContext("Okay envoie moi ça comme un lien")).content,/https:\/\/example\.com\/formation-bca/);
-  await saveKnowledge(id,"Fondation BCA confirmée","Information confirmée par le propriétaire pour ce test.",
-    undefined,undefined,["En quel année BCA à été fondé ?"]);
+  const historyDoc=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data
+    .find((doc:{title:string})=>doc.title===history.title);
+  await saveKnowledge(id,history.title,"Information confirmée par le propriétaire pour ce test.",
+    historyDoc.id,undefined,historyDoc.variantes_de_question);
   assert.equal((await sendContext("En quel année BCA à été fondé ?")).content,
     "Information confirmée par le propriétaire pour ce test.","Exact approved answers override the uncertainty fallback");
   assert.deepEqual((await request(app).post("/v1/backend/jobs/poll").auth(credentials.clientId,credentials.clientSecret)
     .send({operations:configuration.settings.intents.map(i=>i.backend_function)}).expect(200)).body.jobs,[]);
   const docs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+  // Simulate an already-installed platform: update only exact shipped bodies,
+  // while preserving a custom answer and an independently authored inline reply.
+  const legacy=bcaLegacyQuestionFaq.find(guide=>guide.key==="questions-views-and-credit")!;
+  const legacyDoc=docs.find((doc:{title:string})=>doc.title===legacy.title);
+  await saveKnowledge(id,legacy.title,legacy.content,legacyDoc.id,undefined,legacyDoc.variantes_de_question);
+  const customCopy=bcaLegacyQuestionFaq.find(guide=>guide.key==="questions-whatsapp-copy")!;
+  const copyDoc=docs.find((doc:{title:string})=>doc.title===customCopy.title);
+  const customCopyContent="Consignes de partage personnalisées par le propriétaire.";
+  await saveKnowledge(id,customCopy.title,customCopyContent,copyDoc.id,undefined,copyDoc.variantes_de_question);
+  await saveKnowledge(id,"Suivi personnalisé et ancien calcul","Consignes conservées.",undefined,undefined,[],[
+    {question:legacy.title,answer:legacy.content},
+    {question:"Ma règle personnalisée",answer:"Ne pas changer cette réponse."},
+  ]);
+  await pool.query("DELETE FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",[id,"bca.owner_answers.corrections"]);
+  const persisted={...configuration.settings,intents:configuration.settings.intents.map(intent=>({
+    ...intent,
+    enabled:intent.backend_function==="referral_commission_status"?false:intent.enabled,
+    triggers:[...intent.triggers.filter(trigger=>!Object.values(bcaOwnerPrivateAliases).flat().includes(trigger)),
+      ...(intent.backend_function==="referral_code"?["Mon déclencheur personnalisé"]:[])],
+  }))};
+  await pool.query("UPDATE sabito_core.assistant_settings SET config_json=$2,revision=revision+1 WHERE project_id=$1",
+    [id,JSON.stringify(persisted)]);
+  await pool.query("DELETE FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",[id,"bca.owner_private_aliases.installed"]);
+  const correctionUpgrade=await import("../bca-knowledge-install.ts?owner-upgrade="+randomUUID());
+  assert.equal(await correctionUpgrade.ensureBcaKnowledge(id),true);
+  assert.equal((await retrieveReply(id,legacy.title)).answer,bcaOwnerCorrections[legacy.key]);
+  assert.equal((await retrieveReply(id,customCopy.title)).answer,customCopyContent);
+  const upgradedDocs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+  const followed=upgradedDocs.find((doc:{title:string})=>doc.title==="Suivi personnalisé et ancien calcul");
+  const storedFollowUps=await pool.query("SELECT questions_json FROM sabito_core.knowledge_follow_ups WHERE project_id=$1 AND document_id=$2",[id,followed.id]);
+  const savedFollowUps=JSON.parse(String(storedFollowUps.rows[0].questions_json));
+  assert.equal(savedFollowUps[0].answer,bcaOwnerCorrections[legacy.key]);
+  assert.equal(savedFollowUps[1].answer,"Ne pas changer cette réponse.");
+  const adjusted=await readAssistantSettings(id);
+  assert.ok(adjusted.settings.intents.find(intent=>intent.backend_function==="referral_code")!.triggers.includes("Mon code parrainage"));
+  assert.ok(adjusted.settings.intents.find(intent=>intent.backend_function==="referral_code")!.triggers.includes("Mon déclencheur personnalisé"));
+  const disabled=adjusted.settings.intents.find(intent=>intent.backend_function==="referral_commission_status")!;
+  assert.equal(disabled.enabled,false);
+  assert.ok(!disabled.triggers.includes(bcaOwnerPrivateAliases.referral_commission_status[0]));
   const seller=docs.find((doc:{title:string})=>doc.title===bcaGuides.find(guide=>guide.key==="23")!.title);
   const sellerContent="Réponse vendeur personnalisée par le propriétaire : suivre les conditions affichées.";
   await saveKnowledge(id,seller.title,sellerContent,seller.id,undefined,["Mon alias vendeur personnel"]);

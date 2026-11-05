@@ -12,6 +12,7 @@ import { bcaGuides } from "./bca-guide-data";
 import { greetingReply } from "./greeting-reply";
 import { isClosingAcknowledgement } from "./conversation-closing";
 import { bcaQuestionAliases,bcaQuestionFaq,bcaFollowupKind } from "./bca-question-followups";
+import { bcaOwnerFaq,bcaOwnerCorrections,bcaOwnerResultGuidance } from "./bca-owner-answers";
 import { isBcaHelpQuestion } from "./bca-knowledge-install";
 
 // Independently authored controls, not installed as aliases or dictionary entries.
@@ -95,6 +96,19 @@ test("CSV social phrases do not hide real questions or confirm a financial outco
   assert.ok(isClosingAcknowledgement("Ok merci tu es fort"));
   assert.ok(isClosingAcknowledgement("Oui j'ai pu"));
   assert.equal(isClosingAcknowledgement("Oui j'ai pu payer mais mon dépôt est bloqué"),false);
+});
+test("Owner-confirmed BCA answers have bounded aliases, honest calculations and verified-result guidance",()=>{
+  for(const guide of bcaOwnerFaq) {
+    for(const text of [guide.title,...guide.variants])assert.equal(bcaFaqFor(text)?.key,guide.key,text);
+    for(const key of guide.followUpKeys)assert.ok(bcaGuides.some(item=>item.key===key),key);
+  }
+  assert.match(bcaOwnerCorrections["questions-views-and-credit"],/123.*0,60 F = 73,80 F/);
+  assert.match(bcaOwnerFaq.find(guide=>guide.key==="owner-history")!.content,/16 octobre 2025.*12 mars 2026/);
+  assert.match(bcaOwnerResultGuidance("deposit_status",{status:"success",data:{statut:"terminé",reference:"example"}}),/Vérifiez maintenant votre solde/);
+  assert.match(bcaOwnerResultGuidance("deposit_status",{status:"pending",data:{statut:"pending",reference:"example"}}),/https:\/\/bcachat\.bizconnectacademy\.com/);
+  assert.match(bcaOwnerResultGuidance("deposit_status",{status:"failed",data:{statut:"failed",reference:"example",motif:"Référence invalide"}}),/Référence invalide/);
+  assert.match(bcaOwnerResultGuidance("deposit_status",{status:"failed",data:{statut:"failed",reference:"example"}}),/pas de motif.*confirmé/);
+  assert.equal(bcaOwnerResultGuidance("referral_code",{status:"success",data:{statut:"ok",code_parrain:"example"}}),"");
 });
 test("Additional BCA questions use bounded aliases and explicit clarification, not guessed personal data",()=>{
   for(const group of bcaQuestionAliases) {

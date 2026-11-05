@@ -5,7 +5,8 @@ import { bcaGuides } from "./bca-guide-data";
 import { bcaFaq,bcaFaqFor } from "./bca-faq";
 import { bcaSourceDrafts } from "./bca-source-drafts";
 import { bcaMemberFaq } from "./bca-member-faq";
-import { bcaQuestionAliases,bcaQuestionAlias,bcaQuestionFaq } from "./bca-question-followups";
+import { bcaQuestionAliases,bcaQuestionAlias,bcaQuestionFaq,bcaLegacyQuestionFaq } from "./bca-question-followups";
+import { bcaOwnerFaq,bcaOwnerCorrections,bcaOwnerPrivateAliases } from "./bca-owner-answers";
 
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
@@ -29,10 +30,12 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
     const faqKeys=new Set(bcaFaq.map(guide=>guide.key));
     const memberKeys=new Set(bcaMemberFaq.map(guide=>guide.key));
     const questionKeys=new Set(bcaQuestionFaq.map(guide=>guide.key));
+    const ownerKeys=new Set(bcaOwnerFaq.map(guide=>guide.key));
     const packs=[{action,guides:bcaGuides.filter(guide=>!faqKeys.has(guide.key))},
-      {action:"bca.general_faq.installed",guides:bcaFaq.filter(guide=>!memberKeys.has(guide.key)&&!questionKeys.has(guide.key))},
+      {action:"bca.general_faq.installed",guides:bcaFaq.filter(guide=>!memberKeys.has(guide.key)&&!questionKeys.has(guide.key)&&!ownerKeys.has(guide.key))},
       {action:"bca.member_questions.installed",guides:bcaMemberFaq},
-      {action:"bca.conversation_questions.installed",guides:bcaQuestionFaq}];
+      {action:"bca.conversation_questions.installed",guides:bcaQuestionFaq},
+      {action:"bca.owner_answers.installed",guides:bcaOwnerFaq}];
     for(const pack of packs) {
       const marker = await connection.query(
         "SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1", [projectId, pack.action]);
@@ -89,6 +92,59 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
         preservedQuestions:pack.guides.filter(guide => !pending.includes(guide)).map(guide => guide.title),
       })]);
       changed = changed || ids.length > 0;
+    }
+    // Upgrade only exact shipped answers, including their reused inline answers.
+    // An owner's edits, drafts, variants and intentional deletions remain intact.
+    const correctionsAction="bca.owner_answers.corrections";
+    const correctionMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,correctionsAction]);
+    if(!correctionMarker.rows.length) {
+      const documents=await connection.query(`SELECT d.id,d.title,d.content,d.status,v.variantes_de_question,f.questions_json
+        FROM sabito_core.knowledge_documents d LEFT JOIN sabito_core.knowledge_question_variants v
+        ON v.document_id=d.id AND v.project_id=d.project_id LEFT JOIN sabito_core.knowledge_follow_ups f
+        ON f.document_id=d.id AND f.project_id=d.project_id WHERE d.project_id=$1`,[projectId]);
+      let updated=0;
+      for(const doc of documents.rows) {
+        if(doc.status!=="ready")continue;
+        const old=bcaLegacyQuestionFaq.find(guide=>guide.title===String(doc.title)&&guide.content===String(doc.content));
+        const content=old?bcaOwnerCorrections[old.key]??String(doc.content):String(doc.content);
+        const before=JSON.parse(String(doc.questions_json??"[]")) as {question:string;answer:string}[];
+        const after=before.map(item=>{
+          const target=bcaLegacyQuestionFaq.find(guide=>guide.title===item.question&&guide.content===item.answer);
+          return target&&bcaOwnerCorrections[target.key]?{...item,answer:bcaOwnerCorrections[target.key]}:item;
+        });
+        if(content===String(doc.content)&&JSON.stringify(before)===JSON.stringify(after))continue;
+        await saveKnowledge(projectId,String(doc.title),content,String(doc.id),connection,
+          JSON.parse(String(doc.variantes_de_question??"[]")),after);
+        updated++;
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES ($1,'system',$2,$3)`,[projectId,correctionsAction,JSON.stringify({source:"owner-confirmed-answers",updated})]);
+      changed=changed||updated>0;
+    }
+    const privateAliasAction="bca.owner_private_aliases.installed";
+    const privateMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,privateAliasAction]);
+    if(!privateMarker.rows.length) {
+      const settings=await connection.query("SELECT config_json FROM sabito_core.assistant_settings WHERE project_id=$1 FOR UPDATE",[projectId]);
+      const config=JSON.parse(String(settings.rows[0]?.config_json??"{}"));
+      let added=0;
+      if(Array.isArray(config.intents)) {
+        const reserved=new Set<string>(config.intents.flatMap((intent:{triggers?:string[]})=>intent.triggers??[]).map(normalizeQuestion));
+        for(const [operation,aliases] of Object.entries(bcaOwnerPrivateAliases)) {
+          const intent=config.intents.find((item:{enabled?:boolean;backend_function?:string})=>item.enabled&&item.backend_function===operation);
+          if(!intent||!Array.isArray(intent.triggers))continue;
+          for(const alias of aliases) {
+            if(reserved.has(normalizeQuestion(alias)))continue;
+            intent.triggers.push(alias);reserved.add(normalizeQuestion(alias));added++;
+          }
+        }
+        if(added)await connection.query("UPDATE sabito_core.assistant_settings SET config_json=$2,revision=revision+1 WHERE project_id=$1",
+          [projectId,JSON.stringify(config)]);
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES ($1,'system',$2,$3)`,[projectId,privateAliasAction,JSON.stringify({added})]);
+      changed=changed||added>0;
     }
     const aliasesAction="bca.conversation_aliases.installed";
     const aliasesMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
