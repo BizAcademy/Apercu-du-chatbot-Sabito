@@ -21,6 +21,7 @@ import { bcaSupportAliases,bcaSupportTemplates } from "../bca-support-questions"
 import { bcaScenario } from "../bca-dialogue-rules";
 import { bcaNovemberRoutes,bcaNovemberDrafts } from "../bca-november-questions";
 import { bcaTrainingQuestion } from "../bca-owner-clarifications";
+import { bcaCurrentRoutes } from "../bca-current-questions";
 
 export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   app:Express;adminKey:string;projectIds:string[];openSocket:(token:string)=>Promise<Socket>;
@@ -30,6 +31,31 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
       system_prompt:"Utiliser les références approuvées et ne jamais inventer de résultat financier."}).expect(201)).body.data;
   const id=project.id;projectIds.push(id);
   const configuration=await readAssistantSettings(id);
+  const csvClaims={sub:id,clientId:credentials.clientId,externalUserId:`guest:current-csv-${randomUUID()}`,scope:["chat:connect"]};
+  for(const route of bcaCurrentRoutes) {
+    const conversation=await createConversation(id,csvClaims.externalUserId);
+    if(route.answer) {
+      const result=await bcaConversationHelp(csvClaims,conversation,route.questions[0]);
+      assert.equal(result?.answer,route.answer,route.key);
+      assert.equal(result?.reliable,true,route.key);
+    }
+    if(route.kind==="private") {
+      // Test both current and already-personalized registries through the real
+      // handler. Guest checks must never start a backend job.
+      for(const question of route.questions)
+        assert.match((await handleIntent(csvClaims,conversation,question))!,/Connectez-vous/,question);
+    }
+  }
+  const currentMember={...csvClaims,externalUserId:`current-member-${randomUUID()}`,scope:["chat:connect","member:verified"]};
+  for(const route of bcaCurrentRoutes.filter(route=>route.kind==="private")) {
+    const conversation=await createConversation(id,currentMember.externalUserId);
+    const prompt=await handleIntent(currentMember,conversation,route.questions[0]);
+    assert.match(prompt!,/oui ou non/,route.key);
+    assert.equal(await bcaConversationHelp(currentMember,conversation,"oui"),null,
+      "Public continuation cannot consume a private confirmation");
+    const cancel=await handleIntent(currentMember,conversation,"non");
+    assert.ok(cancel,route.key);
+  }
   // Exercise the real installer, approved index and private intent registry,
   // for every exact input in the attached November export.
   for(const route of bcaNovemberRoutes)for(const question of route.questions) {
@@ -181,6 +207,26 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   assert.match((await sendContext("Facebook")).content,/Plusieurs formations/);
   assert.equal((await sendContext("Formation Facebook Ads")).content,bcaTrainingQuestion("Formation Facebook Ads"));
   assert.match((await sendContext("oui")).content,/FORMATION FACEBOOK ADS/);
+  contextualClaims={...contextualClaims,externalUserId:`guest:latest-csv-${randomUUID()}`};
+  contextualConversation=await createConversation(id,contextualClaims.externalUserId);
+  contextSocket=await openSocket(signAccessToken(contextualClaims));
+  assert.match((await sendContext("Tout mais je ne sais pas comment me procéder")).content,/inutile de recréer un compte/);
+  assert.match((await sendContext("Ok guide moi")).content,/quel parcours/);
+  assert.match((await sendContext("vendre")).content,/espace vendeur/);
+  assert.match((await sendContext("Le prix")).content,/tarif actuel/);
+  assert.match((await sendContext("Comment faire un parrainage")).content,/1 500 F.*500 F.*300 F/s);
+  assert.match((await sendContext("oui")).content,/propre lien/);
+  assert.match((await sendContext("Non pas sa")).content,/mal comprise/);
+  assert.match((await sendContext("Le prix pour publier un produit")).content,/pas de handler/);
+  assert.match((await sendContext("Pourquoi")).content,/tarif actuel/);
+  assert.match((await sendContext("Commission non reçu")).content,/Connectez-vous/);
+  assert.match((await sendContext("Validé mon jour 2")).content,/Connectez-vous/);
+  assert.match((await sendContext("J'ai une petite question")).content,/posez votre question/);
+  // Customized approved references take precedence over shipped public rules.
+  const customQuestion="Le prix pour publier un produit";
+  await saveKnowledge(id,customQuestion,"Consultez le récapitulatif de votre espace vendeur, selon vos conditions particulières.");
+  assert.equal((await sendContext(customQuestion)).content,
+    "Consultez le récapitulatif de votre espace vendeur, selon vos conditions particulières.");
   // A separate identity keeps the real rate limiter enabled for the new CSV's
   // multi-turn controls. Public continuations cannot reuse private histories.
   const supportClaims={...contextualClaims,externalUserId:`guest:support-${randomUUID()}`};

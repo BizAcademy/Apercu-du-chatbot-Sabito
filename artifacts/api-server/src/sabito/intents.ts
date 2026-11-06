@@ -20,6 +20,8 @@ import { explicitOrderRead,orderContext } from "./buzzbooster-orders";
 import { continueBackendConversation,rememberBackendResult } from "./backend-conversation";
 import { verifiedBcaResult } from "./bca-contract";
 import { logger } from "../lib/logger";
+import { bcaNovemberRoute } from "./bca-november-questions";
+import { logBcaCommissionDivergence } from "./bca-commission-policy";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
   return value.length>=field.min_length && value.length<=field.max_length &&
@@ -75,6 +77,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
   }]));
   let detected=refundQuestion?settings.intents.find(intent=>intent.enabled&&intent.backend_function==="order_refund_status")?.id:detectIntent(text,settings);
+  const bcaRoute=profile==="bca"?bcaNovemberRoute(text):undefined;
+  if(bcaRoute?.kind==="private")
+    detected=settings.intents.find(intent=>intent.enabled&&intent.backend_function===bcaRoute.target)?.id;
   // A format alone is not evidence that a reference belongs to a deposit.
   // Awaited references still use collectedValue below with their exact spelling.
   const suppliedDeposit=buzz&&!opaqueConversationInput(text)?buzzDepositIdentifier(text):undefined;
@@ -284,6 +289,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
     if(profile==="bca"&&!verifiedBcaResult(definition.backendOperation,response)) {
       throw new Error("BACKEND_UNVERIFIED_RESULT");
     }
+    if(profile==="bca")logBcaCommissionDivergence(claims.sub,definition.backendOperation,response.data??{});
     const outcome: keyof IntentDefinition["responses"]=["ok","success","confirmed","active"].includes(response.status)?"success"
       : ["pending","inactive"].includes(response.status)?"pending":["not_found","forbidden"].includes(response.status)?"not_found":"error";
     const data={...response.data,statut:response.data?.statut??response.status,

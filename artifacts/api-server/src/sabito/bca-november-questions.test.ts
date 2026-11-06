@@ -52,14 +52,15 @@ test("Ambiguous and conversational inputs do not select financial FAQs",()=>{
 });
 
 test("Owner rules are public guidance, not manufactured private results",()=>{
-  assert.match(bcaNovemberRoute("La campagne avec photo vaut 1000 XAF !?")!.answer!,/5 000 F/);
+  assert.match(bcaNovemberRoute("La campagne avec photo vaut 1000 XAF !?")!.answer!,/configuration active/);
+  assert.doesNotMatch(bcaNovemberRoute("La campagne avec photo vaut 1000 XAF !?")!.answer!,/5 000 F/);
   assert.match(bcaNovemberRoute("Pour quoi mes campagne expiré avant 23h")!.answer!,/objectif de vues/);
   assert.match(bcaNovemberRoute("Remettez moi mon argent")!.answer!,/n’est pas remboursable/);
   assert.match(bcaNovemberRoute("Mon comte et bien crée oubien il na pas bien crée")!.answer!,/ne peux pas confirmer/);
   assert.equal(bcaNovemberRoute("Quel sont les 16 formations")!.target,"bca_catalogue_current");
   assert.match(bcaNovemberRoute("Pourquoi mes campagne sont indisponibles")!.answer!,/pas le résultat d’une vérification/);
   assert.equal(bcaNovemberRoute("Jusqu'a present mon jour n’est pas validé")!.target,"ads_payout_status");
-  assert.deepEqual(Object.keys(bcaNovemberPrivateAliases).sort(),["ads_payout_status","bca_catalogue_current"]);
+  assert.deepEqual(Object.keys(bcaNovemberPrivateAliases).sort(),["ads_payout_status","ads_publisher_status","bca_catalogue_current","referral_commissions_recent"]);
   assert.ok(bcaNovemberDrafts.every(draft=>draft.source.includes("confirmer")));
 });
 

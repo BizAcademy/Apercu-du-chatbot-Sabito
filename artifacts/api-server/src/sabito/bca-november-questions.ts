@@ -1,5 +1,6 @@
 import { normalizeQuestion } from "./question-normalization";
 import { bcaOwnerClarifications,bcaOwnerClarificationAliases,bcaTrainingTopic,bcaTrainingQuestion,bcaTrainingMatches } from "./bca-owner-clarifications";
+import { bcaCurrentQuestion,bcaCurrentRoutes } from "./bca-current-questions";
 
 /** Exact formulations from the 62-row November export. No live BCA value is
  * embedded here. Public aliases only reuse an existing approved reference.
@@ -120,6 +121,8 @@ const byQuestion=new Map(bcaNovemberRoutes.flatMap(route=>
 export function bcaNovemberRoute(text:string):Route|undefined {
   const exact=byQuestion.get(normalizeQuestion(text));
   if(exact)return exact;
+  const current=bcaCurrentQuestion(text);
+  if(current)return current;
   const topic=bcaTrainingTopic(text);
   if(topic)return {key:"training",kind:"context",target:"training-access",source:"Catalogue fourni par le propriétaire ; accès à préciser",
     questions:[],answer:bcaTrainingQuestion(topic)};
@@ -131,8 +134,8 @@ export function bcaNovemberRoute(text:string):Route|undefined {
 export const bcaNovemberAliases=bcaNovemberRoutes.filter(route=>route.kind==="public")
   .map(route=>({key:route.target,questions:route.questions}));
 export const bcaNovemberPrivateAliases=Object.fromEntries(
-  [...new Set(bcaNovemberRoutes.filter(route=>route.kind==="private").map(route=>route.target))]
-    .map(operation=>[operation,bcaNovemberRoutes.filter(route=>route.kind==="private"&&route.target===operation).flatMap(route=>route.questions)]));
+  [...new Set([...bcaNovemberRoutes,...bcaCurrentRoutes].filter(route=>route.kind==="private").map(route=>route.target))]
+    .map(operation=>[operation,[...bcaNovemberRoutes,...bcaCurrentRoutes].filter(route=>route.kind==="private"&&route.target===operation).flatMap(route=>route.questions)]));
 
 /** Substantive new source-derived procedures remain reviewable, not published. */
 export const bcaNovemberDrafts=[

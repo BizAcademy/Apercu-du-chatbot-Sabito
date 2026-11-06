@@ -10,6 +10,7 @@ import { bcaWarmClosing } from "./bca-dialogue-rules";
 import type { AccessClaims } from "./security";
 import { bcaNovemberRoute } from "./bca-november-questions";
 import { bcaOwnerContinuation,bcaOwnerClarifications } from "./bca-owner-clarifications";
+import { bcaCurrentContinuation,bcaCurrentTurn } from "./bca-current-questions";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
 const social=new Set([conversationClosing,bcaWarmClosing,...["bonjour","salut","bonsoir","hello","yo",
@@ -53,7 +54,7 @@ export async function bcaClarifiedQuery(claims:AccessClaims,conversationId:strin
  * member's history must never become the source of a public answer.
  */
 export async function bcaConversationHelp(claims:AccessClaims,conversationId:string,text:string):Promise<Reply|null> {
-  const continuationCandidate=/^(oui|oui merci|oui comment|oui comment faire|oui je veux|d accord|ok|okay|comment faire|comment y acceder|non|non merci)$/.test(normalizeQuestion(text));
+  const continuationCandidate=bcaCurrentTurn(text)||normalizeQuestion(text)==="comment y acceder";
   const kind=bcaFollowupKind(text)??(continuationCandidate?"owner-continuation":undefined);
   if(!kind)return null;
   const state=await searchState(claims.sub);
@@ -87,7 +88,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
         [claims.sub,conversationId,last.rows[0].id]);
       if(survey.rows.length)previous=previous.slice(0,footer);
     }
-    const answer=bcaOwnerContinuation(text,previous);
+    const answer=bcaCurrentContinuation(text,previous)??bcaOwnerContinuation(text,previous);
     if(answer)return response(answer,[],true);
     if(kind==="owner-continuation")return null;
   }
@@ -101,7 +102,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     .some(question=>normalizeQuestion(question)===normalizeQuestion(text)));
   const ownerRoute=bcaNovemberRoute(text);
   const shippedDefault=exact&&bcaGuides.some(guide=>guide.content===String(exact.content));
-  if(exact&&!(ownerRoute&&bcaOwnerClarifications[ownerRoute.key]&&shippedDefault)) {
+  if(exact&&!(ownerRoute&&(bcaOwnerClarifications[ownerRoute.key]||ownerRoute.key.startsWith("current-"))&&shippedDefault)) {
     const reply=await retrieveReply(claims.sub,String(exact.title));
     if(reply.reliable&&reply.answer===String(exact.content))return reply;
   }
@@ -130,10 +131,10 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     case "best-income":return response("Je n’ai pas les statistiques permettant de classer les activités BCA par revenu. Le résultat dépend notamment des compétences, des ventes et des campagnes réellement disponibles et validées. Aucun parcours n’offre un revenu maximal garanti.",["member-income","member-choose-product"]);
     case "identity":return response("Je suis Sabito, l’assistant de service client de BCA. Je vous aide à comprendre les rubriques, les formations et les démarches. Pour une donnée personnelle, il faut une session membre reconnue et une consultation autorisée du backend. Je ne demande jamais votre PIN, votre mot de passe ou un code de connexion.",["member-bca-overview"],true);
     case "exit":return response("Souhaitez-vous fermer la discussion Sabito ou vous déconnecter de BCA ? Fermer le widget ne déconnecte pas votre compte BCA. Pour terminer votre session, utilisez l’action de déconnexion proposée dans votre espace membre ; je ne vous ai pas déconnecté.");
-    case "campaign":return response("Parlez-vous de la campagne test, de la publication/vérification d’une campagne, ou de la création d’une publicité pour vos produits ?",["28","30","26"]);
+    case "campaign":return response("Parlez-vous de la campagne test, de la publication/vérification d’une campagne, ou de la création d’une publicité pour vos produits ?",["28","30","26"],true);
     case "activities":return response("Souhaitez-vous apprendre une compétence, vendre un produit, recommander BCA ou diffuser des campagnes ? Choisissez d’abord un parcours ; aucun revenu n’est garanti.",["member-income","20","27"]);
-    case "sell-learn":return response("Souhaitez-vous apprendre une compétence dans une formation, ou vendre une formation que vous avez créée et que vous avez le droit de commercialiser ? Les deux démarches sont différentes.",["20","23"]);
-    case "shop":return response("Souhaitez-vous vendre dans Digital Store sur BCA ou créer un site marchand indépendant ? Je peux vous expliquer le parcours vendeur BCA, mais ouvrir un espace vendeur ne signifie pas créer un site externe.",["23"]);
+    case "sell-learn":return response("Souhaitez-vous apprendre une compétence dans une formation, ou vendre une formation que vous avez créée et que vous avez le droit de commercialiser ? Les deux démarches sont différentes.",["20","23"],true);
+    case "shop":return response("Souhaitez-vous vendre dans Digital Store sur BCA ou créer un site marchand indépendant ? Je peux vous expliquer le parcours vendeur BCA, mais ouvrir un espace vendeur ne signifie pas créer un site externe.",["23"],true);
     case "withdrawal":return response("Souhaitez-vous savoir comment effectuer un retrait, ou vérifier un retrait déjà demandé ? Pour un statut personnel, une consultation autorisée est nécessaire ; je n’ai vérifié aucun retrait.",["13","14"]);
     case "incomplete":return response(normalizeQuestion(text)==="j ai une question"
       ?"Bien sûr, posez votre question. Je suis là pour vous aider à comprendre BCA et vous accompagner dans vos démarches."

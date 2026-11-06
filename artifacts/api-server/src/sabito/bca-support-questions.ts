@@ -1,4 +1,5 @@
 import type { BcaGuide } from "./bca-guide-data";
+import { bcaCommissionGuidance } from "./bca-commission-policy";
 
 /** Owner's latest unanswered-question export. Public guidance deliberately does
  * not turn an archived default, a catalogue, or a user's claim into live data. */
@@ -53,6 +54,7 @@ export const bcaSupportTemplates=[
 ];
 
 export function bcaSupportResultGuidance(operation:string,data:Record<string,unknown>) {
+  if(operation==="referral_commission_status")return bcaCommissionGuidance(operation,data);
   if(operation==="ads_payout_status") {
     if(data.statut_diffusion==="pending_admin_validation")return "\n\nCette journée attend la validation administrative. Ne recommencez pas une publication déjà déclarée uniquement pour débloquer l’écran ; une preuve envoyée ne confirme pas encore un paiement.";
     if(data.statut_diffusion==="paid")return "\n\nLe backend indique une journée payée. Comparez le montant et la devise réellement renvoyés avec l’écriture de votre historique ; je ne calcule pas le crédit à partir des vues WhatsApp déclarées dans le chat.";
@@ -65,7 +67,7 @@ export function bcaSupportResultGuidance(operation:string,data:Record<string,unk
       ?"\n\nLe motif ci-dessus est celui enregistré pour votre produit. Corrigez les points indiqués dans votre espace vendeur ; je n’ai pas modifié le produit."
       :"\n\nAucun motif de rejet n’a été fourni par BCA. Je ne peux pas l’inventer. Contactez https://bcachat.bizconnectacademy.com avec la référence de votre produit.";
   }
-  if(operation==="referral_commissions_recent")return "\n\nIl s’agit des commissions récentes renvoyées par BCA, pas d’un total par niveau ni d’une preuve qu’une nouvelle commission est due. Si une commission attendue n’y figure pas, contactez https://bcachat.bizconnectacademy.com en précisant l’opération concernée, sans PIN ni mot de passe.";
+  if(operation==="referral_commissions_recent")return "\n\nIl s’agit des commissions récentes renvoyées par BCA, pas d’un total par niveau ni d’une preuve qu’une nouvelle commission est due. Si une commission attendue n’y figure pas, contactez https://bcachat.bizconnectacademy.com en précisant l’opération concernée, sans PIN ni mot de passe."+bcaCommissionGuidance(operation,data);
   if(operation==="ads_publisher_status")return "\n\nLa validation de la campagne test et les campagnes payantes disponibles sont distinctes. Cette lecture du profil ne prouve pas qu’une campagne correspond à votre ciblage ni qu’une nouvelle campagne est disponible. Consultez les campagnes proposées dans votre espace diffuseur. Le taux configuré ci-dessus n’est pas un tarif que vous pouvez augmenter vous-même ; les conditions de la campagne courante prévalent.";
   if(operation==="bca_catalogue_current")return "\n\nLa liste renvoyée est limitée aux offres publiées lors de cette consultation. Leur existence ne confirme ni un accès gratuit ni les formats autorisés pour une nouvelle vente. Ouvrez la fiche actuelle de l’offre pour ses conditions.";
   return "";
