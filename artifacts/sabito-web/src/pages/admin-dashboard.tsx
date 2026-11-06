@@ -7,7 +7,7 @@ import {
   removePlatformKnowledge, rotateSabitoCredentials, updatePlatformKnowledge,
   type Platform, type PlatformCredentials, type PlatformDocument,
 } from "@workspace/api-client-react";
-import { ArrowDown, ArrowUp, BookOpen, Copy, Settings2, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, Copy, Settings2, KeyRound, LogOut, MessageCircle, Plus, RefreshCw, Search, Trash2, Pencil, X, TriangleAlert } from "lucide-react";
 import { errMsg, useAdmin } from "@/lib/admin";
 import { AdminLogin } from "@/pages/admin-login";
 import { WidgetIntegration } from "@/components/WidgetIntegration";
@@ -17,6 +17,7 @@ import { SupportTickets } from "@/components/SupportTickets";
 import { ConversationInsights } from "@/components/ConversationInsights";
 import { BackendConnection } from "@/components/BackendConnection";
 import { AssistantSettingsPanel } from "@/components/assistant/AssistantSettingsPanel";
+import { matchesReferenceQuestion } from "@/lib/reference-search";
 
 const card = "rounded-[22px] border border-[#e8eaff] bg-white p-6 shadow-[0_6px_24px_rgba(48,59,153,.045)]";
 const input = "w-full rounded-[12px] border border-[#dfe2ef] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#9da5ff]";
@@ -178,21 +179,41 @@ function Knowledge({ projectId, buzzBooster=false }: { projectId: string; buzzBo
   const key = ["sabito-admin", "knowledge", projectId];
   const q = useQuery({ queryKey: key, queryFn: () => listPlatformKnowledge(projectId, headers()), refetchInterval: 30_000, staleTime: 15_000 });
   const [edit, setEdit] = useState<PlatformDocument | "new" | null>(null);
+  const [search, setSearch] = useState("");
   const del = useMutation({ mutationFn: (id: string) => removePlatformKnowledge(projectId, id, headers()), onSuccess: () => qc.invalidateQueries({ queryKey: key }) });
   const docs = q.data?.data ?? [];
+  const filteredDocs = docs.filter(d => matchesReferenceQuestion(search,
+    [d.title, ...(d.variantes_de_question ?? []), ...(d.follow_up_questions ?? []).map(f => f.question)]));
+  const searching = search.trim().length > 0;
   return (
-    <section className={card}>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[15px] font-bold"><BookOpen size={16} />Références validées</h2>
+    <section className={card} data-testid="section-validated-references">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold"><BookOpen size={16} />Références validées
+          {q.data && !q.error && <span className="rounded-full bg-[#eef0ff] px-2.5 py-1 text-[12px] text-[#3641f5]" data-testid="text-reference-total">{docs.length}</span>}
+        </h2>
         <button className={ghost} onClick={() => setEdit("new")} data-testid="button-add-doc"><Plus size={14} />Ajouter</button>
       </div>
       {buzzBooster && <p className="mb-3 rounded-xl bg-[#f6f7ff] p-3 text-[12px] text-[#6c748d]">La base d’aide Buzz Booster fournie est installée une seule fois, sans écraser vos références. Vous pouvez modifier ou supprimer chaque guide ici. Les frais, seuils et taux documentés ne prouvent pas les paramètres actuellement actifs. Les liens vers une plateforme ne sont pas inventés.</p>}
+      <div className="mb-4">
+        <label htmlFor={`reference-search-${projectId}`} className="mb-1.5 block text-[12px] font-semibold text-[#48506a]">Rechercher une référence par sa question</label>
+        <div className="relative">
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[#8b92a8]" />
+          <input id={`reference-search-${projectId}`} type="search" className={`${input} pl-9 pr-24`}
+            placeholder="Saisir une question ou des mots-clés…" value={search} onChange={e => setSearch(e.target.value)}
+            data-testid="input-reference-search" />
+          {search && <button type="button" onClick={() => setSearch("")} className="absolute right-3 top-2.5 text-[12px] font-semibold text-[#3641f5]" data-testid="button-clear-reference-search">Effacer</button>}
+        </div>
+        {q.data && !q.error && <p role="status" className="mt-2 text-[12px] text-[#6c748d]" data-testid="text-reference-results">
+          {searching ? `${filteredDocs.length} résultat${filteredDocs.length > 1 ? "s" : ""} sur ${docs.length} référence${docs.length > 1 ? "s" : ""}` : `${docs.length} référence${docs.length > 1 ? "s" : ""} au total`}
+        </p>}
+      </div>
       {q.isLoading && <div className="h-20 animate-pulse rounded-xl bg-[#f1f3ff]" />}
       {q.error && <ErrorBox msg={errMsg(q.error)} retry={() => void q.refetch()} />}
       {del.error && <ErrorBox msg={errMsg(del.error)} />}
       {!q.isLoading && !q.error && docs.length === 0 && <p className="rounded-xl bg-[#f6f7ff] p-4 text-[12px] text-[#6c748d]">Aucune référence. Sans documentation validée, Sabito indique qu'il ne connaît pas la réponse.</p>}
+      {!q.isLoading && !q.error && docs.length > 0 && filteredDocs.length === 0 && <p className="rounded-xl bg-[#f6f7ff] p-4 text-[12px] text-[#6c748d]" data-testid="text-reference-search-empty">Aucune référence ne correspond à cette question. Essayez d’autres mots ou effacez la recherche.</p>}
       <div className="divide-y divide-[#eef0fa]">
-        {docs.map((d) => (
+        {filteredDocs.map((d) => (
           <div key={d.id} className="flex items-start gap-3 py-3" data-testid={`row-doc-${d.id}`}>
             <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">{d.title}{(d.variantes_de_question?.length ?? 0) > 0 && <span className="rounded-full bg-[#eef0ff] px-2 py-0.5 text-[10px] font-semibold text-[#3641f5]" title={d.variantes_de_question!.join("\n")} data-testid={`text-doc-variants-${d.id}`}>{d.variantes_de_question!.length} formulation{d.variantes_de_question!.length > 1 ? "s" : ""}</span>}</div>{(d.variantes_de_question?.length ?? 0) > 0 && <p className="mt-0.5 truncate text-[11px] italic text-[#8b92a8]">« {d.variantes_de_question![0]} »{d.variantes_de_question!.length > 1 ? ` +${d.variantes_de_question!.length - 1}` : ""}</p>}<p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[12px] text-[#6c748d]">{d.content}</p></div>
             <button className="p-1.5 text-[#737b94] hover:text-[#3641f5]" onClick={() => setEdit(d)} aria-label="Modifier" data-testid={`button-edit-doc-${d.id}`}><Pencil size={14} /></button>
