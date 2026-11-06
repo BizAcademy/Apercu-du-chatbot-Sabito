@@ -159,12 +159,14 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     if(kind==="explain"||kind==="detail") {
       // Keep a still-unanswered public choice in scope without selecting an
       // option for the member or falling back to an unrelated older subject.
+      // These are authored clarification prompts, not failed retrievals.
+      // Mark them reliable so the socket's fallback cannot replace the choice.
       if(content.startsWith("Parlez-vous de la campagne test, de la publication/vérification"))
-        return response(content,["28","30","26"]);
+        return response(content,["28","30","26"],true);
       if(content.startsWith("Souhaitez-vous apprendre une compétence dans une formation,"))
-        return response(content,["20","23"]);
+        return response(content,["20","23"],true);
       if(content.startsWith("Souhaitez-vous vendre dans Digital Store sur BCA"))
-        return response(content,["23"]);
+        return response(content,["23"],true);
     }
     // An inline follow-up has its parent's title but a different answer.
     // Prefer a real document, then retain the inline question as the topic.

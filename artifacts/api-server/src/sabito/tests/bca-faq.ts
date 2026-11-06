@@ -143,6 +143,10 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   assert.match((await sendContext("Je suis arrivé au compagne 3 abonnement premium")).content,/pas d’abonnement premium.*Canal\+.*CapCut/s);
   const campaignChoice=await sendContext("Campagne");
   assert.match(campaignChoice.content,/campagne test/);
+  const retainedChoice=await bcaConversationHelp(contextualClaims,contextualConversation,"Comment faire");
+  assert.equal(retainedChoice?.answer,campaignChoice.content);
+  assert.equal(retainedChoice?.reliable,true,
+    "An authored public clarification is not a failed search eligible for a generic socket fallback");
   assert.equal((await sendContext("Comment faire")).content,campaignChoice.content,
     "Retain a public choice without choosing an option on the member's behalf");
   assert.equal(await bcaConversationHelp({...contextualClaims,externalUserId:"another-member"},
