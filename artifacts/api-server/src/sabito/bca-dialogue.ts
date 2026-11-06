@@ -1,3 +1,5 @@
+import { bcaConversationHelp } from "./bca-conversation-help";
+import { bcaNovemberRoute } from "./bca-november-questions";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { pool } from "./database";
@@ -52,6 +54,13 @@ export async function bcaDialogueReply(claims:AccessClaims,conversationId:string
   if(state.profile!=="bca")return null;
   const current=await context(claims,conversationId);
   if(!current.owned||current.blocked)return null;
+  // Explicit owner rules/public course choices precede fuzzy suggestions and
+  // satisfaction collection. The helper preserves edited admin references.
+  const ownerRoute=bcaNovemberRoute(text);
+  if(ownerRoute?.answer||/^(oui|oui merci|oui comment|oui comment faire|oui je veux|d accord|ok|okay|comment faire|comment y acceder|non|non merci)$/.test(normalizeQuestion(text))) {
+    const owner=await bcaConversationHelp(claims,conversationId,text);
+    if(owner)return owner;
+  }
   if(bcaPositiveEmotion(text))return reply(bcaWarmClosing);
   const parts=bcaQuestionParts(text,state.settings.retrieval),q=parts.normalized,prior=current.value;
   const approved=async(key:string)=>{

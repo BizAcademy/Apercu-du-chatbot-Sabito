@@ -1,11 +1,13 @@
 import type { BcaGuide } from "./bca-guide-data";
 import { normalizeQuestion } from "./question-normalization";
 import { bcaOwnerCorrections } from "./bca-owner-answers";
+import { bcaNovemberAliases,bcaNovemberRoute } from "./bca-november-questions";
 
 /** Additional formulations from the owner's second unanswered-question export.
  * Only aliases of established public help: never identifiers or personal results.
  */
 export const bcaQuestionAliases:{key:string;questions:string[]}[]=[
+  ...bcaNovemberAliases,
   {key:"member-bca-overview",questions:["Ok donne moi les informations de la bca","Je suis nouveau comment travaille sur le site","Qu es se que la BCA","Bca signifie","Comment ça fonctionne le BCA","J'ai besoin de travailler sur la BCA mais je ne sais point"]},
   {key:"member-income",questions:["Je suis nouveau dans l'application comment je fais pour avoir de l'argent","Je veux gagner plus sur BCA","Comment gagner réellement de l'argent avec la BCA","Comment faire pour gagner","Oui, j'aimerais que vous m'aidiez à trouver une solution pour savoir comment commencer à gagner de l'argent avec l'application BCA. Je suis un nouveau membre et j'aimerais connaître les étapes à suivre pour gagner de l'argent. Merci pour votre aide.","Alors, comment puis-je faire pour commencer à gagner de l'argent avec cette application ?","Bonjour à tous, j'espère que vous allez bien !\n\nJ'aimerais vous poser une question, s'il vous plaît. Comment puis-je commencer à gagner de l'argent avec l'application BCA ? Je suis un nouveau membre et je ne connais pas encore bien le fonctionnement de l'application.\n\nSi quelqu'un peut m'expliquer les étapes à suivre pour commencer à gagner de l'argent, je lui en serais très reconnaissant.\n\nMerci beaucoup pour votre aide !","Comment gagner un maximum d’argent avec la BCA?"]},
   {key:"member-campaign-availability",questions:["Pourquoi je vois pas les campagnes ces derniers temps ?","Pourquoi ne reçois-je pas de tâche à accomplir ?","Why am I not receiving task to perform","Pour je n'ai plus de compagne","Pourquoi je n'avais pas encore reçu de compagne depuis 3j","Je suis nouveau dans BCA j'ai passer les tests maintenant je pas eu de campagne Comment faire","Je n'ai plus de campagne depuis des jours"]},
@@ -39,7 +41,7 @@ export const bcaQuestionFaq:BcaGuide[]=bcaLegacyQuestionFaq.map(guide=>({
 export type BcaFollowupKind="explain"|"detail"|"link"|"blocked"|"profile"|"publish"|"started"|
   "campaign"|"activities"|"sell-learn"|"withdrawal"|"validation"|"identity"|"exit"|
   "incomplete"|"year"|"duration"|"roles"|"referral-contact"|"premium-stage"|"best-income"|"unclear-product"|"shop"|
-  "status-choice"|"money-choice"|"ads-budget"|"ads-rate"|"ads-location"|"not-yet";
+  "status-choice"|"money-choice"|"ads-budget"|"ads-rate"|"ads-location"|"not-yet"|"november";
 const turns:[BcaFollowupKind,string[]][]=[
   ["explain",["Comment ça fonctionne ?","Comment faire","Explication claire","aide moi","Aidez-moi à niveau","Alors, aidez-moi, s'il vous plaît.",
     "Aidez moi à nouveau","Aidez moi à nouveau dans bca","Répondez"]],
@@ -73,6 +75,12 @@ const turns:[BcaFollowupKind,string[]][]=[
   ["unclear-product",["À part les produits de vital quelle activité je peux m'aider à trouver de l'argent sur"]],
 ];
 export function bcaFollowupKind(text:string) {
+  const batch=bcaNovemberRoute(text);
+  if(batch?.kind==="private")return "november";
+  if(batch?.kind==="context") {
+    if(batch.answer)return "november";
+    return batch.target as BcaFollowupKind;
+  }
   const value=normalizeQuestion(text);
   return turns.find(([,questions])=>questions.some(question=>normalizeQuestion(question)===value))?.[0];
 }

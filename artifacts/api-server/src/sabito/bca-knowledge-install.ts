@@ -11,6 +11,7 @@ import { bcaSupportFaq,bcaSupportAliases,bcaSupportTemplates } from "./bca-suppo
 import { bcaIntents } from "./bca-settings";
 import { bcaDialogueDrafts } from "./bca-dialogue-rules";
 import { defaultAbbreviations } from "./question-spelling";
+import { bcaNovemberAliases,bcaNovemberDrafts,bcaNovemberPrivateAliases } from "./bca-november-questions";
 
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
@@ -182,6 +183,7 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
     for(const [aliasesAction,groups] of [
       ["bca.conversation_aliases.installed",bcaQuestionAliases],
       ["bca.support_aliases.installed",bcaSupportAliases],
+      ["bca.november_questions.aliases.installed",bcaNovemberAliases],
     ] as const) {
     const aliasesMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
       [projectId,aliasesAction]);
@@ -204,7 +206,11 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
         const fresh=group.questions.filter(question=>!reserved.has(normalizeQuestion(question)));
         if(!fresh.length)continue;
         const aliases=[...JSON.parse(String(doc.variantes_de_question??"[]")),...fresh];
-        await saveKnowledge(projectId,String(doc.title),String(doc.content),String(doc.id),connection,aliases);
+        await saveKnowledge(projectId,String(doc.title),String(doc.content),String(doc.id),connection,aliases,
+          JSON.parse(String(doc.questions_json??"[]")));
+        // Several groups may target the same document in one upgrade. Carry
+        // additions forward rather than overwrite them from the initial query.
+        doc.variantes_de_question=JSON.stringify(aliases);
         for(const question of fresh)reserved.add(normalizeQuestion(question));
         added+=fresh.length;
       }
@@ -261,6 +267,55 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
       await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
         VALUES($1,'system',$2,$3)`,[projectId,dialogueAction,JSON.stringify({count,status:"pending"})]);
       changed=changed||count>0;
+    }
+    const novemberAction="bca.november_questions.proposed";
+    const novemberMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,novemberAction]);
+    if(!novemberMarker.rows.length) {
+      const settings=await connection.query("SELECT config_json FROM sabito_core.assistant_settings WHERE project_id=$1 FOR UPDATE",[projectId]);
+      const config=JSON.parse(String(settings.rows[0]?.config_json??"{}"));
+      let added=0;
+      if(Array.isArray(config.intents)) {
+        const reserved=new Set<string>(config.intents.flatMap((intent:{triggers?:string[]})=>intent.triggers??[]).map(normalizeQuestion));
+        for(const [operation,aliases] of Object.entries(bcaNovemberPrivateAliases)) {
+          const intent=config.intents.find((item:{enabled?:boolean;backend_function?:string})=>item.enabled&&item.backend_function===operation);
+          if(!intent||!Array.isArray(intent.triggers))continue;
+          for(const alias of aliases) {
+            if(reserved.has(normalizeQuestion(alias)))continue;
+            intent.triggers.push(alias);reserved.add(normalizeQuestion(alias));added++;
+          }
+        }
+        if(added)await connection.query("UPDATE sabito_core.assistant_settings SET config_json=$2,revision=revision+1 WHERE project_id=$1",
+          [projectId,JSON.stringify(config)]);
+      }
+      const existing=await connection.query(`SELECT d.title,v.variantes_de_question FROM sabito_core.knowledge_documents d
+        LEFT JOIN sabito_core.knowledge_question_variants v ON v.document_id=d.id AND v.project_id=d.project_id WHERE d.project_id=$1`,[projectId]);
+      const reserved=new Set(existing.rows.flatMap(row=>[String(row.title),
+        ...JSON.parse(String(row.variantes_de_question??"[]"))]).map(normalizeQuestion));
+      let proposed=0;
+      for(const draft of bcaNovemberDrafts) {
+        if(reserved.has(normalizeQuestion(draft.title)))continue;
+        await saveKnowledge(projectId,draft.title,draft.content,undefined,connection,
+          draft.variants.filter(question=>!reserved.has(normalizeQuestion(question))),[],
+          {category:"Scénarios BCA",keywords:["bca",draft.key],source:`${draft.source} À valider avant diffusion.`});
+        proposed++;
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,novemberAction,JSON.stringify({added,proposed,status:"pending",source:"62 questions novembre BCA"})]);
+      changed=changed||added>0||proposed>0;
+    }
+    // Replace only the previous generated, still-pending PIN draft. Never
+    // rewrite an approved reference, an edited draft or a deleted document.
+    const pinCorrection="bca.owner_pin_support.corrected";
+    const pinMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,pinCorrection]);
+    if(!pinMarker.rows.length) {
+      const oldPin="Dans votre espace BCA, ouvrez Profil puis la sécurité du PIN de transaction. Utilisez l’option de PIN oublié pour demander l’e-mail de réinitialisation et terminez la procédure dans le formulaire officiel. Ne transmettez jamais votre PIN, votre OTP ou le code reçu à Sabito. Si l’option manque ou si l’e-mail n’arrive pas, demandez l’aide du support sans partager de secret.";
+      await connection.query(`UPDATE sabito_core.knowledge_documents SET content=$1
+        WHERE project_id=$2 AND title=$3 AND status='pending' AND content=$4`,
+        [bcaNovemberDrafts[0].content,projectId,bcaNovemberDrafts[0].title,oldPin]);
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES($1,'system',$2,$3)`,[projectId,pinCorrection,JSON.stringify({source:"Précision propriétaire : PIN oublié vers support"})]);
     }
     await connection.query("COMMIT");
     if (installed.size >= 10000) installed.delete(installed.values().next().value!);

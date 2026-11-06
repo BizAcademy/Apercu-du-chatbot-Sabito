@@ -53,6 +53,12 @@ export const bcaSupportTemplates=[
 ];
 
 export function bcaSupportResultGuidance(operation:string,data:Record<string,unknown>) {
+  if(operation==="ads_payout_status") {
+    if(data.statut_diffusion==="pending_admin_validation")return "\n\nCette journée attend la validation administrative. Ne recommencez pas une publication déjà déclarée uniquement pour débloquer l’écran ; une preuve envoyée ne confirme pas encore un paiement.";
+    if(data.statut_diffusion==="paid")return "\n\nLe backend indique une journée payée. Comparez le montant et la devise réellement renvoyés avec l’écriture de votre historique ; je ne calcule pas le crédit à partir des vues WhatsApp déclarées dans le chat.";
+    if(data.statut_diffusion==="expired")return "\n\nLe backend indique une journée expirée. Cela ne prouve pas qu’elle devait durer exactement 23 heures. Demandez au support de comparer l’échéance enregistrée et le fuseau horaire ; je ne relance pas la journée.";
+    return "\n\nFiez-vous au statut de cette journée et aux écritures réellement enregistrées. Le simple fait de publier un statut ou d’atteindre 23 heures ne confirme ni validation ni paiement. Si une étape est déjà validée, ne la recommencez pas sans consigne du support.";
+  }
   if(operation==="digital_product_review") {
     if(data.statut==="pending")return "\n\nLe produit est en attente de modération. Aucun délai d’approbation n’est confirmé.";
     if(data.statut==="rejected")return typeof data.motif==="string"&&data.motif.trim()

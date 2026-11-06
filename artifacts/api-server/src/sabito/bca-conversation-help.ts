@@ -8,6 +8,8 @@ import { conversationClosing } from "./conversation-closing";
 import { readAssistantSettings } from "./assistant-settings";
 import { bcaWarmClosing } from "./bca-dialogue-rules";
 import type { AccessClaims } from "./security";
+import { bcaNovemberRoute } from "./bca-november-questions";
+import { bcaOwnerContinuation,bcaOwnerClarifications } from "./bca-owner-clarifications";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
 const social=new Set([conversationClosing,bcaWarmClosing,...["bonjour","salut","bonsoir","hello","yo",
@@ -51,7 +53,8 @@ export async function bcaClarifiedQuery(claims:AccessClaims,conversationId:strin
  * member's history must never become the source of a public answer.
  */
 export async function bcaConversationHelp(claims:AccessClaims,conversationId:string,text:string):Promise<Reply|null> {
-  const kind=bcaFollowupKind(text);
+  const continuationCandidate=/^(oui|oui merci|oui comment|oui comment faire|oui je veux|d accord|ok|okay|comment faire|comment y acceder|non|non merci)$/.test(normalizeQuestion(text));
+  const kind=bcaFollowupKind(text)??(continuationCandidate?"owner-continuation":undefined);
   if(!kind)return null;
   const state=await searchState(claims.sub);
   if(state.profile!=="bca")return null;
@@ -69,6 +72,25 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     return {answer,reliable,documentId:undefined,suggestions,suggestions_label:suggestions.length?"Choisissez le sujet :":"",
       closing_message:""};
   };
+  if(continuationCandidate) {
+    const last=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
+      JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
+      WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
+      AND m.role='assistant' AND m.status='completed'
+      AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+      ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,[claims.sub,conversationId,claims.externalUserId]);
+    let previous=String(last.rows[0]?.content??"");
+    const footer=previous.lastIndexOf("\n\nConcernant votre question précédente « ");
+    if(footer>=0) {
+      const survey=await pool.query(`SELECT id FROM sabito_core.conversation_feedback
+        WHERE project_id=$1 AND conversation_id=$2 AND asked_after_message_id=$3 LIMIT 1`,
+        [claims.sub,conversationId,last.rows[0].id]);
+      if(survey.rows.length)previous=previous.slice(0,footer);
+    }
+    const answer=bcaOwnerContinuation(text,previous);
+    if(answer)return response(answer,[],true);
+    if(kind==="owner-continuation")return null;
+  }
   // An exact administrator-approved answer always overrides these defaults,
   // including newly supplied facts such as a confirmed founding date.
   const documents=await pool.query(`SELECT d.id,d.title,d.content,v.variantes_de_question
@@ -77,11 +99,23 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     [claims.sub]);
   const exact=documents.rows.find(row=>[String(row.title),...JSON.parse(String(row.variantes_de_question??"[]"))]
     .some(question=>normalizeQuestion(question)===normalizeQuestion(text)));
-  if(exact) {
+  const ownerRoute=bcaNovemberRoute(text);
+  const shippedDefault=exact&&bcaGuides.some(guide=>guide.content===String(exact.content));
+  if(exact&&!(ownerRoute&&bcaOwnerClarifications[ownerRoute.key]&&shippedDefault)) {
     const reply=await retrieveReply(claims.sub,String(exact.title));
     if(reply.reliable&&reply.answer===String(exact.content))return reply;
   }
   switch(kind) {
+    case "november": {
+      const route=bcaNovemberRoute(text)!;
+      if(route.kind==="private") {
+        const {settings}=await readAssistantSettings(claims.sub);
+        // Never turn a disabled/deleted handler into a fuzzy public answer.
+        if(settings.intents.some(intent=>intent.enabled&&intent.backend_function===route.target))return null;
+        return response("La consultation nécessaire n’est pas activée dans cette plateforme. Je n’ai vérifié aucune donnée personnelle, aucun catalogue ni aucune campagne. Contactez le support officiel : https://bcachat.bizconnectacademy.com",[],true);
+      }
+      return response(route.answer!,[],true);
+    }
     case "status-choice":return response("Quel statut souhaitez-vous vérifier : une campagne, un produit, un parrainage, un dépôt ou un retrait ? Indiquez le sujet ; pour consulter des données personnelles, il faut être connecté à votre compte BCA.");
     case "money-choice":return response("Souhaitez-vous savoir comment gagner de l’argent, consulter votre solde ou retirer des fonds ? Ce sont trois démarches différentes. Pour votre solde ou un retrait personnel, une session BCA vérifiée et une consultation autorisée sont nécessaires.",["member-income","13"]);
     case "ads-budget":return response("Êtes-vous annonceur ou diffuseur, et de quelle campagne, de quel budget ou de quel seuil parlez-vous ? Le budget payé par l’annonceur finance la publicité ; les gains du diffuseur dépendent des vues validées et des conditions de sa campagne. Votre message ne permet pas de confirmer un virement ni une rémunération. Je n’ai consulté aucune campagne.",["26","27","30"]);

@@ -1,5 +1,6 @@
 import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
 import { bcaOwnerPrivateAliases } from "./bca-owner-answers";
+import { bcaNovemberPrivateAliases } from "./bca-november-questions";
 import { bcaSupportTemplates } from "./bca-support-questions";
 
 type Template = {
@@ -94,7 +95,7 @@ export function bcaIntents(): IntentDefinition[] {
     const result = "Statut : {statut}.\n{details_transaction}";
     return {
       id: template.operation, backend_function: template.operation, name: template.name,
-      enabled: template.enabled ?? true, triggers: [...template.triggers],
+      enabled: template.enabled ?? true, triggers: [...template.triggers,...(bcaNovemberPrivateAliases[template.operation]??[])],
       initial_response: `Je peux proposer une consultation auprès de BCA : ${template.name}. Aucun paiement ni changement de solde ne sera effectué.`,
       confirmation_question: `Souhaitez-vous vérifier « ${template.name} » dans votre compte BCA ? Répondez par oui ou non.`,
       fields: template.field ? [{

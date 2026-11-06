@@ -7,6 +7,7 @@ import { handleIntent } from "../intents";
 import { bcaReadOperations } from "../bca-contract";
 import { bcaSourceDrafts } from "../bca-source-drafts";
 import { bcaDialogueDrafts } from "../bca-dialogue-rules";
+import { bcaNovemberDrafts } from "../bca-november-questions";
 
 /** Real Sabito/MySQL bridge with a deliberately simulated BCA worker.
  * Real Eloquent handlers are tested separately by the supplied PHP tests.
@@ -51,7 +52,7 @@ export async function verifyBcaContract({app,adminKey,projectIds}:any) {
   await request(app).post(`/v1/admin/projects/${project.id}/knowledge-review/${approval.id}/decision`)
     .set("X-Admin-Key",adminKey).send({decision:"approve"}).expect(200);
   const untouched=await pool.query("SELECT COUNT(*) AS n FROM sabito_core.knowledge_documents WHERE project_id=$1 AND status='pending'",[project.id]);
-   assert.equal(Number(untouched.rows[0].n),bcaSourceDrafts.length+bcaDialogueDrafts.length-1);
+   assert.equal(Number(untouched.rows[0].n),bcaSourceDrafts.length+bcaDialogueDrafts.length+bcaNovemberDrafts.length-1);
   await poll().expect(200);
   for(const operation of bcaReadOperations) {
     const guest=await start(operation,{...claims,externalUserId:"widget-guest:fixture",scope:["chat:connect"]});
