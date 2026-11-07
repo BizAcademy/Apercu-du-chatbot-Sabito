@@ -74,7 +74,11 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   if(guide&&!refundQuestion)return null;
   const intentRegistry=Object.fromEntries(settings.intents.filter(d=>d.enabled).map(d=>[d.id,{
     ...d,backendOperation:d.backend_function,
-    required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)})),
+    required:d.fields.map(f=>({...f,valid:(s:string)=>validField(f,s)&&
+      // The existing BCA contract requires a numeric publication-day ID.
+      // Reject descriptive prose locally without losing the collecting session.
+      !(profile==="bca"&&d.backend_function==="ads_payout_status"&&f.name==="publication_reference"&&
+        !/^[1-9][0-9]{0,17}$/.test(s))})),
   }]));
   let detected=refundQuestion?settings.intents.find(intent=>intent.enabled&&intent.backend_function==="order_refund_status")?.id:detectIntent(text,settings);
   const bcaRoute=profile==="bca"?bcaNovemberRoute(text):undefined;

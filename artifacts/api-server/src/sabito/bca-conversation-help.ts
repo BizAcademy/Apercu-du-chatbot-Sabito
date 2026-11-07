@@ -11,6 +11,7 @@ import type { AccessClaims } from "./security";
 import { bcaNovemberRoute } from "./bca-november-questions";
 import { bcaOwnerContinuation,bcaOwnerClarifications } from "./bca-owner-clarifications";
 import { bcaCurrentContinuation,bcaCurrentTurn } from "./bca-current-questions";
+import { originalBcaAnswer } from "./bca-language";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
 const social=new Set([conversationClosing,bcaWarmClosing,...["bonjour","salut","bonsoir","hello","yo",
@@ -29,7 +30,7 @@ export async function bcaClarifiedQuery(claims:AccessClaims,conversationId:strin
     JOIN sabito_core.messages m ON m.conversation_id=c.id AND m.project_id=c.project_id
     LEFT JOIN sabito_core.intent_sessions s ON s.conversation_id=c.id AND s.project_id=c.project_id
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3 AND m.role='assistant'
-    AND m.status='completed' AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+    AND m.status='completed' AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
     ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,
     [conversationId,claims.sub,claims.externalUserId]);
   const last=rows.rows[0];
@@ -78,7 +79,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
       JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
       WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
       AND m.role='assistant' AND m.status='completed'
-      AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+      AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
       ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,[claims.sub,conversationId,claims.externalUserId]);
     let previous=String(last.rows[0]?.content??"");
     const footer=previous.lastIndexOf("\n\nConcernant votre question précédente « ");
@@ -88,6 +89,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
         [claims.sub,conversationId,last.rows[0].id]);
       if(survey.rows.length)previous=previous.slice(0,footer);
     }
+    previous=originalBcaAnswer(previous);
     const answer=bcaCurrentContinuation(text,previous)??bcaOwnerContinuation(text,previous);
     if(answer)return response(answer,[],true);
     if(kind==="owner-continuation")return null;
@@ -144,7 +146,7 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
     WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
      AND m.role='assistant' AND m.status='completed'
-     AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+     AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
      ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,
     [claims.sub,conversationId,claims.externalUserId]);
   let anchor:typeof state.entries[number]|undefined;

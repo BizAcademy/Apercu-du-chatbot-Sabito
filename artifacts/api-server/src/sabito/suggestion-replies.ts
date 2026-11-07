@@ -28,7 +28,7 @@ export async function suggestedReply(projectId:string,externalUserId:string,conv
     LEFT JOIN sabito_core.message_presentations p ON p.message_id=m.id
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3
       AND m.role='assistant' AND m.status='completed'
-       AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+       AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
     ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,[conversationId,projectId,externalUserId]);
   const raw=rows[0]?.suggestions_json;
   const suggestions:Suggestion[]=(typeof raw==="string"?JSON.parse(raw):raw??[])

@@ -77,9 +77,9 @@ export async function verifyBcaDialogue({app,adminKey,projectIds,openSocket}:any
   await choices.send(title);
   assert.equal((await choices.send("tous")).content,questions.map(item=>item.answer).join("\n\n"));
   await choices.send(title);
-  await pool.query("UPDATE sabito_core.messages SET created_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 31 MINUTE) WHERE conversation_id=$1",
+  await pool.query("UPDATE sabito_core.messages SET created_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 25 HOUR) WHERE conversation_id=$1",
     [choices.conversationId]);
-  await pool.query("UPDATE sabito_core.public_guidance_context SET updated_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 31 MINUTE) WHERE conversation_id=$1",
+  await pool.query("UPDATE sabito_core.public_guidance_context SET updated_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 25 HOUR) WHERE conversation_id=$1",
     [choices.conversationId]);
   assert.doesNotMatch((await choices.send("pourquoi")).content,/Réponse approuvée [AB]/);
   assert.equal(await bcaDialogueReply({...facts.claims,externalUserId:"another-member"},facts.conversationId,"pourquoi"),null);

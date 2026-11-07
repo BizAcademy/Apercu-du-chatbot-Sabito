@@ -652,7 +652,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
         if(intent.fields.length) {
           assert.match((await handleIntent(claims,conv,"oui"))!,new RegExp(intent.fields[0].prompt.slice(0,10)));
           assert.deepEqual((await poll().expect(200)).body.jobs,[]);
-          answer=handleIntent(claims,conv,"REF-BCA-123");
+          answer=handleIntent(claims,conv,intent.backend_function==="ads_payout_status"?"123":"REF-BCA-123");
         } else {
           answer=handleIntent(claims,conv,"oui");
         }
@@ -662,7 +662,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
           const job=jobs.find((item:{operation:string})=>item.operation===intent.backend_function);
           if(job) {
             assert.equal(job.external_user_id,claims.externalUserId);
-            assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:"REF-BCA-123"}:{});
+            assert.deepEqual(job.fields,intent.fields.length?{[intent.fields[0].name]:intent.backend_function==="ads_payout_status"?"123":"REF-BCA-123"}:{});
             await request(app).post(`/v1/backend/jobs/${job.id}/result`).auth(credentials.clientId,credentials.clientSecret)
               .send({result:{status:"confirmed",data:{statut:"Statut réel BCA",reference:"REF-BCA-123",montant:1250,devise:"XAF",
                 code_parrain:"PARRAIN-BCA",solde_principal:1250,solde_usd:1,devise_principale:"XAF",devise_usd:"USD",
@@ -1658,7 +1658,7 @@ test("Original Sabito protocol: credentials, local knowledge, isolation, persist
       ()=>verifySupportMemory({app,adminKey,projectIds,openSocket}));
     await t.test("BCA explicit contracts, pending drafts, tickets and corrected references remain scoped",
       ()=>verifyBcaContract({app,adminKey,projectIds}));
-    await t.test("BCA dialogue: pending approval, real choices, 30-minute expiry and hidden ticket identifiers",
+    await t.test("BCA dialogue: pending approval, real choices, 24-hour expiry and hidden ticket identifiers",
       ()=>verifyBcaDialogue({app,adminKey,projectIds,openSocket}));
     await t.test("Rotation revokes old credentials, existing tokens and connected sockets",async () => {
       // The first socket may belong to a separate earlier regression fixture.

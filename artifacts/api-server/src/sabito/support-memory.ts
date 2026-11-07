@@ -26,7 +26,7 @@ export async function supportMemoryTurn(projectId:string,conversationId:string,t
   const row=result.rows[0];
   if(!row)return {};
   const last=await pool.query(`SELECT id FROM sabito_core.messages WHERE conversation_id=$1 AND role='assistant'
-    AND status='completed' AND created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+    AND status='completed' AND created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
     ORDER BY created_at DESC,id DESC LIMIT 1`,[conversationId]);
   if(last.rows[0]?.id!==row.asked_after_message_id)return {};
   const q=normalizeQuestion(text);

@@ -96,6 +96,51 @@ export const bcaCurrentRoutes:BcaQuestionRoute[]=[
   {key:"current-availability",kind:"private",target:"ads_publisher_status",source:"Profil diffuseur et validation test ; pas une liste de campagnes",questions:["Je veut des campagnes","Je veux des campagnes","Mais campagne ne vient pas encore"]},
   {key:"current-followup",kind:"context",target:"explain",source:"Sujet public récent uniquement",questions:["Ok guide moi","Guide-moi","Pourquoi"]},
 ];
+// Merge this export's spellings into the same authored routes, not duplicate FAQs.
+const novemberAliases:Record<string,string[]>={
+  "current-onboarding":["Les activités BCA","La plateforme sert à quoi","La plateforme serre à quoi",
+    "Comment fais pour gagner l’argent avec BCA","Comment faire pour gagner l’argent avec BCA",
+    "Comment générer des revenus","Je commence par où","Ok que dois je faire personnellement",
+    "What is BCA","How can I earn with BCA","Where do I start"],
+  "current-seller":["Comment commencer les ventes","How do I start selling"],
+  "current-referral":["Comment parrainer une personne","Je les consultes ou mes filleuls",
+    "Je les consulte où mes filleuls","Comment retrouver mon espace filleul","Non l'argent de parrainage",
+    "How do I refer someone","Where are my referrals"],
+  "current-day":["J'ai capturé mon statut , j'ai envoyé ça mais jusqu'à présent je n'ai pas eu la validation",
+    "J’ai capturé mon statut, je l’ai envoyé mais il n’est toujours pas validé",
+    "Validé ma vue whatshapp","Valide ma vue WhatsApp","Comment valider ma vue WhatsApp",
+    "My screenshot has not been validated"],
+  "current-availability":["Pourquoi est-ce que j'ai aucune campagne disponible",
+    "Pourquoi est-ce que je n'ai aucune campagne disponible","No campaigns available"],
+  "current-commissions":["J'ai parrainer une personne mais j'ai pas encore réussi ma reconnaissance",
+    "J’ai parrainé une personne mais je ne sais pas si mon parrainage a été reconnu",
+    "Parrainage non reçu","My referral commission is missing"],
+  "current-campaign-guide":["BCA Ads","Oui je Souhaitez découvrir le parcours de diffuseur",
+    "Oui je souhaite découvrir le parcours de diffuseur","Publisher journey","How do BCA campaigns work"],
+  "current-withdrawal-fees":["Comment retirer","How do I withdraw"],
+  "current-fraud":["Donc je me suis fait arnaquer","I think I was scammed"],
+};
+for(const route of bcaCurrentRoutes)route.questions.push(...(novemberAliases[route.key]??[]));
+bcaCurrentRoutes.push(
+  context("current-status-choice",["Je veux parler de la monétisation de statut","Comment monétiser",
+    "Comment monotise","How do I monetize","Status monetization"],
+    "Parlez-vous de diffuser les campagnes BCA sur votre statut WhatsApp ou de monétiser vos propres contenus ? Les parcours sont différents. Je peux expliquer le parcours diffuseur sans promettre de campagne disponible ni de revenu."),
+  context("current-upload-error",["J'arrive plus à poster des images pour vous envoyer la capture",
+    "Je n'ai pas pu envoyer la capture","Je n’arrive plus à poster des images","I cannot upload my screenshot"],
+    "Quel message d’erreur apparaît, ou que se passe-t-il lorsque vous essayez d’envoyer l’image ? Utilisez uniquement le bouton de pièce jointe présent dans l’étape concernée et vérifiez votre connexion. Je ne peux pas confirmer que la capture a été reçue ni que ce widget accepte les images. Masquez les données personnelles et financières inutiles ; n’envoyez aucun mot de passe, PIN, OTP ou jeton. Si le blocage persiste : "+support+"."),
+  context("current-alleged-debit",["Ont n'as volé un 1000 sur mon compte","On m'a volé 1000 sur mon compte",
+    "On m’a volé 1 000 sur mon compte","Someone stole 1000 from my account"],
+    "Je comprends votre inquiétude. Je n’ai pas vérifié votre compte et ne peux pas confirmer un vol. Consultez vos mouvements dans votre propre portefeuille et, pour examiner une écriture précise, demandez « vérifier un mouvement de mon solde » depuis votre compte reconnu. N’envoyez ni PIN, ni mot de passe, ni OTP. Sécurisez votre compte par les options officielles et contactez rapidement "+support+". Je ne peux pas modifier votre solde."),
+  context("current-transfer-choice",["Concernant mon virement de 2900f que j'ai",
+    "Concernant mon virement de 2 900 F","About my transfer of 2900"],
+    "Parlez-vous d’un dépôt envoyé, d’un retrait demandé ou d’un transfert BCA à BCA, et que souhaitez-vous vérifier ? Je n’ai encore consulté aucune opération ; ce message incomplet ne permet de conclure ni à une réception ni à une perte. Ne transmettez aucun code confidentiel."),
+  context("current-phone-privacy",["Bonsoir vous poyver me montrer Comment on télécharge les numéros",
+    "Bonsoir vous pouvez me montrer comment télécharger les numéros","How do I download phone numbers"],
+    "Par « les numéros », parlez-vous de vos propres données, de la liste de vos filleuls ou de coordonnées d’autres membres ? Je ne fournis ni extraction massive ni numéros privés d’autres personnes. Je peux uniquement expliquer une fonction officielle autorisée, si elle existe pour votre compte, sans exposer de coordonnées ici."),
+  context("current-chariow",["Ok comment dois-je faire pour avoir de l’argent sur CHARIOW",
+    "Comment dois-je faire pour avoir de l’argent sur Chariow","How do I earn on Chariow"],
+    "Parlez-vous de vendre directement sur Chariow ou de livrer un produit acheté dans BCA avec un lien Chariow ? Pour les ventes, frais et paiements propres à Chariow, consultez ses informations officielles ; je ne peux garantir ni vente ni revenu. Pour une livraison BCA, le propriétaire exige que le produit Chariow ou Maketou soit gratuit sur le site externe afin d’éviter de payer une seconde fois."),
+);
 const indexed=new Map(bcaCurrentRoutes.flatMap(route=>route.questions.map(q=>[normalizeQuestion(q),route] as const)));
 export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   const exact=indexed.get(normalizeQuestion(text));
@@ -108,15 +153,25 @@ export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   return undefined;
 }
 export function bcaCurrentTurn(text:string):boolean {
-  return /^(?:oui|oui merci|oui comment|oui comment faire|oui je veux|ok|okay|d accord|ok guide moi|guide moi|comment faire|pourquoi|non|non merci|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(normalizeQuestion(text));
+  return /^(?:oui|yes|no|oui merci|oui comment|oui comment faire|oui je veux|ok|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(normalizeQuestion(text));
 }
 /** Only an immediately preceding authored public prompt authorizes a next
  * step. This never supplies a financial confirmation or backend identifier. */
 export function bcaCurrentContinuation(text:string,previous:string):string|undefined {
-  const q=normalizeQuestion(text);
+  let q=normalizeQuestion(text);
+  if(["yes","je vous ecoute","enfin tu es disponible"].includes(q))q="oui";
+  if(q==="no")q="non";
   if(!bcaCurrentTurn(text))return;
   const route=bcaCurrentRoutes.find(route=>route.answer===previous);
   if(!route)return;
+  if(q==="vous ne m avez pas montre ou le trouver") {
+    if(route.key==="current-referral")return "Dans le menu des trois tirets de votre espace BCA, ouvrez « Mes gains » pour consulter vos filleuls et commissions. Pour votre code ou lien personnel, cherchez « Parrainage ». Si ces libellés sont absents, dites ce que votre menu affiche, sans coordonnées privées.";
+    if(route.key==="current-seller")return seller;
+    if(route.key==="current-learning")return "Ouvrez la liste « Formations » de BCA. Pour vérifier les offres réellement publiées, dites « Consulter le catalogue actuel ». Quel libellé voyez-vous dans votre menu ?";
+    if(route.key==="current-campaign-guide")return "Ouvrez la rubrique « BCA Ads Network » ou « BCA Ads », puis le parcours diffuseur. Si cette rubrique n’apparaît pas, indiquez les libellés de votre menu ; je ne peux pas confirmer un bouton absent de votre écran.";
+    return;
+  }
+  if(route.key==="current-status-choice")return "Si vous souhaitez diffuser les campagnes BCA sur WhatsApp, ouvrez BCA Ads puis le parcours diffuseur et lisez les conditions d’une campagne accessible. Si vous parlez de vos propres contenus, précisez le service concerné : aucune monétisation n’est garantie.";
   if(["le prix","je veux savoir le prix","c est gratuit"].includes(q)) {
     if(["current-seller","current-pack","current-publish-price"].includes(route.key))return pricing;
     return; // A price from another topic must not inherit seller fees.

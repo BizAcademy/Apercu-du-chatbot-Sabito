@@ -27,6 +27,9 @@ import { supportMemoryTurn,trackSupportQuestion,appendPreviousSatisfaction } fro
 import { createHash } from "node:crypto";
 import { pool } from "./database";
 import { publicGuidance,savePublicGuidance } from "./public-guidance";
+import { prepareBcaSession,finishBcaSession } from "./bca-session";
+import { englishBcaAnswer } from "./bca-language";
+import { bcaCurrentQuestion } from "./bca-current-questions";
 
 const messageSchema = z.object({
   conversationId:z.string().uuid().optional(),
@@ -142,13 +145,17 @@ export function attachSocketServer(httpServer: HttpServer) {
         assistantId = await beginAssistantMessage(claims.sub,conversationId,userMessageId);
         socket.emit("message:started",{conversationId,userMessageId,messageId:assistantId});
         const isBca=(await searchState(claims.sub)).profile==="bca";
+        const session=isBca?await prepareBcaSession(claims,conversationId,parsed.data.content,userMessageId):undefined;
+        const input=session?.query??parsed.data.content;
+        const sessionReply=session?.answer?{answer:session.answer,reliable:true,suggestions:[],
+          closing_message:"",suggestions_label:""}:undefined;
         // A visible public choice takes precedence over a satisfaction survey.
         // Private collection/checking is explicitly excluded by both resolvers.
-        const preliminary=parsed.data.follow_up_id||!isBca?null:
-          await bcaDialogueReply(claims,conversationId,parsed.data.content)??
-          await suggestedReply(claims.sub,claims.externalUserId,conversationId,parsed.data.content);
-        const memory=parsed.data.follow_up_id||preliminary?{}:await supportMemoryTurn(claims.sub,conversationId,parsed.data.content,assistantId);
-        const question=memory.query??await bcaClarifiedQuery(claims,conversationId,parsed.data.content)??parsed.data.content;
+        const preliminary=sessionReply??(parsed.data.follow_up_id||!isBca?null:
+          await bcaDialogueReply(claims,conversationId,input)??
+          await suggestedReply(claims.sub,claims.externalUserId,conversationId,input));
+        const memory=parsed.data.follow_up_id||preliminary?{}:await supportMemoryTurn(claims.sub,conversationId,input,assistantId);
+        const question=memory.query??await bcaClarifiedQuery(claims,conversationId,input)??input;
         const dialogue=preliminary;
         const followUp = parsed.data.follow_up_id
           ? await selectedFollowUp(claims.sub,parsed.data.follow_up_id,parsed.data.content) : null;
@@ -162,7 +169,7 @@ export function attachSocketServer(httpServer: HttpServer) {
           await publicGuidance(claims,conversationId,question,userMessageId);
         const contextReply = parsed.data.follow_up_id || proposalAnswer || memory.answer || guidance || backendAnswer || earlyClarification ? null :
           await contextualBuzzReply(claims,conversationId,question);
-        const tracked=!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply&&!guidance?.continuing
+        const tracked=!session?.control&&!memory.feedbackOnly&&!parsed.data.follow_up_id&&!proposalAnswer&&!contextReply&&!guidance?.continuing
           ?await trackSupportQuestion(claims.sub,conversationId,userMessageId,parsed.data.content):false;
         const intentAnswer = backendAnswer??guidance?.answer??(parsed.data.follow_up_id || proposalAnswer || contextReply || memory.answer || earlyClarification ? null : await handleIntent(claims,conversationId,question,true));
         const lateClarification=parsed.data.follow_up_id||proposalAnswer||memory.answer||earlyClarification||contextReply||intentAnswer?null:
@@ -195,17 +202,28 @@ export function attachSocketServer(httpServer: HttpServer) {
           const activeCheck=await pool.query(`SELECT status FROM sabito_core.intent_sessions
             WHERE conversation_id=$1 AND project_id=$2 AND status IN ('collecting','checking')`,
             [conversationId,claims.sub]);
-          if(!reply.answer.startsWith(bcaTestPrompt))
+          if(!reply.answer.startsWith(bcaTestPrompt)&&!session?.control&&
+            !bcaCurrentQuestion(question)?.answer&&session?.state.language!=="en")
             Object.assign(reply,publicReplyPresentation(reply,!!intentAnswer||!!memory.answer||memory.feedbackOnly||
               !!guidance?.context.awaiting||!!activeCheck.rows.length||!!greetingReply(question)||reply.answer===bcaWarmClosing));
         }
         if (!reply.reliable&&!opaqueConversationInput(parsed.data.content)) await recordUnanswered(claims.sub, parsed.data.content,
           isVerifiedMember(claims)?claims.externalUserId:undefined);
-        let answer = guidance?.context.awaiting?reply.answer:
+        let answer = guidance?.context.awaiting||session?.control||isBca&&reply.answer.includes("?")?reply.answer:
           (tracked||guidance)?await appendPreviousSatisfaction(claims.sub,conversationId,guidance?.context.questionId??userMessageId,assistantId,reply.answer):reply.answer;
         if(isBca)answer=bcaTone(answer);
         if(guidance)await savePublicGuidance(claims.sub,conversationId,guidance,answer);
         await saveBcaDialogue(claims,conversationId,question,reply,!!intentAnswer||!!backendAnswer);
+        if(session) {
+          await finishBcaSession(claims,conversationId,session.state,question,reply.reliable,session.control);
+          if(session.state.language==="en"&&!session.control) {
+            answer=englishBcaAnswer(answer);
+            reply.suggestions=[];
+            reply.suggestions_label="";
+            reply.closing_message="";
+          }
+          answer=(session.prefix??"")+answer;
+        }
         if(intentAnswer||memory.feedbackOnly) {
           const state=await pool.query("SELECT collected_json FROM sabito_core.intent_sessions WHERE conversation_id=$1 AND project_id=$2 AND status='complete'",[conversationId,claims.sub]);
           if(state.rows[0]) {

@@ -62,7 +62,7 @@ export async function verifyBcaContract({app,adminKey,projectIds}:any) {
     let pending=handleIntent(claims,conversation,"oui");
     if(definition.fields.length) {
       assert.match(String(await pending),new RegExp(definition.fields[0].prompt.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
-      pending=handleIntent(claims,conversation,operation==="digital_product_review"?"71":"FIXTURE-REFERENCE");
+      pending=handleIntent(claims,conversation,["digital_product_review","ads_payout_status"].includes(operation)?"71":"FIXTURE-REFERENCE");
     }
     const data=operation==="wallet_balance"?{statut:"Soldes du compte",solde_principal:10,solde_usd:1,devise_principale:"XAF",devise_usd:"USD"}:
       operation==="referral_code"?{statut:"Code de parrainage",code_parrain:"FIXTURE-CODE"}:
@@ -74,7 +74,7 @@ export async function verifyBcaContract({app,adminKey,projectIds}:any) {
       {statut:"Lecture confirmée",reference:"FIXTURE-REFERENCE",montant:10};
     const result=await finish(pending,{status:"confirmed",data});
     assert.equal(result.job.operation,operation);
-    assert.deepEqual(result.job.fields,definition.fields.length?{[definition.fields[0].name]:operation==="digital_product_review"?"71":"FIXTURE-REFERENCE"}:{});
+    assert.deepEqual(result.job.fields,definition.fields.length?{[definition.fields[0].name]:["digital_product_review","ads_payout_status"].includes(operation)?"71":"FIXTURE-REFERENCE"}:{});
     assert.doesNotMatch(result.answer,/ticket|indisponible|ne peux pas/i);
   }
   for(const result of [

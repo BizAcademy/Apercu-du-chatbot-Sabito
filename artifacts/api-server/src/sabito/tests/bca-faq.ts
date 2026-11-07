@@ -22,6 +22,7 @@ import { bcaScenario } from "../bca-dialogue-rules";
 import { bcaNovemberRoutes,bcaNovemberDrafts } from "../bca-november-questions";
 import { bcaTrainingQuestion } from "../bca-owner-clarifications";
 import { bcaCurrentRoutes } from "../bca-current-questions";
+import { verifyBcaNewSession } from "./bca-new-session";
 
 export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   app:Express;adminKey:string;projectIds:string[];openSocket:(token:string)=>Promise<Socket>;
@@ -31,6 +32,7 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
       system_prompt:"Utiliser les références approuvées et ne jamais inventer de résultat financier."}).expect(201)).body.data;
   const id=project.id;projectIds.push(id);
   const configuration=await readAssistantSettings(id);
+  await verifyBcaNewSession(id,credentials.clientId,openSocket);
   const csvClaims={sub:id,clientId:credentials.clientId,externalUserId:`guest:current-csv-${randomUUID()}`,scope:["chat:connect"]};
   for(const route of bcaCurrentRoutes) {
     const conversation=await createConversation(id,csvClaims.externalUserId);

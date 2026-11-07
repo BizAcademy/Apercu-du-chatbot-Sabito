@@ -9,6 +9,7 @@ import { bcaGuides } from "./bca-guide-data";
 import { bcaDialogueDrafts,bcaFallback,bcaWarmClosing,bcaTestPrompt,bcaScenario,bcaPositiveEmotion,bcaQuestionParts } from "./bca-dialogue-rules";
 import type { AccessClaims } from "./security";
 import { normalizeQuestion } from "./question-normalization";
+import { bcaSocialAnswer } from "./bca-session";
 
 type Reply={answer:string;reliable:boolean;documentId?:string;
   suggestions:{document_id:string;question:string;follow_up_id?:string}[];
@@ -40,7 +41,7 @@ const reply=(answer:string,reliable=true):Reply=>({answer,reliable,documentId:un
 async function context(claims:AccessClaims,conversationId:string) {
   const found=await pool.query(`SELECT g.context_json,s.status FROM sabito_core.conversations c
     LEFT JOIN sabito_core.public_guidance_context g ON g.conversation_id=c.id AND g.project_id=c.project_id
-      AND g.updated_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 30 MINUTE)
+      AND g.updated_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
     LEFT JOIN sabito_core.intent_sessions s ON s.conversation_id=c.id AND s.project_id=c.project_id
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
     [conversationId,claims.sub,claims.externalUserId]);
@@ -62,6 +63,8 @@ export async function bcaDialogueReply(claims:AccessClaims,conversationId:string
     const owner=await bcaConversationHelp(claims,conversationId,text);
     if(owner)return owner;
   }
+  const social=bcaSocialAnswer(text);
+  if(social)return reply(social);
   if(bcaPositiveEmotion(text))return reply(bcaWarmClosing);
   const parts=bcaQuestionParts(text,state.settings.retrieval),q=parts.normalized,prior=current.value;
   const approved=async(key:string)=>{

@@ -3,8 +3,10 @@ import { pool } from "./database";
 
 export async function createConversation(projectId: string, externalUserId: string, metadata?: Record<string,unknown>) {
   const id = randomUUID();
+  const safeMetadata=metadata?{...metadata}:undefined;
+  if(safeMetadata)delete safeMetadata.__sabito_bca;
   await pool.query(`INSERT INTO sabito_core.conversations(id,project_id,external_user_id,metadata)
-    VALUES ($1,$2,$3,$4)`,[id,projectId,externalUserId,metadata ? JSON.stringify(metadata) : null]);
+    VALUES ($1,$2,$3,$4)`,[id,projectId,externalUserId,safeMetadata ? JSON.stringify(safeMetadata) : null]);
   return id;
 }
 export async function acceptUserMessage(input: {
