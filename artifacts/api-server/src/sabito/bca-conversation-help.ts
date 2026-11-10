@@ -12,9 +12,14 @@ import { bcaNovemberRoute } from "./bca-november-questions";
 import { bcaOwnerContinuation,bcaOwnerClarifications } from "./bca-owner-clarifications";
 import { bcaCurrentContinuation,bcaCurrentTurn } from "./bca-current-questions";
 import { originalBcaAnswer } from "./bca-language";
+import { bcaSocialAnswer } from "./bca-session";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
-const social=new Set([conversationClosing,bcaWarmClosing,...["bonjour","salut","bonsoir","hello","yo",
+const social=new Set([conversationClosing,bcaWarmClosing,
+  ...["D’accord Sabito, je comprends","merci","merci beaucoup","merci beaucoup boss","Barka da warhaka","Ça va très bien"]
+    .flatMap(text=>{const answer=bcaSocialAnswer(text);return answer?[answer]:[];}),
+  "You’re welcome.","Glad to hear it. What would you like help with in BCA?",
+  ...["bonjour","salut","bonsoir","hello","yo",
   "bonjour comment allez vous","bonsoir comment allez vous","salut comment allez vous"]
   .map(text=>greetingReply(text)).filter(Boolean)]);
 const clarify="Quel sujet BCA souhaitez-vous approfondir : les formations, la vente, le parrainage ou les campagnes WhatsApp ? Si vous êtes bloqué, indiquez la rubrique et le message exact, sans information confidentielle.";
@@ -65,6 +70,9 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     WHERE c.id=$1 AND c.project_id=$2 AND c.external_user_id=$3`,
     [conversationId,claims.sub,claims.externalUserId]);
   if(!ownership.rows.length||["collecting","checking"].includes(String(ownership.rows[0].status)))return null;
+  // Numbered choices are resolved against the BCA dialogue context, which
+  // stores the exact approved suggestions shown to this member.
+  if(kind==="option"||kind==="which")return null;
   const response=(answer:string,keys:string[]=[],reliable=false):Reply=>{
     const suggestions=keys.flatMap(key=>{
       const title=bcaGuides.find(guide=>guide.key===key)?.title;
@@ -75,24 +83,29 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
       closing_message:""};
   };
   if(continuationCandidate) {
-    const last=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
+    const recent=await pool.query(`SELECT m.id,m.content FROM sabito_core.messages m
       JOIN sabito_core.conversations c ON c.id=m.conversation_id AND c.project_id=m.project_id
       WHERE m.project_id=$1 AND m.conversation_id=$2 AND c.external_user_id=$3
       AND m.role='assistant' AND m.status='completed'
       AND m.created_at>=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 24 HOUR)
-      ORDER BY m.created_at DESC,m.id DESC LIMIT 1`,[claims.sub,conversationId,claims.externalUserId]);
-    let previous=String(last.rows[0]?.content??"");
+      ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,[claims.sub,conversationId,claims.externalUserId]);
+    const courtesy=/^(?:je vous en prie|you re welcome|excellent|barka da warhaka bonjour quelle aide souhaitez vous sur bca|tres bien de quelle aide avez vous besoin sur bca|glad to hear it what would you like help with in bca)$/;
+    const last=recent.rows.find(row=>!courtesy.test(normalizeQuestion(String(row.content))))??recent.rows[0];
+    let previous=String(last?.content??"");
     const footer=previous.lastIndexOf("\n\nConcernant votre question précédente « ");
     if(footer>=0) {
       const survey=await pool.query(`SELECT id FROM sabito_core.conversation_feedback
         WHERE project_id=$1 AND conversation_id=$2 AND asked_after_message_id=$3 LIMIT 1`,
-        [claims.sub,conversationId,last.rows[0].id]);
+        [claims.sub,conversationId,last?.id]);
       if(survey.rows.length)previous=previous.slice(0,footer);
     }
     previous=originalBcaAnswer(previous);
     const answer=bcaCurrentContinuation(text,previous)??bcaOwnerContinuation(text,previous);
     if(answer)return response(answer,[],true);
-    if(kind==="owner-continuation")return null;
+    if(kind==="owner-continuation") {
+      if(normalizeQuestion(text)==="comment faire"&&previous.trim())return response(previous,[],true);
+      return null;
+    }
   }
   // An exact administrator-approved answer always overrides these defaults,
   // including newly supplied facts such as a confirmed founding date.
@@ -164,6 +177,10 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
       // option for the member or falling back to an unrelated older subject.
       // These are authored clarification prompts, not failed retrievals.
       // Mark them reliable so the socket's fallback cannot replace the choice.
+      if(normalizeQuestion(text)==="comment faire"&&
+        (content.startsWith("1. Ouvrez Profil et la rubrique de sécurité ou de PIN proposée.")||
+         content.startsWith("1. Ouvrez la rubrique Profil, puis la rubrique de sécurité ou de PIN proposée.")))
+        return response(bcaGuides.find(guide=>guide.key==="07")!.content,[],true);
       if(content.startsWith("Parlez-vous de la campagne test, de la publication/vérification"))
         return response(content,["28","30","26"],true);
       if(content.startsWith("Souhaitez-vous apprendre une compétence dans une formation,"))
@@ -210,5 +227,6 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     return next("Je ne dispose pas ici d’un lien public vérifié à vous envoyer pour ce contenu. Utilisez la rubrique indiquée dans votre espace BCA. Si vous souhaitez partager votre invitation, copiez votre propre lien dans Parrainage. Quel contenu voulez-vous envoyer et à qui ?",["18","20"]);
   }
   if(kind==="detail")return next("Quel point souhaitez-vous approfondir ? Choisissez une question proposée ou dites précisément quelle étape vous bloque.",anchor?[]:["member-bca-overview","member-income","27"]);
+  if(kind==="device")return next("Sur votre appareil Android, restez dans le site ou l’application BCA officielle que vous utilisez déjà. Quelle action cherchez-vous à faire ou quel message voyez-vous ?",[]);
   return base??response(clarify,["member-bca-overview","member-income","27"]);
 }

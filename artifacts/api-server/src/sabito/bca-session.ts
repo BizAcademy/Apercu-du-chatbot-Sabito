@@ -38,6 +38,9 @@ export async function saveBcaSession(claims:AccessClaims,conversationId:string,s
 const socialAvailability=/^(?:enfin tu es disponible|je t attendais on me disait que tu n etais pas disponible|nn juste que je t attendais depuis mes on me dit que t es pas disponible)$/;
 export function bcaSocialAnswer(text:string,english=false) {
   const q=normalizeQuestion(text);
+  if(q==="barka da warhaka")return "Barka da warhaka ! Bonjour. Quelle aide souhaitez-vous sur BCA ?";
+  if(/^(?:d accord sabito je comprends|merci beaucoup boss|merci pour ton aide merci beaucoup le code a passe|merci beaucoup|merci)$/.test(q))
+    return english?"You’re welcome.":"Je vous en prie.";
   if(socialAvailability.test(q))return english
     ?"I’m available in this conversation. I cannot confirm what caused the earlier interruption. What question would you like to resume?"
     :"Je suis disponible dans cette conversation. Je ne peux pas confirmer la cause de l’interruption précédente. Quelle question souhaitez-vous reprendre ?";

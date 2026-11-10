@@ -1,4 +1,5 @@
 import { normalizeQuestion } from "./question-normalization";
+import { bca152QuestionGroups } from "./bca-152-questions";
 
 /** Owner's November instructions. No live tariff, availability or account
  * result is embedded here. Private targets are existing read-only handlers. */
@@ -141,6 +142,73 @@ bcaCurrentRoutes.push(
     "Comment dois-je faire pour avoir de l’argent sur Chariow","How do I earn on Chariow"],
     "Parlez-vous de vendre directement sur Chariow ou de livrer un produit acheté dans BCA avec un lien Chariow ? Pour les ventes, frais et paiements propres à Chariow, consultez ses informations officielles ; je ne peux garantir ni vente ni revenu. Pour une livraison BCA, le propriétaire exige que le produit Chariow ou Maketou soit gratuit sur le site externe afin d’éviter de payer une seconde fois."),
 );
+const moreCurrentRoutes:BcaQuestionRoute[]=[
+  context("current-campaign-test",[],
+    "La campagne test et une campagne rémunérée sont deux étapes différentes. La campagne test n’est pas rémunérée et sa validation ne garantit pas qu’une campagne payante soit immédiatement disponible. Consultez le guide affiché dans BCA Ads Network et les conditions de votre campagne. Pour vérifier l’état de votre parcours diffuseur, demandez « Vérifier mon profil diffuseur » depuis votre compte reconnu."),
+  context("current-view-count",[],
+    "Vous ne devez pas modifier ni gonfler le nombre de vues déclaré : indiquez les vues réellement affichées et suivez les règles de la campagne. Vues WhatsApp, vues retenues par BCA et vues rémunérées sont différentes. Pour examiner une journée précise, demandez « Vérifier ma journée BCA Ads » depuis votre compte reconnu."),
+  context("current-advertising-rate",[],
+    "Je ne peux pas confirmer un tarif universel par vue ni les montants de 180 FCFA ou 1,80 F à partir d’une ancienne information. Le tarif et les conditions de la campagne active font foi. Une vue WhatsApp n’est pas automatiquement une vue validée ou rémunérée. Quelle campagne ou quelle journée souhaitez-vous examiner ?"),
+  context("current-earnings-explain",[],
+    "Les vues affichées sur WhatsApp, celles validées par BCA et les crédits inscrits dans le portefeuille sont différents. Les ventes et les revenus d’autres membres ne garantissent pas vos résultats ; aucun montant quotidien n’est assuré. Pour un montant personnel, il faut examiner la campagne et les écritures réelles depuis votre compte reconnu. Souhaitez-vous vérifier une journée de diffusion ou retrouver l’espace vendeur ?"),
+  context("current-referral-count",[],
+    "Ouvrez « Mes gains » dans votre espace membre pour consulter les filleuls et commissions qui y sont affichés. Je n’ai pas de consultation autorisée ici pour compter vos filleuls ou vérifier leur rattachement. Les coordonnées des filleuls restent privées. Cherchez-vous plutôt l’emplacement de cette rubrique ou votre lien personnel ?"),
+  context("current-referral-eligibility",[],
+    "Vous pouvez partager votre propre lien de parrainage avec une personne intéressée, mais ne contournez pas les frais, l’activation ou les conditions d’inscription. Le partage d’un lien ou une simple inscription ne garantit pas de commission. Consultez les conditions officielles avant de promettre un avantage. Souhaitez-vous retrouver votre lien ou connaître les conditions à vérifier ?"),
+  context("current-sell-learn",[],
+    "Souhaitez-vous apprendre une compétence dans une formation BCA, vendre une formation que vous avez créée, ou revendre un produit dont vous avez les droits ? Ces parcours sont différents et aucun revenu n’est garanti."),
+  context("current-digital-definition",[],
+    "Un produit numérique est un contenu ou service fourni sous forme numérique, par exemple un document ou une formation en ligne. Pour le proposer sur BCA, vérifiez les formats et les règles de publication affichés dans Digital Store. Quel type de produit souhaitez-vous vendre ?"),
+  context("current-product-policy",[],
+    "Je ne peux pas confirmer que tout type de formation ou un produit physique est accepté dans Digital Store. Les produits végétaux peuvent être physiques ou présentés sous forme de contenu numérique : précisez ce que vous voulez vendre, puis vérifiez les règles actuelles dans le formulaire vendeur ou auprès du support BCA."),
+  context("current-published-product",[],
+    "Ouvrez Digital Store puis l’espace vendeur de votre compte pour retrouver les produits ou formations que vous gérez. Je ne peux pas consulter votre liste personnelle avec les handlers disponibles ici. Si l’élément n’y apparaît pas, vérifiez son état dans votre espace et contactez le support officiel sans partager de mot de passe."),
+  context("current-course-issue",[],
+    "Quelle formation essayez-vous d’ouvrir et quel message ou blocage voyez-vous ? L’accès peut dépendre de l’achat et des conditions affichées. Je ne peux pas confirmer votre paiement sans une consultation autorisée de votre compte."),
+  context("current-ad-budget",[],
+    "Le budget minimum doit être vérifié dans le formulaire annonceur actif : je ne dispose pas d’une lecture de sa valeur actuelle et ne vais pas reprendre un ancien montant. Relisez le budget et le total avant de valider. Si le formulaire refuse encore la valeur, envoyez au support officiel le message exact et une capture où vos informations personnelles sont masquées."),
+  context("current-ads-payment-choice",[],
+    "Les frais d’inscription, le budget d’une publicité annonceur et le parcours diffuseur sont différents. Le paiement de 2 900 F mentionné ne prouve pas à lui seul qu’une campagne TikTok ou WhatsApp a été achetée. Quel paiement ou quel écran voulez-vous vérifier ?"),
+  {key:"current-ads-campaign",kind:"private",target:"ads_campaign_status",
+    source:"Handler de lecture de campagne BCA Ads du membre authentifié",questions:[]},
+  context("current-ads-website",[],
+    "Dans un formulaire publicitaire, « site web » désigne généralement l’adresse de destination que vous souhaitez promouvoir, mais je ne peux pas confirmer les exigences du formulaire BCA que vous voyez. N’entrez aucun mot de passe ni lien d’accès privé. Vérifiez les consignes de cet écran ou envoyez au support une capture masquant vos données."),
+  context("current-video",[],
+    "Parlez-vous de créer une vidéo publicitaire, de lancer une campagne vidéo BCA Ads ou de trouver une vidéo de formation ? Indiquez le parcours ou l’écran concerné. Je ne peux pas créer ni publier une vidéo depuis cette conversation."),
+  {key:"current-withdrawal",kind:"private",target:"withdrawal_status",
+    source:"Handler de lecture du retrait du membre authentifié",questions:[]},
+  context("current-withdrawal-guide",[],
+    "Pour un retrait, ouvrez le formulaire de retrait de votre portefeuille BCA et vérifiez les moyens proposés pour votre pays, les limites, les frais et le montant net avant de confirmer. Je ne peux pas confirmer qu’un moyen précis, comme Wave, est disponible au Niger ni garantir un délai. Si le pays ou le moyen n’apparaît pas, contactez le support BCA."),
+  {key:"current-deposit",kind:"private",target:"deposit_status",
+    source:"Handler de lecture du dépôt du membre authentifié",questions:[]},
+  {key:"current-double-payment",kind:"private",target:"account_activation",
+    source:"Handler de lecture du paiement d’activation du membre authentifié ; aucune décision de remboursement",questions:[]},
+  context("current-wallet-choice",[],
+    "Un solde de portefeuille, un dépôt, un retrait et un gain de campagne se vérifient séparément. Je ne peux pas conclure qu’aucun paiement n’a été reçu sans consulter le bon élément de votre compte. Lequel souhaitez-vous vérifier ?"),
+  context("current-security",[],
+    `Je prends votre signalement au sérieux, mais je ne peux pas confirmer un piratage depuis ce message. Ne communiquez jamais votre mot de passe, PIN, code reçu ou jeton. Utilisez les options officielles de récupération de votre compte et contactez immédiatement le support BCA : ${support}. Je ne peux pas modifier un PIN ni bloquer une transaction depuis ce chat.`),
+  context("current-account-access",[],
+    "Connectez-vous uniquement depuis le site officiel BCA que vous utilisez habituellement. Pour un autre compte, déconnectez-vous puis utilisez le parcours officiel de connexion ; je ne peux pas confirmer la politique sur les comptes multiples. Pour un mot de passe oublié, utilisez « Mot de passe oublié » sur l’écran de connexion. Je ne confirme pas l’existence d’une application mobile officielle à télécharger."),
+  context("current-support",[],
+    `Le support officiel BCA est accessible ici : ${support}. Je ne fournis pas le numéro personnel du créateur. N’envoyez jamais de mot de passe, PIN, OTP ou jeton dans ce chat.`),
+  context("current-telegram",[],
+    "Voulez-vous créer un compte Telegram ou accéder à une formation BCA sur Telegram ? Utilisez l’application et les démarches officielles de Telegram ; je ne peux pas aider à contourner un paiement ou une vérification. Si vous parlez d’une formation, cherchez-la dans la liste actuelle des formations BCA et suivez les conditions affichées."),
+  context("current-project-duration",[],
+    "Je ne peux pas garantir la durée future de BCA ni promettre des revenus sur une période. Pour les conditions applicables à votre compte, consultez les communications et conditions officielles de la plateforme."),
+  context("current-image-help",[],
+    "Souhaitez-vous modifier votre photo de profil, créer une image professionnelle ou savoir où trouver une image ? Sabito ne peut pas créer ni téléverser une photo dans votre compte. Précisez ce que vous cherchez."),
+  context("current-non-progress",[],
+    "Merci de me le préciser. Quelle étape avez-vous déjà faite et quel message voyez-vous maintenant ? Je vais éviter de vous faire répéter les mêmes étapes."),
+  context("current-no-answer",[],
+    "Désolé, je n’ai pas répondu directement. Quelle question précise ai-je manquée ? Je vais aller droit au point."),
+];
+bcaCurrentRoutes.push(...moreCurrentRoutes);
+for(const group of bca152QuestionGroups) {
+  if(group.route==="conversation")continue;
+  const route=bcaCurrentRoutes.find(item=>item.key===group.route);
+  if(!route)throw new Error(`BCA question export route is missing: ${group.route}`);
+  route.questions.push(...group.questions);
+}
 const indexed=new Map(bcaCurrentRoutes.flatMap(route=>route.questions.map(q=>[normalizeQuestion(q),route] as const)));
 export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   const exact=indexed.get(normalizeQuestion(text));
@@ -153,7 +221,7 @@ export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   return undefined;
 }
 export function bcaCurrentTurn(text:string):boolean {
-  return /^(?:oui|yes|no|oui merci|oui comment|oui comment faire|oui je veux|ok|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(normalizeQuestion(text));
+  return /^(?:oui|oui oui|yes|no|nn|oui merci|oui comment|oui comment faire|oui je veux|oui est l option profil|ok|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|option [1-3]|lequel|laquelle|sur android|android|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(normalizeQuestion(text));
 }
 /** Only an immediately preceding authored public prompt authorizes a next
  * step. This never supplies a financial confirmation or backend identifier. */

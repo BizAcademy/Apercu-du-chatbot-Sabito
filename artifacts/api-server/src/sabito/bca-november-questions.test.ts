@@ -60,7 +60,10 @@ test("Owner rules are public guidance, not manufactured private results",()=>{
   assert.equal(bcaNovemberRoute("Quel sont les 16 formations")!.target,"bca_catalogue_current");
   assert.match(bcaNovemberRoute("Pourquoi mes campagne sont indisponibles")!.answer!,/pas le résultat d’une vérification/);
   assert.equal(bcaNovemberRoute("Jusqu'a present mon jour n’est pas validé")!.target,"ads_payout_status");
-  assert.deepEqual(Object.keys(bcaNovemberPrivateAliases).sort(),["ads_payout_status","ads_publisher_status","bca_catalogue_current","referral_commissions_recent"]);
+  assert.deepEqual(Object.keys(bcaNovemberPrivateAliases).sort(),[
+    "account_activation","ads_campaign_status","ads_payout_status","ads_publisher_status",
+    "bca_catalogue_current","deposit_status","referral_commissions_recent","withdrawal_status",
+  ]);
   assert.ok(bcaNovemberDrafts.every(draft=>draft.source.includes("confirmer")));
 });
 

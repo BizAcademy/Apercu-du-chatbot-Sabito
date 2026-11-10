@@ -95,6 +95,11 @@ export function bcaTrainingAccess(topic:string) {
  * Never treat "oui" as consent for a financial/account read. */
 export function bcaOwnerContinuation(text:string,previous:string):string|undefined {
   const q=normalizeQuestion(text);
+  if(q==="oui est l option profil") {
+    if(previous.startsWith("1. Ouvrez la rubrique Profil, puis la rubrique de sécurité ou de PIN proposée."))return previous;
+    if(previous.startsWith("1. Ouvrez Profil et la rubrique de sécurité ou de PIN proposée."))
+      return `${previous}\n\nVous trouverez ce réglage dans la rubrique Profil.`;
+  }
   const yes=/^(oui|oui merci|oui comment|oui comment faire|oui je veux|d accord|ok|okay|comment faire|comment y acceder)$/.test(q);
   const topic=bcaTrainingSubjects.find(subject=>previous===bcaTrainingQuestion(subject.name));
   if(topic&&yes)return bcaTrainingAccess(topic.name);

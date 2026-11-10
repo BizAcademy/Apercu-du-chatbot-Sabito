@@ -21,6 +21,7 @@ import { continueBackendConversation,rememberBackendResult } from "./backend-con
 import { verifiedBcaResult } from "./bca-contract";
 import { logger } from "../lib/logger";
 import { bcaNovemberRoute } from "./bca-november-questions";
+import { bcaCurrentQuestion } from "./bca-current-questions";
 import { logBcaCommissionDivergence } from "./bca-commission-policy";
 export { isVerifiedMember } from "./templates";
 function validField(field:IntentDefinition["fields"][number],value:string) {
@@ -66,7 +67,9 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
   }
   // Public BCA instructions use approved references, not member lookups.
   // Do not clear an interrupted collection while answering a how-to question.
-  if(profile==="bca" && isBcaHelpQuestion(text) && (await retrieveReply(claims.sub,text)).reliable)
+  const currentBcaQuestion=profile==="bca"?bcaCurrentQuestion(text):undefined;
+  if(profile==="bca" && currentBcaQuestion?.kind!=="private" &&
+    isBcaHelpQuestion(text) && (await retrieveReply(claims.sub,text)).reliable)
     return null;
   const refundQuestion=guide?.key==="refunds" && /ticket.*ferm/i.test(normalized);
   // General approved instructions are public, not requests to inspect an account.
@@ -81,7 +84,7 @@ export async function handleIntent(claims:AccessClaims, conversationId:string, t
         !/^[1-9][0-9]{0,17}$/.test(s))})),
   }]));
   let detected=refundQuestion?settings.intents.find(intent=>intent.enabled&&intent.backend_function==="order_refund_status")?.id:detectIntent(text,settings);
-  const bcaRoute=profile==="bca"?bcaNovemberRoute(text):undefined;
+  const bcaRoute=profile==="bca"?currentBcaQuestion??bcaNovemberRoute(text):undefined;
   if(bcaRoute?.kind==="private")
     detected=settings.intents.find(intent=>intent.enabled&&intent.backend_function===bcaRoute.target)?.id;
   // A format alone is not evidence that a reference belongs to a deposit.

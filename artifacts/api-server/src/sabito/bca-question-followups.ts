@@ -41,7 +41,8 @@ export const bcaQuestionFaq:BcaGuide[]=bcaLegacyQuestionFaq.map(guide=>({
 export type BcaFollowupKind="explain"|"detail"|"link"|"blocked"|"profile"|"publish"|"started"|
   "campaign"|"activities"|"sell-learn"|"withdrawal"|"validation"|"identity"|"exit"|
   "incomplete"|"year"|"duration"|"roles"|"referral-contact"|"premium-stage"|"best-income"|"unclear-product"|"shop"|
-  "status-choice"|"money-choice"|"ads-budget"|"ads-rate"|"ads-location"|"not-yet"|"november";
+  "status-choice"|"money-choice"|"ads-budget"|"ads-rate"|"ads-location"|"not-yet"|"november"|
+  "option"|"which"|"device";
 const turns:[BcaFollowupKind,string[]][]=[
   ["explain",["Comment ça fonctionne ?","Comment faire","Explication claire","aide moi","Aidez-moi à niveau","Alors, aidez-moi, s'il vous plaît.",
     "Aidez moi à nouveau","Aidez moi à nouveau dans bca","Répondez"]],
@@ -82,6 +83,9 @@ export function bcaFollowupKind(text:string) {
     return batch.target as BcaFollowupKind;
   }
   const value=normalizeQuestion(text);
+  if(/^option [1-3]$/.test(value))return "option";
+  if(/^(?:lequel|laquelle)$/.test(value))return "which";
+  if(/^(?:sur android|android)$/.test(value))return "device";
   return turns.find(([,questions])=>questions.some(question=>normalizeQuestion(question)===value))?.[0];
 }
 export function bcaQuestionAlias(text:string) {

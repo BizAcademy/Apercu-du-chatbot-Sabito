@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bcaCurrentRoutes,bcaCurrentQuestion,bcaCurrentContinuation,bcaReferralAmounts } from "./bca-current-questions";
+import { bcaCurrentRoutes,bcaCurrentQuestion,bcaCurrentContinuation,bcaCurrentTurn,bcaReferralAmounts } from "./bca-current-questions";
+import { bca152QuestionGroups } from "./bca-152-questions";
+import { bcaSocialAnswer } from "./bca-session";
+import { englishBcaAnswer } from "./bca-language";
+import { normalizeQuestion } from "./question-normalization";
 import { bcaNovemberRoute } from "./bca-november-questions";
 import { bcaFollowupKind } from "./bca-question-followups";
 import { bcaIntents } from "./bca-settings";
@@ -8,6 +12,8 @@ import { detectIntent } from "./question-search";
 import { defaultSettings } from "./assistant-settings";
 import { bcaCommissionDivergences,bcaCommissionGuidance } from "./bca-commission-policy";
 import { bcaBackendAnswer } from "./bca-backend-context";
+import { bcaOwnerContinuation } from "./bca-owner-clarifications";
+import { bcaGuides } from "./bca-guide-data";
 
 // All 50 CSV questions; the unsolicited advertisement's phone/URLs are replaced
 // with synthetic data. No member identifier/contact is shipped in the tests.
@@ -47,6 +53,41 @@ test("Every new CSV question has an explicit route or an existing contextual tur
       assert.equal(detectIntent(question,settings),route.target,question);
     }
   }
+});
+test("All 152 rows from the latest BCA export have a safe route or contextual response",()=>{
+  const questions=bca152QuestionGroups.flatMap(group=>group.questions);
+  assert.equal(questions.length,152);
+  assert.equal(new Set(questions.map(normalizeQuestion)).size,152);
+  assert.equal(new Set(bcaCurrentRoutes.map(route=>route.key)).size,bcaCurrentRoutes.length);
+  assert.equal(bcaCurrentTurn("Oui est l’option Profil"),true);
+  for(const route of bcaCurrentRoutes)if(route.answer)assert.ok(route.questions.length,route.key);
+  const settings={...defaultSettings(),intents:bcaIntents()};
+  for(const group of bca152QuestionGroups)for(const question of group.questions) {
+    if(group.route==="conversation") {
+      assert.equal(bcaCurrentQuestion(question),undefined,question);
+      assert.ok(bcaCurrentTurn(question)||bcaSocialAnswer(question),question);
+      const social=bcaSocialAnswer(question);
+      if(social)assert.doesNotMatch(englishBcaAnswer(social),/^Service message/,question);
+      if(["Option 2","Lequel ?"].includes(question))assert.ok(bcaFollowupKind(question));
+      continue;
+    }
+    const route=bcaCurrentQuestion(question);
+    assert.equal(route?.key,group.route,question);
+    if(route?.kind==="private") {
+      assert.ok(settings.intents.some(intent=>intent.enabled&&intent.backend_function===route.target),question);
+      assert.equal(detectIntent(question,settings),route.target,question);
+    } else {
+      assert.ok(route?.answer,question);
+      assert.doesNotMatch(englishBcaAnswer(route!.answer!),/^Service message/,"English-mode route is translated: "+question);
+      assert.ok((route!.answer!.match(/\?/g)??[]).length<=1,"At most one follow-up question: "+question);
+    }
+  }
+});
+test("Affirming the profile location keeps the relevant PIN guidance in context",()=>{
+  const pin=bcaGuides.find(guide=>guide.key==="07")!.content;
+  const answer=bcaOwnerContinuation("Oui est l’option profil",pin)!;
+  assert.ok(answer.startsWith(pin));
+  assert.match(answer,/rubrique Profil/);
 });
 test("Public answers have bounded prices, consent and current catalogue limits",()=>{
   for(const question of ["Quels sont les commissions de parrainage ?","Comment faire un parrainage"])

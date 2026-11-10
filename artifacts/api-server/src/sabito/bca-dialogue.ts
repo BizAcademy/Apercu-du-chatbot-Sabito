@@ -78,6 +78,27 @@ export async function bcaDialogueReply(claims:AccessClaims,conversationId:string
     if(exact.length&&new Set(exact.map(entry=>entry.content)).size===1)return retrieveReply(claims.sub,text);
     return reply(bcaFallback,false);
   };
+  const option=q.match(/^option ([1-3])$/);
+  if(option) {
+    const choice=prior?.choices[Number(option[1])-1];
+    if(!choice)return reply("Je ne retrouve pas de choix précédent dans cette conversation. Quel sujet souhaitez-vous reprendre ?",true);
+    if(prior?.awaiting==="test") {
+      const selected=normalizeQuestion(choice.question);
+      if(selected==="oui")return approved("test-days");
+      if(selected==="non")return approved("paid-days");
+    }
+    const selected=await selectedKnowledgeReply(claims.sub,choice.document_id,choice.question);
+    return selected?bcaRelatedReply(state,selected):
+      reply("Cette option n’est plus disponible. Choisissez une question encore affichée ou précisez le sujet.",true);
+  }
+  if(q==="lequel"||q==="laquelle") {
+    if(!prior?.choices.length)return reply("Je ne retrouve pas de choix précédent dans cette conversation. De quel sujet parlez-vous ?",true);
+    const answer=reply("Les options encore disponibles sont :\n"+
+      prior.choices.map((choice,index)=>`${index+1}. ${choice.question}`).join("\n")+
+      "\nLaquelle souhaitez-vous choisir ?",true);
+    answer.suggestions=prior.choices;
+    return answer;
+  }
   if(prior?.awaiting==="test") {
     if(/^(?:oui|oui campagne test|test|campagne test|1)$/.test(q))return approved("test-days");
     if(/^(?:non|non payante|payante|campagne payante|2)$/.test(q))return approved("paid-days");
@@ -140,8 +161,15 @@ export async function saveBcaDialogue(claims:AccessClaims,conversationId:string,
   if(state.profile!=="bca")return;
   const old=await context(claims,conversationId);
   if(!old.owned)return;
+  if(!privateAnswer&&old.value&&!old.value.private&&bcaSocialAnswer(text)) {
+    await pool.query(`UPDATE sabito_core.public_guidance_context SET updated_at=CURRENT_TIMESTAMP(6)
+      WHERE conversation_id=$1 AND project_id=$2`,[conversationId,claims.sub]);
+    return;
+  }
   const parts=bcaQuestionParts(text,state.settings.retrieval);
-  const sameSubject=!parts.subject||parts.subject===old.value?.subject;
+  const contextualContinuation=bcaCurrentTurn(text)&&
+    !/^(?:option [1-3]|lequel|laquelle|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(parts.normalized);
+  const sameSubject=!parts.subject||parts.subject===old.value?.subject||contextualContinuation;
   const next:Context={...empty(),subject:parts.subject??old.value?.subject,
     request:parts.request??(sameSubject?old.value?.request:undefined),
     entities:sameSubject?{...old.value?.entities}:{},private:privateAnswer};
@@ -152,9 +180,10 @@ export async function saveBcaDialogue(claims:AccessClaims,conversationId:string,
   if(!privateAnswer&&value.reliable) {
     const entry=state.entries.find(entry=>entry.exactPriority===3&&entry.content===value.answer);
     next.document=entry?{id:entry.documentId,question:entry.question}:undefined;
-    if(!entry&&sameSubject&&/^(?:pourquoi|comment|et apres|et ensuite|merci|super|genial)$/.test(parts.normalized))
+    if(!entry&&sameSubject&&(contextualContinuation||/^(?:pourquoi|comment|et apres|et ensuite|merci|super|genial)$/.test(parts.normalized)))
       next.document=old.value?.document;
     next.choices=value.suggestions.slice(0,3);
+    if(!next.choices.length&&contextualContinuation)next.choices=old.value?.choices??[];
     if(value.answer.startsWith(bcaTestPrompt))next.awaiting="test";
   }
   await pool.query(`INSERT INTO sabito_core.public_guidance_context(conversation_id,project_id,context_json,answer_hash)
