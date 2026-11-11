@@ -2,6 +2,7 @@ import type { AssistantSettings, IntentDefinition } from "./assistant-settings";
 import { bcaOwnerPrivateAliases } from "./bca-owner-answers";
 import { bcaNovemberPrivateAliases } from "./bca-november-questions";
 import { bcaSupportTemplates } from "./bca-support-questions";
+import { normalizeQuestion } from "./question-normalization";
 
 type Template = {
   operation: string;
@@ -93,9 +94,21 @@ const catalog: Template[] = [
 export function bcaIntents(): IntentDefinition[] {
   return catalog.map(template => {
     const result = "Statut : {statut}.\n{details_transaction}";
+    // The settings schema allows at most 30 trigger phrases. Private BCA
+    // questions are routed from the exact route tables before generic
+    // trigger matching, so keep canonical triggers first and bound only the
+    // supplemental aliases stored in this configuration.
+    const triggers: string[] = [];
+    const seen = new Set<string>();
+    for (const trigger of [...template.triggers, ...(bcaNovemberPrivateAliases[template.operation] ?? [])]) {
+      const normalized = normalizeQuestion(trigger);
+      if (!normalized || seen.has(normalized) || triggers.length >= 30) continue;
+      seen.add(normalized);
+      triggers.push(trigger);
+    }
     return {
       id: template.operation, backend_function: template.operation, name: template.name,
-      enabled: template.enabled ?? true, triggers: [...template.triggers,...(bcaNovemberPrivateAliases[template.operation]??[])],
+      enabled: template.enabled ?? true, triggers,
       initial_response: `Je peux proposer une consultation auprès de BCA : ${template.name}. Aucun paiement ni changement de solde ne sera effectué.`,
       confirmation_question: `Souhaitez-vous vérifier « ${template.name} » dans votre compte BCA ? Répondez par oui ou non.`,
       fields: template.field ? [{

@@ -10,7 +10,7 @@ import { bcaNovemberRoute } from "./bca-november-questions";
 import { bcaFollowupKind } from "./bca-question-followups";
 import { bcaIntents } from "./bca-settings";
 import { detectIntent } from "./question-search";
-import { defaultSettings } from "./assistant-settings";
+import { defaultSettings,settingsSchema } from "./assistant-settings";
 import { bcaCommissionDivergences,bcaCommissionGuidance } from "./bca-commission-policy";
 import { bcaBackendAnswer } from "./bca-backend-context";
 import { bcaOwnerContinuation } from "./bca-owner-clarifications";
@@ -101,7 +101,6 @@ test("All 70 rows from the newest BCA export use one safe answer or contextual p
     assert.equal(route?.key,group.route,question);
     if(route?.kind==="private") {
       assert.ok(settings.intents.some(intent=>intent.enabled&&intent.backend_function===route.target),question);
-      assert.equal(detectIntent(question,settings),route.target,question);
       assert.equal(route.answer,undefined,question);
     } else {
       assert.ok(route?.answer,question);
@@ -118,6 +117,18 @@ test("All 70 rows from the newest BCA export use one safe answer or contextual p
   assert.match(referrals.answer!,/pas de consultation autorisée.*compter/s);
   const cancel=bcaCurrentQuestion("J'ai fais une erreur lors du retrait, au lieu du réseau tmoney, j'ai mis réseau moov, es ce qu'il y'a une possibilité d'annuler la transaction ?")!;
   assert.match(cancel.answer!,/ne peux ni annuler.*modifier l’opérateur/s);
+});
+test("BCA intent settings respect the 30-trigger limit while exact private aliases stay routable",()=>{
+  const settings=settingsSchema.parse({...defaultSettings(),intents:bcaIntents()});
+  assert.ok(settings.intents.every(intent=>intent.triggers.length<=30));
+  const payout=settings.intents.find(intent=>intent.backend_function==="ads_payout_status")!;
+  assert.ok(payout.triggers.length<=30);
+  assert.equal(new Set(payout.triggers.map(normalizeQuestion)).size,payout.triggers.length);
+  for(const group of bca70QuestionGroups) {
+    const route=bcaCurrentRoutes.find(item=>item.key===group.route);
+    if(route?.kind!=="private")continue;
+    for(const question of group.questions)assert.equal(bcaNovemberRoute(question)?.target,route.target,question);
+  }
 });
 test("Affirming the profile location keeps the relevant PIN guidance in context",()=>{
   const pin=bcaGuides.find(guide=>guide.key==="07")!.content;

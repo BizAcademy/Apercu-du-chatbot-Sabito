@@ -228,5 +228,8 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
   }
   if(kind==="detail")return next("Quel point souhaitez-vous approfondir ? Choisissez une question proposée ou dites précisément quelle étape vous bloque.",anchor?[]:["member-bca-overview","member-income","27"]);
   if(kind==="device")return next("Sur votre appareil Android, restez dans le site ou l’application BCA officielle que vous utilisez déjà. Quelle action cherchez-vous à faire ou quel message voyez-vous ?",[]);
+  if(kind==="explain"&&!anchor)
+    return response("Je n’ai pas de sujet précédent identifiable dans cette conversation. Quel sujet ou quelle étape souhaitez-vous reprendre sur BCA ?",
+      ["member-bca-overview","member-income","27"],true);
   return base??response(clarify,["member-bca-overview","member-income","27"]);
 }
