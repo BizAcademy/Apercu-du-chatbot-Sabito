@@ -8,6 +8,7 @@ import { pool } from "../database";
 import { bcaCurrentRoutes } from "../bca-current-questions";
 import { readBcaSession } from "../bca-session";
 import { handleIntent } from "../intents";
+import { bcaEnglish } from "../bca-language";
 
 /** Real Socket.IO, database persistence, re-open and owned identity. No live
  * member or external BCA backend is consulted by this test. */
@@ -38,7 +39,7 @@ export async function verifyBcaNewSession(projectId:string,clientId:string,openS
     assert.equal(resumed.ok,true);assert.equal(resumed.data.conversationId,conversationId);
     assert.match(await send("Vous ne m’avez pas montré où le trouver"),/trois tirets.*Mes gains/);
     assert.match(await send("In English"),/continue in English/);
-    assert.match(await send("How do I start selling"),/^Open Digital Store/);
+    assert.equal(await send("How do I start selling"),bcaEnglish["current-seller"]);
     assert.equal((await readBcaSession(claims,conversationId)).state.language,"en");
     socket.disconnect();socket=await openSocket(signAccessToken(claims));
     assert.match(await send("How do I withdraw"),/^Open the withdrawal form/);
