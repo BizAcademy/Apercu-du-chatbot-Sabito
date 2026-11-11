@@ -16,7 +16,7 @@ const context=(key:string,questions:string[],answer:string):BcaQuestionRoute=>({
 export const bcaReferralAmounts="Les commissions prévues sont des montants fixes : 1 500 F au niveau 1, 500 F au niveau 2 et 300 F au niveau 3.";
 const gettingStarted="Vous êtes déjà inscrit : inutile de recréer un compte. Vous pouvez apprendre avec les formations, vendre un produit numérique que vous avez le droit de commercialiser, recommander BCA ou consulter les campagnes WhatsApp disponibles selon leurs conditions. Aucun revenu n’est garanti. Pour commencer, quel parcours vous intéresse : apprendre, vendre, parrainage ou campagnes ?";
 const referral="Retrouvez la rubrique Parrainage dans votre compte BCA pour copier votre propre code et votre lien personnel, puis partagez-les avec les personnes intéressées, sans messages non sollicités. Les filleuls et commissions enregistrées se consultent aussi dans « Mes gains ». Pour que je consulte votre code réel avec une session vérifiée, dites « Mon code parrainage ». "+bcaReferralAmounts+" Le niveau 1 correspond à la personne directement parrainée, puis les niveaux 2 et 3 à la suite de sa chaîne. L’attribution dépend des conditions et de l’événement prévu par BCA ; partager le lien ou une simple inscription ne garantit pas une commission.";
-const seller="Pour vendre votre propre produit ou formation, ouvrez Digital Store puis l’espace vendeur de votre compte. Utilisez le formulaire proposé pour créer la fiche, renseigner les informations demandées et le lien de livraison, puis relisez les conditions et les frais actuels avant de soumettre. Ne vendez que des contenus dont vous possédez les droits. Une soumission ne garantit pas l’approbation ni une vente. Voyez-vous l’espace vendeur ou êtes-vous bloqué dans le formulaire ?";
+const seller="Pour vendre votre propre formation ou un produit numérique, ouvrez Digital Store puis l’espace vendeur. Créez une fiche avec le titre, la description, la catégorie, le prix, la devise et les autres informations demandées. Vérifiez les frais et conditions affichés avant de soumettre. Ajoutez un lien HTTPS qui donne bien accès au contenu après l’achat : pour Google Drive, configurez l’accès du lecteur autorisé et testez le lien ; les liens de réseaux sociaux ne sont pas des liens de livraison. Si le contenu est hébergé sur Chariow ou Maketou, il doit y être configuré gratuitement pour éviter un second paiement. Relisez les règles avant l’envoi : la fiche peut rester en attente et son approbation n’est pas automatique. Ne vendez que des contenus que vous avez le droit de commercialiser. Voyez-vous l’espace vendeur ou êtes-vous bloqué dans le formulaire ?";
 const pricing="Je n’ai pas de handler raccordé qui fournisse le tarif actuel de publication. Dans l’espace vendeur Digital Store, consultez le récapitulatif actuel avant de confirmer : distinguez création, publication, modification, abonnement vendeur et frais de vente éventuels. Je ne peux confirmer ni un montant ni la gratuité à partir d’une ancienne archive. Si ces informations ne s’affichent pas, contactez "+support+". Ne payez pas sur un numéro reçu dans le chat.";
 const learning="Quel domaine et quel objectif vous intéressent ? Consultez la liste actuelle des formations dans BCA ; je ne peux pas établir un classement mondial des compétences ni garantir des revenus. Pour consulter les offres actuellement publiées avec le service autorisé, dites « Consulter le catalogue actuel ». Une formation présente dans un ancien catalogue n’est pas nécessairement disponible ou gratuite aujourd’hui.";
 const pack="Vous pouvez préparer un contenu dont vous avez les droits, mais je n’ai pas vérifié que le formulaire vendeur actuel accepte votre pack PDF et vidéo, ni qu’un acheteur puisse payer sans compte BCA et télécharger directement sur son téléphone. Vérifiez les formats et le parcours d’achat actuels avant de publier. Pour une formation, le propriétaire demande un lien Google Drive accessible à l’acheteur après achat ; les liens de réseaux sociaux ne conviennent pas comme livraison. Avec Chariow ou Maketou, le produit externe doit être gratuit pour éviter un second paiement. Souhaitez-vous les étapes pour vérifier le partage Google Drive ?";
@@ -39,6 +39,12 @@ export const bcaCurrentRoutes:BcaQuestionRoute[]=[
     "Comment créer mes propres produits digitaux et les vendre",
     "Comment vendre les produits digitaux sur la BCA","Comment vendre un article sur le site",
     "Je veux vendre ma formation","Comment créer ma propre formation dans BCA ?",
+    "Comment vendre sa propre formation sur BizConnect Academy",
+    "Comment vendre ma formation sur BizConnect Academy",
+    "Comment vendre ma formation sur bisxonnected",
+    "Comment vendre sa propre formation sur bisxonnected",
+    "Comment vendre sa propre formation sur BizConnect Academy",
+    "Comment vendre un produit","Comment vendre un produit sur BCA",
   ],seller),
   context("current-publish-price",[
     "Le prix pour publier un produit","Pour créer un produit et publier est-ce que c'est payant",
@@ -55,8 +61,9 @@ export const bcaCurrentRoutes:BcaQuestionRoute[]=[
     "Est-ce possible de créer un pack de formation en PDF et vidéo, partager le lien, et permettre aux gens de payer sans s’inscrire sur BCA puis de télécharger le pack sur leur téléphone ?",
   ],pack),
   context("current-campaign-guide",["Comment fonctionne la campagne","Comments gagne Argent grace a whatsapp",
-    "Comment gagner de l'argent grâce à WhatsApp","Comment fonctionne une campagne"],
-    "Dans le parcours diffuseur BCA Ads Network, ouvrez une campagne accessible, lisez ses conditions et rejoignez-la seulement si elle est disponible pour votre profil. Publiez les éléments demandés sur votre statut WhatsApp, puis suivez la déclaration et la vérification dans BCA. Les vues WhatsApp, les vues validées et les crédits sont distincts. Une publication ne garantit pas un paiement ; ne supposez pas une durée de 23 heures ni un tarif par vue universels. Souhaitez-vous les étapes de publication ou vérifier une journée précise ?"),
+    "Comment gagner de l'argent grâce à WhatsApp","Comment fonctionne une campagne",
+    "Comment la déclarer","Comment déclarer ma publication","Comment déclarer la campagne"],
+    "Dans BCA Ads Network, ouvrez la campagne et la journée concernées. Après avoir publié le contenu demandé sur WhatsApp, utilisez l’étape de déclaration affichée, renseignez les éléments demandés et soumettez la vérification dans le délai indiqué. Une déclaration ou une publication ne confirme pas encore la validation ni le paiement. Les campagnes rémunérées doivent être disponibles pour votre profil ; consultez leurs conditions et le tarif affiché avant de participer. Souhaitez-vous les étapes de publication ou vérifier une journée précise ?"),
   context("current-free-campaign",["Faire une campagne publicitaire gratuitement"],
     "Parlez-vous de créer une publicité comme annonceur ou de participer à la campagne test comme diffuseur ? Le test n’est pas une publicité gratuite pour promouvoir votre produit. Je n’ai pas vérifié de formule annonceur gratuite : consultez le budget et les conditions dans le formulaire actuel avant toute validation."),
   context("current-advertiser",["Je veux être annonceur"],
@@ -72,8 +79,9 @@ export const bcaCurrentRoutes:BcaQuestionRoute[]=[
     "L’inscription et l’activation sont deux étapes différentes. Cette personne doit suivre le parcours d’activation de son propre compte. Je ne peux pas consulter ses données depuis votre session ; elle peut demander « Vérifier mon activation » depuis son compte reconnu ou contacter "+support+". Ne partagez aucun mot de passe, PIN ou OTP."),
   context("current-withdrawal-fees",["A combien s'élève les frais de retraits à la BCA?","Quels sont les frais de retrait ?"],
     "Je n’ai pas de consultation raccordée donnant les frais et limites de retrait actuels. Ouvrez le formulaire de retrait de votre portefeuille BCA et vérifiez les moyens disponibles, la devise, les limites, les frais et le montant net avant toute confirmation. Je ne vais pas citer un ancien tarif ni effectuer le retrait pour vous. Pour une demande déjà créée, dites « Vérifier mon retrait ». Si les frais ne s’affichent pas, contactez "+support+"."),
-  context("current-capture",["Comment envoyer son capture d'écran","Comment envoyer sa capture d’écran ?"],
-    "À qui souhaitez-vous envoyer la capture : au support BCA ou dans une étape de campagne ? Utilisez uniquement le bouton de pièce jointe effectivement présent dans le canal concerné ; je ne peux pas confirmer que ce widget accepte les images. Masquez les soldes, coordonnées et informations confidentielles inutiles, et n’envoyez jamais de PIN, mot de passe, OTP ou jeton. Le support officiel est "+support+"."),
+  context("current-capture",["Comment envoyer son capture d'écran","Comment envoyer sa capture d’écran ?",
+    "Je dois envoyer la capture où","Où envoyer la capture de ma journée BCA Ads"],
+    "Si la capture sert à vérifier une campagne, ouvrez dans BCA Ads la campagne et la journée concernées, puis utilisez l’étape de vérification et le bouton d’envoi affichés, si cette méthode est proposée. N’envoyez pas la capture à Sabito comme preuve officielle, sauf consigne explicite de BCA. Si vous voulez plutôt l’envoyer au support, utilisez son canal officiel : "+support+". Masquez les informations personnelles et financières inutiles ; ne transmettez jamais de PIN, mot de passe, OTP ou jeton."),
   context("current-help-videos",["Comment trouver les vidéos d'aide de la BCA"],
     "Le guide d’aide communiqué par l’équipe BCA est https://presentationbizconnectacademy.com/aide. Ouvrez la vidéo correspondant à votre démarche et comparez avec votre écran actuel ; si le guide ou un bouton diffère, précisez la rubrique au support "+support+". Cherchez-vous l’aide pour une campagne test, une publication payante ou un autre parcours ?"),
   context("current-fraud",["J'ai besoin à propos d'une arnaque","J’ai besoin d’aide à propos d’une arnaque"],
@@ -145,8 +153,17 @@ bcaCurrentRoutes.push(
     "Parlez-vous de vendre directement sur Chariow ou de livrer un produit acheté dans BCA avec un lien Chariow ? Pour les ventes, frais et paiements propres à Chariow, consultez ses informations officielles ; je ne peux garantir ni vente ni revenu. Pour une livraison BCA, le propriétaire exige que le produit Chariow ou Maketou soit gratuit sur le site externe afin d’éviter de payer une seconde fois."),
 );
 const moreCurrentRoutes:BcaQuestionRoute[]=[
-  context("current-campaign-test",[],
-    "Pour suivre le parcours test, ouvrez BCA Ads Network côté diffuseur, consultez les consignes affichées, puis réalisez la publication et transmettez les éléments demandés dans le délai indiqué. Attendez le statut de vérification avant de poursuivre une étape dépendante. Je ne peux pas supposer un nombre de jours universel à partir d’une ancienne version. Le test n’est pas rémunéré et sa validation ne garantit pas qu’une campagne payante soit immédiatement disponible. À quelle étape êtes-vous bloqué ?"),
+  context("current-campaign-test",[
+    "J'ai terminé le test que dois-je faire encore",
+    "J’ai terminé le test, que dois-je faire ensuite ?",
+    "J'ai fini le test que dois-je faire maintenant",
+  ],
+    "Vérifiez que toutes les journées et vérifications requises du test sont terminées et validées, pas seulement publiées ou envoyées. Le parcours de test décrit par BCA comporte deux journées et n’est pas rémunéré. Après la validation finale, ouvrez l’espace Diffuseur et consultez les campagnes rémunérées disponibles pour votre profil. Leur disponibilité dépend des campagnes proposées à ce moment-là ; la validation du test ne garantit pas qu’une campagne payante soit immédiatement disponible. À quelle étape êtes-vous bloqué ?"),
+  context("current-view-validation",[
+    "Comment valider une vue","Comment valider une vue WhatsApp",
+    "Comment faire valider mes vues sur WhatsApp",
+  ],
+    "Ouvrez dans BCA Ads la campagne et la journée concernées, puis suivez la procédure officielle de vérification indiquée à l’écran. Envoyez uniquement la preuve demandée, dans le délai affiché, puis attendez le résultat. Une vue déclarée, une capture envoyée ou une publication visible ne signifie pas encore que la vue est validée ou payée. Ne modifiez pas les preuves et ne tentez pas de simuler des vues."),
   context("current-deposit-guide",[],
     "Pour faire un dépôt, connectez-vous et ouvrez la rubrique Dépôt. Choisissez uniquement un pays et un moyen de paiement affichés dans le formulaire actuel, puis vérifiez la devise, les frais, le montant net et la référence avant de confirmer. Saisissez le PIN ou l’OTP uniquement dans le parcours sécurisé officiel, jamais dans le chat. Les opérateurs et conditions peuvent changer. Êtes-vous bloqué à une étape précise ?"),
   context("current-view-count",[],
@@ -207,8 +224,14 @@ const moreCurrentRoutes:BcaQuestionRoute[]=[
     "Désolé, je n’ai pas répondu directement. Quelle question précise ai-je manquée ? Je vais aller droit au point."),
   context("current-visibility-choice",[],
     "Pour vous orienter, je dois savoir si votre objectif est de rendre visible un produit Digital Store, de diffuser une campagne BCA Ads ou de partager un lien officiel. Les démarches sont différentes et aucune visibilité ni vente n’est garantie. Quel contenu souhaitez-vous faire connaître ?"),
-  context("current-ads-overview",[],
-    "BCA Ads distingue le parcours annonceur, qui crée et finance une publicité si le formulaire actuel le permet, du parcours diffuseur, qui consulte les campagnes accessibles, lit leurs conditions, publie le contenu demandé et suit la vérification dans BCA. La disponibilité, le budget et les gains dépendent des informations affichées dans le parcours actif ; je ne les devine pas. Vous cherchez le parcours annonceur ou diffuseur ?"),
+  context("current-ads-overview",[
+    "Peux-tu m'expliquer comment fonctionne ads network",
+    "Peux-tu m'expliquer comment fonctionne Ads Network ?",
+    "Comment fonctionne Ads Network",
+    "Comment marche BCA Ads Network",
+    "Explique-moi BCA Ads Network",
+  ],
+    "BCA Ads Network comporte deux parcours. L’annonceur crée une campagne et vérifie son ciblage, son budget et les conditions dans le formulaire actuel avant de confirmer. Le diffuseur complète les informations demandées, suit la campagne test, puis consulte les campagnes rémunérées réellement disponibles pour son profil. Le test n’est pas payé ; sa validation ne garantit pas qu’une campagne rémunérée soit immédiatement disponible. Pour une diffusion, seules les vues validées selon les conditions de la campagne peuvent contribuer à une rémunération. Les budgets, tarifs et disponibilités doivent être vérifiés dans le parcours actif. Cherchez-vous le parcours annonceur ou diffuseur ?"),
   context("current-campaign-proof",[],
     "Les consignes de publication, la preuve attendue et l’échéance sont propres à la campagne et à la journée affichées dans BCA. Je ne peux pas confirmer une règle universelle de 24 heures ni affirmer que les confirmations de lecture WhatsApp désactivées sont acceptées. Suivez l’échéance et les exigences de la campagne concernée ; pour un rejet précis, une lecture autorisée de la journée peut vérifier le statut réellement renvoyé. De quelle campagne ou journée s’agit-il ?"),
   context("current-pin-clarification",[],
@@ -233,8 +256,39 @@ const moreCurrentRoutes:BcaQuestionRoute[]=[
     "Je ne peux pas confirmer un opérateur de paiement précis pour le Bénin sans consulter les options affichées dans le formulaire BCA actuel. Choisissez le pays dans le formulaire de dépôt ou de retrait, puis vérifiez les moyens, frais et montant net avant de confirmer. Parlez-vous d’un dépôt ou d’un retrait ?"),
   context("current-account-email",[],
     "Je ne peux pas lire l’adresse e-mail de votre compte avec les consultations disponibles ici. Si vous êtes connecté, vérifiez les informations de profil dans votre espace BCA ; si vous ne pouvez pas y accéder, utilisez la récupération officielle ou le support. Ne partagez pas votre mot de passe ni un code reçu. Êtes-vous encore connecté à votre compte ?"),
-  context("current-whatsapp-blocked",[],
-    "Sabito et BCA ne peuvent pas débloquer un compte WhatsApp à votre place. Utilisez la procédure officielle d’assistance ou de contestation dans WhatsApp et ne transmettez aucun code de connexion. Si le blocage affecte une campagne BCA, contactez aussi le support BCA avec la référence de la campagne, sans données confidentielles. Le blocage concerne-t-il WhatsApp ou votre accès à BCA ?"),
+  context("current-whatsapp-blocked",[
+    "Ads network est bloqué chez moi car mon WhatsApp à été désinstaller alors comment remédier à cela",
+    "Ads Network est bloqué parce que WhatsApp a été désinstallé",
+    "J'ai désinstallé WhatsApp et BCA Ads est bloqué",
+  ],
+    "Réinstallez WhatsApp depuis la boutique officielle de votre téléphone, puis reconnectez-vous au compte associé au numéro utilisé pour BCA Ads. Retournez dans BCA Ads et suivez la procédure officielle de reconnexion ou de vérification si elle est proposée. Si le blocage persiste, contactez le support BCA en décrivant le message affiché. Ne communiquez jamais votre code de connexion, votre QR code d’appairage ou votre PIN, et ne tentez pas de contourner le blocage."),
+  context("current-whatsapp-monetization",[
+    "Dis comment on active l'option pour gagner de l'argent à travers les vues Whatsapp ?",
+    "Comment activer l'option pour gagner de l'argent avec les vues WhatsApp ?",
+    "Comment gagner avec les vues WhatsApp","Comment monétiser mes statuts",
+    "Comment activer les vues payantes",
+  ],
+    "Ouvrez BCA Ads et cherchez l’espace Diffuseur. Complétez les informations demandées, puis réalisez toutes les étapes de la campagne test et attendez sa validation finale. Ensuite, consultez les campagnes rémunérées réellement disponibles pour votre profil. Seules les vues reconnues et validées dans une campagne rémunérée peuvent contribuer à une rémunération. Le test n’est pas payé et aucun revenu ni campagne disponible immédiatement n’est garanti."),
+  context("current-activity-review",[
+    "Analyse un peu tous mes activités et récompenses sur la plateforme",
+    "Analyse toutes mes activités et mes récompenses sur la plateforme",
+    "Analyse mes gains et mes activités BCA",
+    "J'ai seulement 166f comment gagner davantage",
+    "Y'a quoi d'autre et encore pour que je puisse gagné accès d'argent actuellement j'ai que 166f",
+    "Y'a quoi d'autre pour que je puisse gagner de l'argent actuellement j'ai que 166f",
+  ],
+    "Je ne peux pas déduire vos activités ni analyser tous vos gains à partir du solde de 166 F, et je n’ai pas de consultation unique autorisée qui rassemble toutes les activités et récompenses. Consultez les mouvements de votre portefeuille et « Mes gains » dans BCA. Sabito peut vérifier séparément certains éléments depuis une session membre reconnue : une journée de diffusion BCA Ads, des commissions de parrainage récentes ou un mouvement précis du solde. Ces vérifications ne remplacent pas un relevé complet. Dites-moi quel élément vous souhaitez vérifier ; je distinguerai les montants en attente de ceux confirmés par les données retournées."),
+  context("current-no-referral-income",[
+    "D'abord comment gagner sans parrainer","Comment gagner de l'argent sans parrainer",
+    "Peut-on gagner sans parrainer sur BCA",
+  ],
+    "Le parrainage n’est pas la seule activité possible. Selon votre accès et les offres réellement disponibles, vous pouvez suivre le parcours diffuseur de BCA Ads et participer aux campagnes rémunérées après validation du test, ou vendre un produit numérique conforme dans Digital Store. Vérifiez les conditions, frais éventuels et critères d’accès avant de commencer. Ces activités ne garantissent ni ventes ni revenus."),
+  context("current-link-access",[
+    "Complète le pour permettre à quelqu'un de l'ouvrir",
+    "Complète le lien pour permettre à quelqu'un de l'ouvrir",
+    "Rends le lien accessible pour que quelqu'un puisse l'ouvrir",
+  ],
+    "De quel fichier ou lien parlez-vous, et où est-il hébergé ? Si c’est un fichier ou dossier Google Drive, dites-le et je vous donnerai les étapes correspondantes. Je préfère vérifier le contexte avant de vous conseiller de modifier les accès."),
 ];
 bcaCurrentRoutes.push(...moreCurrentRoutes);
 for(const group of [...bca152QuestionGroups,...bca70QuestionGroups]) {
@@ -255,7 +309,7 @@ export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   return undefined;
 }
 export function bcaCurrentTurn(text:string):boolean {
-  return /^(?:oui|oui oui|yes|no|nn|oui merci|oui comment|oui comment faire|oui je veux|oui est l option profil|ok|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|option [1-3]|lequel|laquelle|sur android|android|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit)$/.test(normalizeQuestion(text));
+  return /^(?:oui|oui oui|yes|no|nn|oui merci|oui comment|oui comment faire|oui je veux|oui est l option profil|ok|ok bien merci|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|option [1-3]|lequel|laquelle|sur android|android|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit|google drive|drive|c est google drive|un lien google drive)$/.test(normalizeQuestion(text));
 }
 /** Only an immediately preceding authored public prompt authorizes a next
  * step. This never supplies a financial confirmation or backend identifier. */
@@ -266,6 +320,8 @@ export function bcaCurrentContinuation(text:string,previous:string):string|undef
   if(!bcaCurrentTurn(text))return;
   const route=bcaCurrentRoutes.find(route=>route.answer===previous);
   if(!route)return;
+  if(route.key==="current-link-access"&&/\b(?:google drive|drive)\b/.test(q))
+    return "Dans Google Drive, ouvrez le fichier ou le dossier concerné, puis choisissez « Partager ». Réglez l’accès en lecture pour l’acheteur autorisé, copiez le lien et testez-le depuis une fenêtre privée ou un compte qui n’est pas propriétaire. N’activez « Toute personne disposant du lien » que si vous souhaitez réellement rendre le contenu accessible à toute personne ayant ce lien. Ne partagez pas de documents contenant des informations personnelles ou confidentielles.";
   if(q==="vous ne m avez pas montre ou le trouver") {
     if(route.key==="current-referral")return "Dans le menu des trois tirets de votre espace BCA, ouvrez « Mes gains » pour consulter vos filleuls et commissions. Pour votre code ou lien personnel, cherchez « Parrainage ». Si ces libellés sont absents, dites ce que votre menu affiche, sans coordonnées privées.";
     if(route.key==="current-seller")return seller;

@@ -15,6 +15,7 @@ import { bcaCommissionDivergences,bcaCommissionGuidance } from "./bca-commission
 import { bcaBackendAnswer } from "./bca-backend-context";
 import { bcaOwnerContinuation } from "./bca-owner-clarifications";
 import { bcaGuides } from "./bca-guide-data";
+import { isClosingAcknowledgement } from "./conversation-closing";
 
 // All 50 CSV questions; the unsolicited advertisement's phone/URLs are replaced
 // with synthetic data. No member identifier/contact is shipped in the tests.
@@ -117,6 +118,33 @@ test("All 70 rows from the newest BCA export use one safe answer or contextual p
   assert.match(referrals.answer!,/pas de consultation autorisée.*compter/s);
   const cancel=bcaCurrentQuestion("J'ai fais une erreur lors du retrait, au lieu du réseau tmoney, j'ai mis réseau moov, es ce qu'il y'a une possibilité d'annuler la transaction ?")!;
   assert.match(cancel.answer!,/ne peux ni annuler.*modifier l’opérateur/s);
+});
+test("The November 11 BCA questions use direct guidance, verified personal reads, or clarification",()=>{
+  const expected:[string,string][]=[
+    ["Complète le pour permettre à quelqu’un de l’ouvrir","current-link-access"],
+    ["Analyse un peu tous mes activités et récompenses sur la plateforme","current-activity-review"],
+    ["Dis comment on active l’option pour gagner de l’argent à travers les vues Whatsapp ?","current-whatsapp-monetization"],
+    ["Comment la déclarer","current-campaign-guide"],
+    ["Je dois envoyer la capture où","current-capture"],
+    ["Comment valider une vue","current-view-validation"],
+    ["Y'a quoi d'autre et encore pour que je puisse gagné accès d'argent actuellement j'ai que 166f","current-activity-review"],
+    ["Peux-tu m'expliquer comment fonctionne ads network","current-ads-overview"],
+    ["Comment vendre sa propre formation sur bisxonnected","current-seller"],
+    ["Comment vendre un produit","current-seller"],
+    ["Ads network est bloqué chez moi car mon WhatsApp à été désinstaller alors comment remédier à cela","current-whatsapp-blocked"],
+    ["D'abord comment gagner sans parrainer","current-no-referral-income"],
+    ["J'ai terminé le test que dois-je faire encore","current-campaign-test"],
+  ];
+  for(const [question,key] of expected)assert.equal(bcaCurrentQuestion(question)?.key,key,question);
+  assert.equal(bcaCurrentQuestion("Ok bien merci"),undefined);
+  assert.equal(isClosingAcknowledgement("Ok bien merci"),true);
+  const clarify=bcaCurrentQuestion("Complète le pour permettre à quelqu’un de l’ouvrir")!;
+  assert.match(clarify.answer!,/quel fichier ou lien/);
+  assert.match(bcaCurrentContinuation("Google Drive",clarify.answer!)!,/fenêtre privée/);
+  assert.match(bcaCurrentQuestion("Comment valider une vue")!.answer!,/ne signifie pas encore.*validée ou payée/);
+  assert.match(bcaCurrentQuestion("J'ai terminé le test que dois-je faire encore")!.answer!,/deux journées.*n’est pas rémunéré/);
+  assert.match(bcaCurrentQuestion("Analyse un peu tous mes activités et récompenses sur la plateforme")!.answer!,/pas de consultation unique autorisée/);
+  assert.match(bcaCurrentQuestion("Comment vendre un produit")!.answer!,/Chariow ou Maketou.*gratuitement/);
 });
 test("BCA intent settings respect the 30-trigger limit while exact private aliases stay routable",()=>{
   const settings=settingsSchema.parse({...defaultSettings(),intents:bcaIntents()});
