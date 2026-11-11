@@ -1,8 +1,10 @@
 import { bcaCurrentRoutes } from "./bca-current-questions";
+import { bcaOwnerClarifications } from "./bca-owner-clarifications";
 
 // Authored translations only. Never translate amounts, member identifiers or
 // backend statuses by guessing. Custom references retain their original wording.
 const support="https://bcachat.bizconnectacademy.com";
+const bcaForgottenCodeEnglish="If you forgot your BCA transaction PIN, contact official support to request a reset: "+support+". Never send your old PIN, password or an email verification code in Sabito. If you mean your sign-in password, say so; the recovery process is different.";
 export const bcaEnglish:Record<string,string>={
   "current-onboarding":"You can explore BCA training, sell digital content you have the right to sell, refer interested people, or check accessible WhatsApp campaigns. Their current availability and conditions must be checked; income is not guaranteed. Which path interests you: learning, selling, referrals or campaigns?",
   "current-seller":"Open Digital Store and your seller area. Use the actual product form, provide the required information and delivery link, then review current conditions and fees before submitting. Only sell content you have the rights to. Submission guarantees neither approval nor sales. Can you see the seller area, or are you stuck in the form?",
@@ -19,7 +21,7 @@ export const bcaEnglish:Record<string,string>={
   "current-fraud":"What happened: a payment problem, account access or a suspicious message? I cannot confirm fraud without verified facts. Do not send passwords, PINs, OTPs or tokens, and do not make another payment to unlock the situation. Keep useful evidence and contact "+support+".",
   "current-publish-price":"I do not have a connected service providing current publication fees. In Digital Store, check the seller form and its current summary before confirming. Creation, publication, changes, seller subscriptions and sales fees are distinct. I cannot confirm a price or free access from an old archive. If the information is missing, contact "+support+".",
   "current-price-choice":"Which price or fee do you mean: training, product publication, seller subscription, campaign or withdrawal? The current price must be checked in the relevant process; I will not guess an amount.",
-  "current-campaign-test":"The test campaign and a paid campaign are different steps. The test campaign is not paid, and passing it does not guarantee that a paid campaign will be immediately available. Follow the guide and conditions shown in BCA Ads Network. To check your publisher profile, ask “Vérifier mon profil diffuseur” from your recognized account.",
+  "current-campaign-test":"To follow the test path, open BCA Ads Network as a publisher, read the displayed instructions, then make the requested post and submit the required evidence by the shown deadline. Wait for its verification status before proceeding to a dependent step. I cannot assume a universal number of days from an older version. The test is not paid, and passing it does not guarantee that a paid campaign will be immediately available. Which step is blocking you?",
   "current-view-count":"Do not change or inflate the reported view count. Enter the views actually shown and follow the campaign rules. WhatsApp views, views accepted by BCA and paid views are different. To review a specific day, ask “Vérifier ma journée BCA Ads” from your recognized account.",
   "current-advertising-rate":"I cannot confirm a universal rate per view or the amounts 180 FCFA or 1.80 F from old information. The active campaign's rate and conditions apply. A WhatsApp view is not automatically validated or paid. Which campaign or day would you like to review?",
   "current-earnings-explain":"WhatsApp views, views validated by BCA and wallet credits are different. Other members’ sales or earnings do not guarantee your results; no daily amount is assured. A personal amount must be checked against the campaign and actual account records. Would you like to check a publication day or find the seller area?",
@@ -48,10 +50,25 @@ export const bcaEnglish:Record<string,string>={
   "current-unclear":"I’m not sure what you mean. Could you clarify the BCA section or action, in French or English, so I can answer without guessing?",
   "current-greeting":"Hello! What would you like to know about BCA?",
   "current-capture":"Who do you want to send the screenshot to: BCA support or a campaign step? Use only an attachment button actually present in that channel. I cannot confirm that this widget accepts images. Hide unnecessary personal or financial details and never send a password, PIN, OTP or token. Official support: "+support+".",
+  "current-visibility-choice":"Are you trying to make a Digital Store product visible, promote a BCA Ads campaign or share an official link? These are different steps, and visibility or sales are not guaranteed. What content do you want people to see?",
+  "current-ads-overview":"BCA Ads separates the advertiser path, which creates and funds an ad if the current form allows it, from the publisher path, which checks accessible campaigns, reads their terms, publishes requested content and follows verification in BCA. Availability, budget and earnings depend on the active information; I will not guess them. Are you asking as an advertiser or a publisher?",
+  "current-campaign-proof":"Publication instructions, evidence and deadlines depend on the specific campaign and day shown in BCA. I cannot confirm a universal 24-hour rule or say that disabled WhatsApp read receipts are accepted. Follow the displayed deadline and requirements. For a specific rejection, an authorized read can check the actual day status. Which campaign or day do you mean?",
+  "current-pin-clarification":"Understood: you mean the transaction PIN. Do not send it, even partially. If you forgot it, use only BCA’s official reset procedure or support: "+support+". Would you like to reset the PIN?",
+  "current-deposit-guide":"To make a deposit, sign in and open Deposits. Choose only a country and payment method shown in the current form, then check the currency, fees, net amount and reference before confirming. Enter a PIN or OTP only in the official secure flow, never in this chat. Operators and conditions can change. Which step is blocking you?",
+  "current-publisher-payout":"I cannot confirm here whether publication earnings are transferred automatically or require another step; that depends on the actual day result and wallet entries returned by BCA. Do not create a transfer to test it. For a specific case, an authorized read can check the publication day and then the wallet movement. Would you like to check a specific day?",
+  "current-share-app":"To invite someone, use your own link in Parrainage. I do not have a verified general BCA download or registration link configured here; do not share a link from an unknown source. Are you looking for your personal referral link or a general registration link?",
+  "current-subscription-clarification":"When you say “abonnement à vu,” do you mean a lifetime subscription, payment for views or another offer? I cannot confirm a price without identifying the offer and checking its current price.",
+  "current-cancel-request":"I cannot cancel, restart, change a withdrawal operator or refund a transaction from this chat. Do not create a second transaction to fix the first. Check its status in your BCA account and contact official support if you chose the wrong network: "+support+". Would you like to check its status or contact support?",
+  "current-registration-link":"I do not have a verified general registration link configured in Sabito. Open the official BCA site you already use and select its registration or create-account option; to invite someone, use your own link in Parrainage. Are you looking for a general registration link or your referral link?",
+  "current-support-hours":"I do not have confirmed support opening hours in Sabito’s active information. BCA’s configured official contact is "+support+"; check the current hours displayed there. What issue do you need to report?",
+  "current-country-payment":"I cannot confirm a specific payment operator for Benin without checking the options in the current BCA form. Select the country in the deposit or withdrawal form, then check the available methods, fees and net amount before confirming. Do you mean a deposit or a withdrawal?",
+  "current-account-email":"I cannot read your account email with the checks available here. If signed in, check the profile information in your BCA account; if you cannot access it, use official recovery or support. Do not share your password or a verification code. Are you still signed in?",
+  "current-whatsapp-blocked":"Sabito and BCA cannot unblock a WhatsApp account for you. Use WhatsApp’s official support or appeal process and never send a login code. If the block affects a BCA campaign, also contact BCA support with the campaign reference, without confidential data. Is WhatsApp blocked, or is your BCA access blocked?",
 };
 export function englishBcaAnswer(answer:string):string {
   const route=bcaCurrentRoutes.find(item=>item.answer===answer);
   if(route&&bcaEnglish[route.key])return bcaEnglish[route.key];
+  if(answer===bcaOwnerClarifications["forgotten-code"])return bcaForgottenCodeEnglish;
   if(answer==="Excellent")return "Excellent";
   if(answer==="Excellent ! Heureux d’avoir pu vous aider.")return "Excellent";
   if(answer.startsWith("Je suis disponible dans cette conversation."))
@@ -79,6 +96,7 @@ export function englishBcaAnswer(answer:string):string {
   return "Service message (original wording preserved):\n\n"+answer;
 }
 export function originalBcaAnswer(answer:string):string {
+  if(answer===bcaForgottenCodeEnglish)return bcaOwnerClarifications["forgotten-code"];
   const key=Object.keys(bcaEnglish).find(key=>bcaEnglish[key]===answer);
   if(key)return bcaCurrentRoutes.find(route=>route.key===key)?.answer??answer;
   const prefix="Service message (original wording preserved):\n\n";

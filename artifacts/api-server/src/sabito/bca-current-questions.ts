@@ -1,5 +1,6 @@
 import { normalizeQuestion } from "./question-normalization";
 import { bca152QuestionGroups } from "./bca-152-questions";
+import { bca70QuestionGroups } from "./bca-70-questions";
 
 /** Owner's November instructions. No live tariff, availability or account
  * result is embedded here. Private targets are existing read-only handlers. */
@@ -95,7 +96,8 @@ export const bcaCurrentRoutes:BcaQuestionRoute[]=[
   {key:"current-commissions",kind:"private",target:"referral_commissions_recent",source:"Handler de lecture des commissions récentes du membre",questions:["Commission non reçu","Commission non reçue"]},
   {key:"current-day",kind:"private",target:"ads_payout_status",source:"Handler de lecture d’une journée ; ne valide pas la journée",questions:["Validé mon jour 2","Valide mon jour 2","Jusqu’à présent mon jour n’est pas validé","Jour non traités"]},
   {key:"current-availability",kind:"private",target:"ads_publisher_status",source:"Profil diffuseur et validation test ; pas une liste de campagnes",questions:["Je veut des campagnes","Je veux des campagnes","Mais campagne ne vient pas encore"]},
-  {key:"current-followup",kind:"context",target:"explain",source:"Sujet public récent uniquement",questions:["Ok guide moi","Guide-moi","Pourquoi"]},
+  {key:"current-followup",kind:"context",target:"explain",source:"Sujet public récent uniquement",questions:[
+    "Ok guide moi","Guide-moi","Pourquoi","Aidé moi à nouveau ,je voudrais savoir","Aidez moi à nouveau","Et pourquoi ?"]},
 ];
 // Merge this export's spellings into the same authored routes, not duplicate FAQs.
 const novemberAliases:Record<string,string[]>={
@@ -144,7 +146,9 @@ bcaCurrentRoutes.push(
 );
 const moreCurrentRoutes:BcaQuestionRoute[]=[
   context("current-campaign-test",[],
-    "La campagne test et une campagne rémunérée sont deux étapes différentes. La campagne test n’est pas rémunérée et sa validation ne garantit pas qu’une campagne payante soit immédiatement disponible. Consultez le guide affiché dans BCA Ads Network et les conditions de votre campagne. Pour vérifier l’état de votre parcours diffuseur, demandez « Vérifier mon profil diffuseur » depuis votre compte reconnu."),
+    "Pour suivre le parcours test, ouvrez BCA Ads Network côté diffuseur, consultez les consignes affichées, puis réalisez la publication et transmettez les éléments demandés dans le délai indiqué. Attendez le statut de vérification avant de poursuivre une étape dépendante. Je ne peux pas supposer un nombre de jours universel à partir d’une ancienne version. Le test n’est pas rémunéré et sa validation ne garantit pas qu’une campagne payante soit immédiatement disponible. À quelle étape êtes-vous bloqué ?"),
+  context("current-deposit-guide",[],
+    "Pour faire un dépôt, connectez-vous et ouvrez la rubrique Dépôt. Choisissez uniquement un pays et un moyen de paiement affichés dans le formulaire actuel, puis vérifiez la devise, les frais, le montant net et la référence avant de confirmer. Saisissez le PIN ou l’OTP uniquement dans le parcours sécurisé officiel, jamais dans le chat. Les opérateurs et conditions peuvent changer. Êtes-vous bloqué à une étape précise ?"),
   context("current-view-count",[],
     "Vous ne devez pas modifier ni gonfler le nombre de vues déclaré : indiquez les vues réellement affichées et suivez les règles de la campagne. Vues WhatsApp, vues retenues par BCA et vues rémunérées sont différentes. Pour examiner une journée précise, demandez « Vérifier ma journée BCA Ads » depuis votre compte reconnu."),
   context("current-advertising-rate",[],
@@ -201,9 +205,39 @@ const moreCurrentRoutes:BcaQuestionRoute[]=[
     "Merci de me le préciser. Quelle étape avez-vous déjà faite et quel message voyez-vous maintenant ? Je vais éviter de vous faire répéter les mêmes étapes."),
   context("current-no-answer",[],
     "Désolé, je n’ai pas répondu directement. Quelle question précise ai-je manquée ? Je vais aller droit au point."),
+  context("current-visibility-choice",[],
+    "Pour vous orienter, je dois savoir si votre objectif est de rendre visible un produit Digital Store, de diffuser une campagne BCA Ads ou de partager un lien officiel. Les démarches sont différentes et aucune visibilité ni vente n’est garantie. Quel contenu souhaitez-vous faire connaître ?"),
+  context("current-ads-overview",[],
+    "BCA Ads distingue le parcours annonceur, qui crée et finance une publicité si le formulaire actuel le permet, du parcours diffuseur, qui consulte les campagnes accessibles, lit leurs conditions, publie le contenu demandé et suit la vérification dans BCA. La disponibilité, le budget et les gains dépendent des informations affichées dans le parcours actif ; je ne les devine pas. Vous cherchez le parcours annonceur ou diffuseur ?"),
+  context("current-campaign-proof",[],
+    "Les consignes de publication, la preuve attendue et l’échéance sont propres à la campagne et à la journée affichées dans BCA. Je ne peux pas confirmer une règle universelle de 24 heures ni affirmer que les confirmations de lecture WhatsApp désactivées sont acceptées. Suivez l’échéance et les exigences de la campagne concernée ; pour un rejet précis, une lecture autorisée de la journée peut vérifier le statut réellement renvoyé. De quelle campagne ou journée s’agit-il ?"),
+  context("current-pin-clarification",[],
+    "D’accord, vous parlez du PIN de transaction. Ne me l’envoyez pas, même partiellement. Si vous l’avez oublié, utilisez uniquement la procédure de réinitialisation ou le support officiel BCA : "+support+". Souhaitez-vous réinitialiser ce PIN ?"),
+  {key:"current-product-review",kind:"private",target:"digital_product_review",
+    source:"Lecture seule du statut et du motif de modération du produit du membre",questions:[]},
+  {key:"current-wallet-balance",kind:"private",target:"wallet_balance",
+    source:"Lecture seule des portefeuilles du membre authentifié ; n’explique pas une différence non renvoyée par BCA",questions:[]},
+  context("current-publisher-payout",[],
+    "Je ne peux pas confirmer ici si les gains d’une diffusion sont transférés automatiquement ou s’il faut effectuer une autre démarche : cela dépend du résultat de la journée et des écritures de portefeuille réellement renvoyés par BCA. Ne créez pas un transfert pour tester. Pour un cas précis, une lecture autorisée peut vérifier la journée de diffusion, puis le mouvement du portefeuille. Voulez-vous vérifier une journée précise ?"),
+  context("current-share-app",[],
+    "Pour inviter une personne, utilisez votre propre lien dans la rubrique Parrainage. Je n’ai pas de lien général de téléchargement ou d’inscription BCA vérifié à fournir ici ; ne partagez pas un lien reçu d’une source inconnue. Cherchez-vous votre lien personnel de parrainage ou le lien général d’inscription ?"),
+  context("current-subscription-clarification",[],
+    "Quand vous dites « abonnement à vu », parlez-vous d’un abonnement à vie, de la rémunération liée aux vues ou d’une autre offre ? Je ne peux pas confirmer un tarif sans identifier l’offre et consulter son prix actuel."),
+  context("current-cancel-request",[],
+    "Je ne peux ni annuler, relancer, modifier l’opérateur d’un retrait, ni rembourser une transaction depuis ce chat. Ne créez pas une deuxième opération pour corriger la première. Consultez le statut avec la référence de votre opération dans votre compte BCA et contactez le support officiel si vous avez choisi le mauvais réseau : "+support+". Souhaitez-vous vérifier le statut ou contacter le support ?"),
+  context("current-registration-link",[],
+    "Je n’ai pas de lien d’inscription général vérifié configuré dans Sabito. Ouvrez le site officiel BCA que vous utilisez déjà et choisissez son entrée « Inscription » ou « Créer un compte » ; pour inviter quelqu’un, utilisez votre propre lien dans Parrainage. Cherchez-vous un lien d’inscription général ou votre lien de parrainage ?"),
+  context("current-support-hours",[],
+    "Je n’ai pas d’horaires d’ouverture du support confirmés dans les informations actives de Sabito. Le contact officiel communiqué par BCA est "+support+" ; vérifiez-y les horaires actuellement affichés. Quel problème souhaitez-vous leur signaler ?"),
+  context("current-country-payment",[],
+    "Je ne peux pas confirmer un opérateur de paiement précis pour le Bénin sans consulter les options affichées dans le formulaire BCA actuel. Choisissez le pays dans le formulaire de dépôt ou de retrait, puis vérifiez les moyens, frais et montant net avant de confirmer. Parlez-vous d’un dépôt ou d’un retrait ?"),
+  context("current-account-email",[],
+    "Je ne peux pas lire l’adresse e-mail de votre compte avec les consultations disponibles ici. Si vous êtes connecté, vérifiez les informations de profil dans votre espace BCA ; si vous ne pouvez pas y accéder, utilisez la récupération officielle ou le support. Ne partagez pas votre mot de passe ni un code reçu. Êtes-vous encore connecté à votre compte ?"),
+  context("current-whatsapp-blocked",[],
+    "Sabito et BCA ne peuvent pas débloquer un compte WhatsApp à votre place. Utilisez la procédure officielle d’assistance ou de contestation dans WhatsApp et ne transmettez aucun code de connexion. Si le blocage affecte une campagne BCA, contactez aussi le support BCA avec la référence de la campagne, sans données confidentielles. Le blocage concerne-t-il WhatsApp ou votre accès à BCA ?"),
 ];
 bcaCurrentRoutes.push(...moreCurrentRoutes);
-for(const group of bca152QuestionGroups) {
+for(const group of [...bca152QuestionGroups,...bca70QuestionGroups]) {
   if(group.route==="conversation")continue;
   const route=bcaCurrentRoutes.find(item=>item.key===group.route);
   if(!route)throw new Error(`BCA question export route is missing: ${group.route}`);

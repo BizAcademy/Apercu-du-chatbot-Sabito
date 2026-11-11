@@ -45,10 +45,10 @@ export type BcaFollowupKind="explain"|"detail"|"link"|"blocked"|"profile"|"publi
   "option"|"which"|"device";
 const turns:[BcaFollowupKind,string[]][]=[
   ["explain",["Comment ça fonctionne ?","Comment faire","Explication claire","aide moi","Aidez-moi à niveau","Alors, aidez-moi, s'il vous plaît.",
-    "Aidez moi à nouveau","Aidez moi à nouveau dans bca","Répondez"]],
+    "Aidez moi à nouveau","Aidez moi à nouveau dans bca","Aidé moi à nouveau ,je voudrais savoir","Répondez"]],
   ["detail",["Je veux connaître plus"]],
   ["link",["Okay envoie moi ça comme un lien","Comment l'envoyer au personne"]],
-  ["blocked",["Ce qui bloque ?","Vous n'avez pas pu répondre","Bonjour, j'ai fait mon dépôt mais ça ne marche pas. Comment faire ?"]],
+  ["blocked",["Ce qui bloque ?","Vous n'avez pas pu répondre","Tu ne peux pas répondre","Tu ne peux pas répondre ?","Bonjour, j'ai fait mon dépôt mais ça ne marche pas. Comment faire ?"]],
   ["profile",["Oui est l'option profil"]],
   ["publish",["Okay c'est sur quel plateforme je dois poste les photos et vidéos"]],
   ["started",["Okay, j'ai mon espace déjà"]],

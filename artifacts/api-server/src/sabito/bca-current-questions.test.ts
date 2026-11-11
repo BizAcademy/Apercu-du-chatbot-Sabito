@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bcaCurrentRoutes,bcaCurrentQuestion,bcaCurrentContinuation,bcaCurrentTurn,bcaReferralAmounts } from "./bca-current-questions";
 import { bca152QuestionGroups } from "./bca-152-questions";
+import { bca70QuestionGroups } from "./bca-70-questions";
 import { bcaSocialAnswer } from "./bca-session";
 import { englishBcaAnswer } from "./bca-language";
 import { normalizeQuestion } from "./question-normalization";
@@ -82,6 +83,41 @@ test("All 152 rows from the latest BCA export have a safe route or contextual re
       assert.ok((route!.answer!.match(/\?/g)??[]).length<=1,"At most one follow-up question: "+question);
     }
   }
+});
+test("All 70 rows from the newest BCA export use one safe answer or contextual path",()=>{
+  const rows=bca70QuestionGroups.flatMap(group=>group.questions);
+  assert.equal(rows.length,70);
+  assert.equal(new Set(rows.map(normalizeQuestion)).size,70);
+  const settings={...defaultSettings(),intents:bcaIntents()};
+  for(const group of bca70QuestionGroups)for(const question of group.questions) {
+    if(group.route==="conversation") {
+      const kind=bcaFollowupKind(question);
+      assert.ok(kind,question);
+      if(normalizeQuestion(question)==="et pourquoi")assert.equal(kind,"explain",question);
+      if(normalizeQuestion(question)==="tu ne peux pas repondre")assert.equal(kind,"blocked",question);
+      continue;
+    }
+    const route=bcaNovemberRoute(question);
+    assert.equal(route?.key,group.route,question);
+    if(route?.kind==="private") {
+      assert.ok(settings.intents.some(intent=>intent.enabled&&intent.backend_function===route.target),question);
+      assert.equal(detectIntent(question,settings),route.target,question);
+      assert.equal(route.answer,undefined,question);
+    } else {
+      assert.ok(route?.answer,question);
+      assert.doesNotMatch(englishBcaAnswer(route!.answer!),/^Service message/,"English-mode route is translated: "+question);
+      assert.ok((route!.answer!.match(/\?/g)??[]).length<=1,"At most one follow-up question: "+question);
+    }
+  }
+  const deposit=bcaCurrentQuestion("Comment faire un DEPO dans mon compte")!;
+  assert.match(deposit.answer!,/moyen de paiement affichés dans le formulaire actuel/);
+  const views=bcaCurrentQuestion("J'ai fais 168vues aujourd'hui et j'ai été payé à seulement 108fcfa")!;
+  assert.equal(views.kind,"private");
+  assert.equal(views.target,"ads_payout_status");
+  const referrals=bcaCurrentQuestion("Salutations peux-tu vérifier le nombre de personnes que j'ai réussi à parrainé")!;
+  assert.match(referrals.answer!,/pas de consultation autorisée.*compter/s);
+  const cancel=bcaCurrentQuestion("J'ai fais une erreur lors du retrait, au lieu du réseau tmoney, j'ai mis réseau moov, es ce qu'il y'a une possibilité d'annuler la transaction ?")!;
+  assert.match(cancel.answer!,/ne peux ni annuler.*modifier l’opérateur/s);
 });
 test("Affirming the profile location keeps the relevant PIN guidance in context",()=>{
   const pin=bcaGuides.find(guide=>guide.key==="07")!.content;
