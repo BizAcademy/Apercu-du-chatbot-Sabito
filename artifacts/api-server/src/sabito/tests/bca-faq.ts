@@ -9,6 +9,7 @@ import { bcaFaq } from "../bca-faq";
 import { readAssistantSettings } from "../assistant-settings";
 import { retrieveReply } from "../question-search";
 import { bcaGuides } from "../bca-guide-data";
+import { bcaSignupGuideLegacyContent } from "../bca-knowledge-install";
 import { bcaQuestionAliases,bcaQuestionFaq } from "../bca-question-followups";
 import { bcaConversationHelp } from "../bca-conversation-help";
 import { saveKnowledge } from "../knowledge";
@@ -264,11 +265,18 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   const copyDoc=docs.find((doc:{title:string})=>doc.title===customCopy.title);
   const customCopyContent="Consignes de partage personnalisées par le propriétaire.";
   await saveKnowledge(id,customCopy.title,customCopyContent,copyDoc.id,undefined,copyDoc.variantes_de_question);
+  const signupGuide=bcaGuides.find(guide=>guide.key==="03")!;
+  const signupDoc=docs.find((doc:{title:string})=>doc.title===signupGuide.title);
+  const customSignupVariant="Mon ancienne formulation personnalisée";
+  await saveKnowledge(id,signupGuide.title,bcaSignupGuideLegacyContent,signupDoc.id,undefined,
+    ["Comment m’inscrire ?","Comment rejoindre BCA ?","Pourquoi on me demande un parrain ?",customSignupVariant]);
   await saveKnowledge(id,"Suivi personnalisé et ancien calcul","Consignes conservées.",undefined,undefined,[],[
     {question:legacy.title,answer:legacy.content},
+    {question:signupGuide.title,answer:bcaSignupGuideLegacyContent},
     {question:"Ma règle personnalisée",answer:"Ne pas changer cette réponse."},
   ]);
   await pool.query("DELETE FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",[id,"bca.owner_answers.corrections"]);
+  await pool.query("DELETE FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2",[id,"bca.signup_guide.payment_page.v1"]);
   const persisted={...configuration.settings,intents:configuration.settings.intents.map(intent=>({
     ...intent,
     enabled:intent.backend_function==="referral_commission_status"?false:intent.enabled,
@@ -282,12 +290,19 @@ export async function verifyBcaFaq({app,adminKey,projectIds,openSocket}:{
   assert.equal(await correctionUpgrade.ensureBcaKnowledge(id),true);
   assert.equal((await retrieveReply(id,legacy.title)).answer,bcaOwnerCorrections[legacy.key]);
   assert.equal((await retrieveReply(id,customCopy.title)).answer,customCopyContent);
+  for(const question of ["Comment créé le compte bca","Comment créé le compte BCA ?",
+    "Comment m’inscrire à BCA ?","Comment rejoindre BCA ?","Comment ouvrir un compte ?"])
+    assert.equal((await retrieveReply(id,question)).answer,signupGuide.content,question);
   const upgradedDocs=(await request(app).get(url).set("X-Admin-Key",adminKey).expect(200)).body.data;
+  const upgradedSignup=upgradedDocs.find((doc:{title:string})=>doc.title===signupGuide.title);
+  assert.ok(upgradedSignup.variantes_de_question.includes(customSignupVariant));
+  assert.ok(upgradedSignup.variantes_de_question.includes("Comment créé le compte bca"));
   const followed=upgradedDocs.find((doc:{title:string})=>doc.title==="Suivi personnalisé et ancien calcul");
   const storedFollowUps=await pool.query("SELECT questions_json FROM sabito_core.knowledge_follow_ups WHERE project_id=$1 AND document_id=$2",[id,followed.id]);
   const savedFollowUps=JSON.parse(String(storedFollowUps.rows[0].questions_json));
   assert.equal(savedFollowUps[0].answer,bcaOwnerCorrections[legacy.key]);
-  assert.equal(savedFollowUps[1].answer,"Ne pas changer cette réponse.");
+  assert.equal(savedFollowUps[1].answer,signupGuide.content);
+  assert.equal(savedFollowUps[2].answer,"Ne pas changer cette réponse.");
   const adjusted=await readAssistantSettings(id);
   assert.ok(adjusted.settings.intents.find(intent=>intent.backend_function==="referral_code")!.triggers.includes("Mon code parrainage"));
   assert.ok(adjusted.settings.intents.find(intent=>intent.backend_function==="referral_code")!.triggers.includes("Mon déclencheur personnalisé"));

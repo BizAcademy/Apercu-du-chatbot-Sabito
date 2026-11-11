@@ -37,11 +37,15 @@ export const bcaGuides:BcaGuide[] = [
     "key": "03",
     "title": "Comment créer un compte BCA ?",
     "variants": [
+      "Comment créé le compte bca",
+      "Comment créé le compte BCA ?",
       "Comment m’inscrire ?",
+      "Comment m’inscrire à BCA ?",
       "Comment rejoindre BCA ?",
+      "Comment ouvrir un compte ?",
       "Pourquoi on me demande un parrain ?"
     ],
-    "content": "1. Ouvrez l’inscription depuis le site officiel.\n2. Renseignez le nom demandé, votre e-mail, le pays et votre numéro WhatsApp avec l’indicatif.\n3. Créez votre mot de passe et confirmez-le dans le formulaire.\n4. Indiquez un code de parrainage valide ou vérifiez celui prérempli par le lien d’invitation.\n5. Validez et suivez les instructions affichées.\nDans la version analysée, le code de parrainage est obligatoire et doit correspondre à un parrain existant. Ne l’inventez pas.\nLe nom et l’e-mail doivent être uniques. Une inscription peut aussi être temporairement indisponible en cas de maintenance.\nLe compte nouvellement créé doit ensuite suivre le parcours d’activation. Ne transmettez jamais votre mot de passe dans le chat.",
+    "content": "1. Ouvrez le site officiel de BizConnect Academy et sélectionnez « Inscription ».\n2. Remplissez le formulaire avec les renseignements demandés : nom, adresse e-mail, pays et numéro WhatsApp avec l’indicatif du pays.\n3. Créez un mot de passe, puis confirmez-le dans le formulaire. Ne communiquez jamais votre mot de passe dans le chat.\n4. Saisissez un code de parrainage valide, ou vérifiez que le code prérempli par votre lien d’invitation est correct. N’inventez pas de code.\n5. Relisez les informations et validez l’inscription. Suivez les instructions affichées, notamment si une vérification de l’adresse e-mail est demandée.\n6. Après la création du compte, connectez-vous si la plateforme le demande et ouvrez le parcours d’activation proposé.\n7. Choisissez le pays et le moyen de paiement disponibles, puis continuez jusqu’à la page de paiement.\n8. Avant de payer, vérifiez que le récapitulatif affiche bien 2 900 FCFA et que les informations sont correctes.\nUtilisez uniquement les moyens affichés sur la page officielle BCA ; ils peuvent varier selon le pays. Je peux vous guider jusqu’à la page de paiement, mais je ne peux pas confirmer qu’un paiement a été effectué ni que le compte est activé.\nSi le montant affiché diffère de 2 900 FCFA ou si une étape bloque, ne confirmez pas le paiement et contactez l’assistance officielle : https://bcachat.bizconnectacademy.com.\nNe transmettez jamais votre mot de passe, un code de vérification ou un PIN dans le chat. N’utilisez aucun numéro de paiement ou lien non confirmé. Vous n’avez pas besoin de partager une référence de transaction pour obtenir ces étapes.",
     "followUpKeys": [
       "05",
       "07"

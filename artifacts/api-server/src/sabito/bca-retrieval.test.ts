@@ -87,6 +87,17 @@ test("BCA malformed controls report exact answers separately from confirmations"
   assert.equal(falsePositives,0);
   assert.equal(indexSearchDocuments(settings,documents.map(d=>({...d,status:"pending"}))).entries.length,0);
 });
+test("BCA account signup recognizes the owner-provided wording and guards the payment step",()=>{
+  const signup=bcaGuides.find(guide=>guide.key==="03")!;
+  for(const question of [
+    "Comment créé le compte bca","Comment créé le compte BCA ?","Comment m’inscrire à BCA ?",
+    "Comment rejoindre BCA ?","Comment ouvrir un compte ?",
+  ])assert.ok(signup.variants.includes(question),question);
+  assert.match(signup.content,/2 900 FCFA/);
+  assert.match(signup.content,/ne confirmez pas le paiement/i);
+  assert.match(signup.content,/bcachat\.bizconnectacademy\.com/);
+  assert.match(signup.content,/Vous n’avez pas besoin de partager une référence de transaction/);
+});
 test("Final public answers close exactly; financial and uncertain replies do not",()=>{
   const reply={reliable:true,closing_message:"",suggestions:[1,2,3,4],suggestions_label:""};
   assert.equal(publicReplyPresentation(reply,false).closing_message,requestedClosing);

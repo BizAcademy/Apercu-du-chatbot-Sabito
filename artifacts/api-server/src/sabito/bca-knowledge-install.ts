@@ -16,6 +16,9 @@ import { bcaNovemberAliases,bcaNovemberDrafts,bcaNovemberPrivateAliases } from "
 const installed = new Set<string>();
 const action = "bca.help_pack.installed";
 type Answer = {content:string;status:string;priority:number};
+// Exact previous shipped answer: only this untouched version is eligible for
+// the one-time owner-approved signup-guide correction below.
+export const bcaSignupGuideLegacyContent = "1. Ouvrez l’inscription depuis le site officiel.\n2. Renseignez le nom demandé, votre e-mail, le pays et votre numéro WhatsApp avec l’indicatif.\n3. Créez votre mot de passe et confirmez-le dans le formulaire.\n4. Indiquez un code de parrainage valide ou vérifiez celui prérempli par le lien d’invitation.\n5. Validez et suivez les instructions affichées.\nDans la version analysée, le code de parrainage est obligatoire et doit correspondre à un parrain existant. Ne l’inventez pas.\nLe nom et l’e-mail doivent être uniques. Une inscription peut aussi être temporairement indisponible en cas de maintenance.\nLe compte nouvellement créé doit ensuite suivre le parcours d’activation. Ne transmettez jamais votre mot de passe dans le chat.";
 
 /** Install the owner's approved BCA pack once. The project lock and durable
  * marker also protect concurrent workers, cold starts and intentional deletions. */
@@ -127,6 +130,57 @@ export async function ensureBcaKnowledge(projectId:string):Promise<boolean> {
       }
       await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
         VALUES ($1,'system',$2,$3)`,[projectId,correctionsAction,JSON.stringify({source:"owner-confirmed-answers",updated})]);
+      changed=changed||updated>0;
+    }
+    const signupCorrectionAction="bca.signup_guide.payment_page.v1";
+    const signupMarker=await connection.query("SELECT id FROM sabito_core.audit_logs WHERE project_id=$1 AND action=$2 LIMIT 1",
+      [projectId,signupCorrectionAction]);
+    if(!signupMarker.rows.length) {
+      const signupGuide=bcaGuides.find(guide=>guide.key==="03")!;
+      const documents=await connection.query(`SELECT d.id,d.title,d.content,d.status,v.variantes_de_question,f.questions_json
+        FROM sabito_core.knowledge_documents d LEFT JOIN sabito_core.knowledge_question_variants v
+        ON v.document_id=d.id AND v.project_id=d.project_id LEFT JOIN sabito_core.knowledge_follow_ups f
+        ON f.document_id=d.id AND f.project_id=d.project_id WHERE d.project_id=$1`,[projectId]);
+      const target=documents.rows.find(row=>String(row.title)===signupGuide.title&&
+        String(row.content)===bcaSignupGuideLegacyContent&&String(row.status)==="ready");
+      let updated=0,addedVariants=0;
+      if(target) {
+        const reserved=new Set<string>();
+        for(const row of documents.rows) {
+          if(String(row.id)===String(target.id))continue;
+          reserved.add(normalizeQuestion(String(row.title)));
+          for(const variant of JSON.parse(String(row.variantes_de_question??"[]")) as string[])
+            reserved.add(normalizeQuestion(variant));
+          for(const item of JSON.parse(String(row.questions_json??"[]")) as {question:string;answer:string}[])
+            reserved.add(normalizeQuestion(item.question));
+        }
+        const beforeVariants=JSON.parse(String(target.variantes_de_question??"[]")) as string[];
+        const seen=new Set(beforeVariants.map(normalizeQuestion));
+        const additions=signupGuide.variants.filter(variant=>{
+          const normalized=normalizeQuestion(variant);
+          if(!normalized||seen.has(normalized)||reserved.has(normalized))return false;
+          seen.add(normalized);
+          return true;
+        });
+        addedVariants=additions.length;
+        for(const row of documents.rows) {
+          const isTarget=String(row.id)===String(target.id);
+          const content=isTarget?signupGuide.content:String(row.content);
+          const priorVariants=JSON.parse(String(row.variantes_de_question??"[]")) as string[];
+          const variants=isTarget?[...beforeVariants,...additions]:priorVariants;
+          const before=JSON.parse(String(row.questions_json??"[]")) as {question:string;answer:string}[];
+          const after=before.map(item=>item.question===signupGuide.title&&item.answer===bcaSignupGuideLegacyContent?
+            {...item,answer:signupGuide.content}:item);
+          if(content===String(row.content)&&JSON.stringify(variants)===JSON.stringify(priorVariants)&&
+            JSON.stringify(before)===JSON.stringify(after))continue;
+          await saveKnowledge(projectId,String(row.title),content,String(row.id),connection,variants,after);
+          updated++;
+        }
+      }
+      await connection.query(`INSERT INTO sabito_core.audit_logs(project_id,actor_type,action,metadata)
+        VALUES ($1,'system',$2,$3)`,[projectId,signupCorrectionAction,JSON.stringify({
+        source:"owner-approved-bca-signup-steps",upgraded:Boolean(target),updated,addedVariants,
+      })]);
       changed=changed||updated>0;
     }
     const privateAliasAction="bca.owner_private_aliases.installed";
