@@ -17,10 +17,10 @@ export async function verifyBcaNewSession(projectId:string,clientId:string,openS
   const conversationId=await createConversation(projectId,claims.externalUserId,{__sabito_bca:{language:"en"}});
   assert.equal((await readBcaSession(claims,conversationId)).state.language,"fr","Client metadata cannot seed server state");
   let socket=await openSocket(signAccessToken(claims));
-  const send=(content:string)=>new Promise<string>((resolve,reject)=>{
+  const send=(content:string,targetConversation=conversationId)=>new Promise<string>((resolve,reject)=>{
     const timeout=setTimeout(()=>reject(new Error("BCA_NEW_SESSION_TIMEOUT")),15000);
     socket.once("message:complete",message=>{clearTimeout(timeout);resolve(String(message.content));});
-    socket.emit("message:send",{conversationId,content,idempotencyKey:randomUUID()},(ack:{ok:boolean})=>{
+    socket.emit("message:send",{conversationId:targetConversation,content,idempotencyKey:randomUUID()},(ack:{ok:boolean})=>{
       if(!ack.ok){clearTimeout(timeout);reject(new Error("BCA_NEW_SESSION_REJECTED"));}
     });
   });
@@ -63,6 +63,26 @@ export async function verifyBcaNewSession(projectId:string,clientId:string,openS
     assert.equal(pending.rows[0].status,"collecting");
     assert.equal(JSON.parse(String(pending.rows[0].collected_json)).publication_reference,undefined);
     await handleIntent(member,privateConversation,"annuler");
+    // New export: real socket responses, context choices and no guest lookup.
+    const contactsConversation=await createConversation(projectId,claims.externalUserId);
+    assert.equal(await send("Contact",contactsConversation),route("current-member-contact-choice"));
+    assert.equal(await send("support",contactsConversation),route("current-member-support"));
+    const startConversation=await createConversation(projectId,claims.externalUserId);
+    assert.equal(await send("Tout m'interesse",startConversation),route("current-member-overview"));
+    assert.equal(await send("campagnes WhatsApp",startConversation),route("current-member-publisher"));
+    assert.equal(await send("Dégage donc",startConversation),route("current-member-stop"));
+    assert.equal(await send("Oui",startConversation),"D’accord.");
+    const vagueConversation=await createConversation(projectId,claims.externalUserId);
+    assert.match(await send("J'ai tout vérifié",vagueConversation),/Quel sujet ou quelle étape/);
+    for(const question of [
+      "J'ai diffusé une annonce mais j'ai pas été rémunéré",
+      "Actuellement j' ai combien sur mon compte BCA",
+      "Tu peux vérifier si mon profil diffuseur est validé j'ai déjà validé la campagne test",
+    ]) {
+      const guestConversation=await createConversation(projectId,claims.externalUserId);
+      assert.match((await handleIntent(claims,guestConversation,question))!,/Connectez-vous/,
+        "A name or reported activity never authenticates the guest");
+    }
     await pool.query(`UPDATE sabito_core.conversations SET created_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 25 HOUR)
       WHERE id=$1`,[conversationId]);
     assert.equal((await readBcaSession(claims,conversationId)).owned,false);

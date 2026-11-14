@@ -1,6 +1,7 @@
 import { normalizeQuestion } from "./question-normalization";
 import { bca152QuestionGroups } from "./bca-152-questions";
 import { bca70QuestionGroups } from "./bca-70-questions";
+import { bcaMemberGuidance,bcaMemberPrivateGroups,bcaMemberShortTurns,bcaMemberClarification } from "./bca-member-guidance";
 
 /** Owner's November instructions. No live tariff, availability or account
  * result is embedded here. Private targets are existing read-only handlers. */
@@ -297,10 +298,29 @@ for(const group of [...bca152QuestionGroups,...bca70QuestionGroups]) {
   if(!route)throw new Error(`BCA question export route is missing: ${group.route}`);
   route.questions.push(...group.questions);
 }
+// Do not move an already supported spelling away from its established route.
+// This preserves existing owner edits and references across export upgrades.
+const reserved=new Set(bcaCurrentRoutes.flatMap(route=>route.questions.map(normalizeQuestion)));
+for(const group of bcaMemberPrivateGroups) {
+  const route=bcaCurrentRoutes.find(item=>item.key===group.route);
+  if(!route)throw new Error(`Missing BCA member handler: ${group.route}`);
+  for(const question of group.questions)if(!reserved.has(normalizeQuestion(question))) {
+    route.questions.push(question);reserved.add(normalizeQuestion(question));
+  }
+}
+for(const guide of bcaMemberGuidance) {
+  const questions=guide.questions.filter(question=>!reserved.has(normalizeQuestion(question)));
+  if(!questions.length)continue;
+  bcaCurrentRoutes.push(context(guide.key,questions,guide.answer));
+  questions.forEach(question=>reserved.add(normalizeQuestion(question)));
+}
 const indexed=new Map(bcaCurrentRoutes.flatMap(route=>route.questions.map(q=>[normalizeQuestion(q),route] as const)));
 export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   const exact=indexed.get(normalizeQuestion(text));
   if(exact)return exact;
+  // A self-reported name/country is not a verified identity or a test result.
+  if(/^j ai reussi (?:le|la) campagne (?:de )?test\b/.test(normalizeQuestion(text)))
+    return bcaCurrentRoutes.find(route=>route.key==="current-member-publisher");
   // Promotional text is data, never a system instruction or source of links.
   if(/https?:\/\/|wa\.me|(?:\+?\d[\s.-]?){8,}/i.test(text)&&
     /\b(?:guide|commande|acheter|promotion|prix|seulement)\b/i.test(text))
@@ -309,6 +329,8 @@ export function bcaCurrentQuestion(text:string):BcaQuestionRoute|undefined {
   return undefined;
 }
 export function bcaCurrentTurn(text:string):boolean {
+  if(/^(?:support|contact|contacts|campagnes whatsapp|formations|vente dans digital store)$/.test(normalizeQuestion(text)))return true;
+  if(bcaMemberShortTurns.some(turn=>normalizeQuestion(turn)===normalizeQuestion(text)))return true;
   return /^(?:oui|oui oui|yes|no|nn|oui merci|oui comment|oui comment faire|oui je veux|oui est l option profil|ok|ok bien merci|okay|d accord|ok guide moi|guide moi|je vous ecoute|enfin tu es disponible|vous ne m avez pas montre ou le trouver|comment faire|pourquoi|non|non merci|option [1-3]|lequel|laquelle|sur android|android|apprendre|vendre|vente|parrainage|campagnes?|les vues|le prix|je veux savoir le prix|c est gratuit|google drive|drive|c est google drive|un lien google drive)$/.test(normalizeQuestion(text));
 }
 /** Only an immediately preceding authored public prompt authorizes a next
@@ -317,9 +339,31 @@ export function bcaCurrentContinuation(text:string,previous:string):string|undef
   let q=normalizeQuestion(text);
   if(["yes","je vous ecoute","enfin tu es disponible"].includes(q))q="oui";
   if(q==="no")q="non";
+  if(q==="nn")q="non";
+  if(["ouais","vas y","ah ok vous pouvez repondre"].includes(q))q="oui";
   if(!bcaCurrentTurn(text))return;
   const route=bcaCurrentRoutes.find(route=>route.answer===previous);
   if(!route)return;
+  if(q==="contact"&&["current-member-support","current-member-contacts"].includes(route.key))return route.answer;
+  if(route.key==="current-member-stop")return "D’accord.";
+  if(route.key==="current-member-contact-choice") {
+    if(q==="support")return bcaMemberGuidance.find(item=>item.key==="current-member-support")!.answer;
+    if(q==="contacts")return bcaMemberGuidance.find(item=>item.key==="current-member-contacts")!.answer;
+    return "Précisez « support » pour l’assistance humaine ou « contacts » pour la fonction Contacts.";
+  }
+  if(route.key==="current-member-delete-choice")return "Précisez l’élément à supprimer : compte, produit ou autre contenu.";
+  if(route.key==="current-member-overview") {
+    const key=/^(?:campagnes?|campagnes whatsapp)$/.test(q)?"current-member-publisher":
+      q==="parrainage"?"current-member-referral":/^(?:apprendre|formations)$/.test(q)?"current-member-learning":
+      /^(?:vendre|vente|vente dans digital store)$/.test(q)?"current-member-seller":undefined;
+    if(key)return bcaMemberGuidance.find(item=>item.key===key)!.answer;
+    if(["oui","non","tout","tous"].includes(q))return "Quel parcours souhaitez-vous découvrir : campagnes WhatsApp, parrainage, formations ou vente dans Digital Store ?";
+  }
+  if(q==="je trouve pas"||q==="je vais voir ca ou")
+    return "Concernant votre démarche précédente, quelle page ou quel bouton manque dans votre écran BCA ?";
+  if(bcaMemberShortTurns.some(turn=>normalizeQuestion(turn)===q)&&
+    !["oui","non","comment on fait","les etapes","je vais voir ca ou"].includes(q))
+    return "Pour poursuivre votre démarche précédente : "+bcaMemberClarification(text);
   if(route.key==="current-link-access"&&/\b(?:google drive|drive)\b/.test(q))
     return "Dans Google Drive, ouvrez le fichier ou le dossier concerné, puis choisissez « Partager ». Réglez l’accès en lecture pour l’acheteur autorisé, copiez le lien et testez-le depuis une fenêtre privée ou un compte qui n’est pas propriétaire. N’activez « Toute personne disposant du lien » que si vous souhaitez réellement rendre le contenu accessible à toute personne ayant ce lien. Ne partagez pas de documents contenant des informations personnelles ou confidentielles.";
   if(q==="vous ne m avez pas montre ou le trouver") {

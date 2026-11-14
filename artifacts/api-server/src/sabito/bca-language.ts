@@ -1,3 +1,4 @@
+import { bcaMemberEnglish } from "./bca-member-language";
 import { bcaCurrentRoutes } from "./bca-current-questions";
 import { bcaOwnerClarifications } from "./bca-owner-clarifications";
 
@@ -72,6 +73,7 @@ export const bcaEnglish:Record<string,string>={
 };
 export function englishBcaAnswer(answer:string):string {
   const route=bcaCurrentRoutes.find(item=>item.answer===answer);
+  if(route&&bcaMemberEnglish[route.key])return bcaMemberEnglish[route.key];
   if(route&&bcaEnglish[route.key])return bcaEnglish[route.key];
   if(answer===bcaOwnerClarifications["forgotten-code"])return bcaForgottenCodeEnglish;
   if(answer==="Excellent")return "Excellent";
@@ -101,6 +103,8 @@ export function englishBcaAnswer(answer:string):string {
   return "Service message (original wording preserved):\n\n"+answer;
 }
 export function originalBcaAnswer(answer:string):string {
+  const memberKey=Object.keys(bcaMemberEnglish).find(key=>bcaMemberEnglish[key]===answer);
+  if(memberKey)return bcaCurrentRoutes.find(route=>route.key===memberKey)?.answer??answer;
   if(answer===bcaForgottenCodeEnglish)return bcaOwnerClarifications["forgotten-code"];
   const key=Object.keys(bcaEnglish).find(key=>bcaEnglish[key]===answer);
   if(key)return bcaCurrentRoutes.find(route=>route.key===key)?.answer??answer;

@@ -52,7 +52,9 @@ test("Every new CSV question has an explicit route or an existing contextual tur
     assert.equal(bcaCurrentQuestion(question),route,question);
     if(route.kind==="private") {
       assert.ok(settings.intents.some(intent=>intent.enabled&&intent.backend_function===route.target));
-      assert.equal(detectIntent(question,settings),route.target,question);
+      // Runtime private routing uses the exact table before generic matching;
+      // stored trigger lists deliberately remain bounded to 30 phrases.
+      assert.equal(bcaNovemberRoute(question)?.target,route.target,question);
     }
   }
 });

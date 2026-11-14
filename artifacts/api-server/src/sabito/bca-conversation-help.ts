@@ -13,6 +13,7 @@ import { bcaOwnerContinuation,bcaOwnerClarifications } from "./bca-owner-clarifi
 import { bcaCurrentContinuation,bcaCurrentTurn } from "./bca-current-questions";
 import { originalBcaAnswer } from "./bca-language";
 import { bcaSocialAnswer } from "./bca-session";
+import { bcaMemberShortTurns,bcaMemberClarification } from "./bca-member-guidance";
 
 type Reply=Awaited<ReturnType<typeof retrieveReply>>;
 const social=new Set([conversationClosing,bcaWarmClosing,
@@ -104,6 +105,10 @@ export async function bcaConversationHelp(claims:AccessClaims,conversationId:str
     if(answer)return response(answer,[],true);
     if(kind==="owner-continuation") {
       if(normalizeQuestion(text)==="comment faire"&&previous.trim())return response(previous,[],true);
+      // Existing approved document choices are resolved by bcaDialogueReply.
+      // Clarify only when there is no preceding response to interpret.
+      if(!previous.trim()&&bcaMemberShortTurns.some(turn=>normalizeQuestion(turn)===normalizeQuestion(text)))
+        return response(bcaMemberClarification(text),[],true);
       return null;
     }
   }
